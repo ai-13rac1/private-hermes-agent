@@ -2,6 +2,7 @@
 import os
 import shutil
 import subprocess
+import tempfile
 import yaml
 from pathlib import Path
 
@@ -50,6 +51,23 @@ else:
     if not valid:
         raise SystemExit('Hermes config must set terminal.backend=ssh, model.provider=custom, and model.base_url=http://10.203.83.3:8337/v1. Edit settings with: docker compose run --rm configure set <key> <value>.')
     print('Hermes SSH/teep configuration validated.')
+# Deployment enablement controls the browser listener across ordinary restarts.
+webapp_enabled = os.environ.get('PRIVATE_HERMES_WEBAPP_ENABLED', 'false')
+if webapp_enabled not in ('true', 'false'):
+    raise SystemExit('WEBAPP_ENABLED must be exactly true or false')
+if webapp_enabled == 'false':
+    document = yaml.safe_load(config.read_text())
+    if document.get('webapp', {}).get('enabled'):
+        document['webapp']['enabled'] = False
+        with tempfile.NamedTemporaryFile(mode='w', dir=data, delete=False) as stream:
+            temporary = Path(stream.name)
+            yaml.safe_dump(document, stream, sort_keys=False)
+        try:
+            os.chown(temporary, 10000, 10000)
+            temporary.chmod(0o600)
+            os.replace(temporary, config)
+        finally:
+            temporary.unlink(missing_ok=True)
 directory("/executor-home", 10000, 0o755)
 directory("/executor-work", 10000, 0o755)
 print("Provisioned SSH client trust, executor identity, and separate workspaces.")

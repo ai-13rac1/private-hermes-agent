@@ -3,6 +3,16 @@ name: private-hermes
 # Official Hermes v0.23.0, upstream 2bd378ed; shared by runtime and maintenance.
 x-hermes-image: &hermes-image nousresearch/hermes-agent@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002
 
+x-deployment:
+  webapp_enabled: "${WEBAPP_ENABLED:-false}"
+  funnel_enabled: "${TAILSCALE_FUNNEL_ENABLED:-false}"
+  webapp_bind: "${WEBAPP_BIND:-127.0.0.1}"
+  webapp_port: "${WEBAPP_PORT:-9120}"
+  webapp_username: "${WEBAPP_USERNAME:-admin}"
+  funnel_host: "${TAILSCALE_FUNNEL_HOST:-}"
+  funnel_port: "${TAILSCALE_FUNNEL_PORT:-443}"
+  tailscale_hostname: "${TAILSCALE_HOSTNAME:-private-hermes}"
+
 x-isolated: &isolated
   internal: true
   driver_opts:
@@ -36,6 +46,8 @@ services:
       dockerfile: components/executor/Dockerfile
     network_mode: none
     entrypoint: [python3, /opt/bootstrap.py]
+    environment:
+      PRIVATE_HERMES_WEBAPP_ENABLED: ${WEBAPP_ENABLED:-false}
     volumes:
       - agent-ssh:/agent-ssh
       - executor-auth:/executor-auth

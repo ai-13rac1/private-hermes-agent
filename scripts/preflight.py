@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Read-only checks for required Docker features and conflicting address pools."""
+import argparse
 import ipaddress
 import json
 import re
@@ -19,12 +20,22 @@ def version(value):
 
 
 def main():
-    project = sys.argv[1] if len(sys.argv) > 1 else 'private-hermes'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('project', nargs='?', default='private-hermes')
+    parser.add_argument('--ingress', action='store_true')
+    parser.add_argument('--funnel', action='store_true')
+    arguments = parser.parse_args()
+    project = arguments.project
     if version(output('docker', 'version', '--format', '{{.Server.Version}}')) < (28, 0, 0):
         raise SystemExit('Docker Engine 28+ is required for isolated bridge gateway mode.')
     if version(output('docker', 'compose', 'version', '--short')) < (2, 36, 0):
         raise SystemExit('Docker Compose 2.36+ is required for this deployment.')
-    config = json.loads(output('docker', 'compose', '-p', project, 'config', '--format', 'json'))
+    command = ['docker', 'compose', '-p', project, '-f', 'compose.yaml']
+    if arguments.ingress or arguments.funnel:
+        command += ['-f', 'compose.webapp.yaml']
+    if arguments.funnel:
+        command += ['-f', 'compose.funnel.yaml']
+    config = json.loads(output(*command, 'config', '--format', 'json'))
     selected = [ipaddress.ip_network(c['subnet']) for n in config['networks'].values()
                 for c in n.get('ipam', {}).get('config', []) if 'subnet' in c]
     identifiers = output('docker', 'network', 'ls', '-q').split()

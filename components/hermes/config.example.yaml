@@ -17,6 +17,10 @@ auxiliary:
     provider: main
 terminal:
   backend: ssh
+  ssh_host: 10.203.82.3
+  ssh_port: 2222
+  ssh_user: runner
+  ssh_key: /run/agent-ssh/id_ed25519
   cwd: /workspace
   env_passthrough: []
 # x402_treazury-setup adds the twelve local x402_treazury MCP endpoints after bootstrap.

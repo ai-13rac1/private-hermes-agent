@@ -51,15 +51,15 @@ class OperatorConfigurationTests(unittest.TestCase):
     def test_compose_passes_credentials_only_to_their_intended_services(self):
         provider_keys = ('VENICE_API_KEY', 'NEARAI_API_KEY', 'CHUTES_API_KEY',
                          'TINFOIL_API_KEY', 'NANOGPT_API_KEY', 'PHALA_API_KEY')
-        secrets = {key: 'test-only-' + key for key in (*provider_keys, 'BASE_RPC_URL')}
+        secrets = {key: 'test-only-' + key for key in (*provider_keys, 'BASE_RPC_URL', 'TS_AUTHKEY')}
         environment = dict(os.environ, **secrets)
-        result = subprocess.run(['docker', 'compose', '--profile', '*', 'config', '--format', 'json'],
+        result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', '-f', 'compose.webapp.yaml', '-f', 'compose.funnel.yaml', '--profile', '*', 'config', '--format', 'json'],
                                 cwd=ROOT, env=environment, text=True,
                                 capture_output=True, check=True)
         services = json.loads(result.stdout)['services']
         for name, service in services.items():
             supplied = service.get('environment', {})
-            expected = set(provider_keys) if name == 'teep' else {'BASE_RPC_URL'} if name == 'x402_treazury' else set()
+            expected = set(provider_keys) if name == 'teep' else {'BASE_RPC_URL'} if name == 'x402_treazury' else {'TS_AUTHKEY'} if name == 'tailscale' else set()
             self.assertEqual(set(secrets) & set(supplied), expected, name)
             for key in expected:
                 self.assertEqual(supplied[key], secrets[key])

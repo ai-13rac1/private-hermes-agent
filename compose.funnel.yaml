@@ -1,0 +1,64 @@
+x-funnel-isolated: &isolated
+  internal: true
+  driver_opts:
+    com.docker.network.bridge.gateway_mode_ipv4: isolated
+    com.docker.network.bridge.gateway_mode_ipv6: isolated
+
+services:
+  funnel-ingress:
+    image: private-hermes-webapp-publisher:local
+    init: true
+    build:
+      context: .
+      dockerfile: components/webapp/publisher.Dockerfile
+    command: ["8080", "10.203.86.2", "8443"]
+    user: "10004:10004"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    depends_on:
+      webapp-proxy: {condition: service_started}
+    networks:
+      webapp-ingress:
+        ipv4_address: 10.203.86.4
+      funnel-link:
+        ipv4_address: 10.203.87.3
+    restart: unless-stopped
+
+  tailscale:
+    image: private-hermes-tailscale:local
+    build:
+      context: .
+      dockerfile: components/tailscale/Dockerfile
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:mode=1777, /run:mode=0755]
+    environment:
+      TAILSCALE_FUNNEL_ENABLED: ${TAILSCALE_FUNNEL_ENABLED:-false}
+      TAILSCALE_FUNNEL_HOST: ${TAILSCALE_FUNNEL_HOST:-}
+      TAILSCALE_FUNNEL_PORT: ${TAILSCALE_FUNNEL_PORT:-443}
+      TS_HOSTNAME: ${TAILSCALE_HOSTNAME:-private-hermes}
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_ACCEPT_DNS: "false"
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    networks:
+      funnel-link:
+        ipv4_address: 10.203.87.2
+      tailscale-uplink:
+        gw_priority: 1
+    depends_on:
+      funnel-ingress: {condition: service_started}
+    restart: unless-stopped
+
+networks:
+  funnel-link:
+    <<: *isolated
+    ipam:
+      config: [{subnet: 10.203.87.0/24}]
+  tailscale-uplink: {}
+
+volumes:
+  tailscale-state: {}

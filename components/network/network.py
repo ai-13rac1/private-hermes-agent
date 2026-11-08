@@ -94,6 +94,8 @@ def endpoint(role):
                 f'-A OUTPUT -d {gateway}/32 -p gre -j ACCEPT']
     incoming = []
     if agent:
+        if os.environ.get('PRIVATE_HERMES_WEBAPP', '0') == '1':
+            incoming += ['-A INPUT -s 10.203.85.3/32 -d 10.203.85.2/32 -p tcp --dport 9120 -j ACCEPT']
         outgoing += [
             '-A OUTPUT -d 10.203.83.3/32 -p tcp --dport 8337 -j ACCEPT',
             '-A OUTPUT -d 10.203.82.3/32 -p tcp --dport 2222 -j ACCEPT',

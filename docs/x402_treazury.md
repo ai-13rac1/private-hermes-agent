@@ -68,9 +68,9 @@ the image's native wallet CLI so it uses the same configuration, state volume,
 and Tor socket as serving:
 
 ```sh
-docker compose run --rm x402_treazury wallet --help
+python3 scripts/stack.py compose run --rm x402_treazury wallet --help
 # For a NEW treasury, after reviewing the configuration:
-docker compose run --rm x402_treazury wallet init
+python3 scripts/stack.py compose run --rm x402_treazury wallet init
 ```
 
 These commands start required Tor/network dependencies. Initialization can query
@@ -84,10 +84,10 @@ After initialization and funding:
 
 ```sh
 make up
-docker compose run --rm hermes chat
+make chat
 ```
 
-For a configured messaging gateway, use `docker compose up -d hermes`. Restart existing Hermes processes after provisioning so they
+For a configured messaging gateway, use `make gateway`. Restart existing Hermes processes after provisioning so they
 reload the token and MCP settings. The production server starts its authored
 funding and catalog behavior; startup and tool use can spend money according
 to that policy. There is no extra readiness probe making paid calls.

@@ -1,6 +1,8 @@
 # Authenticated webapp: localhost and optional Tailscale Funnel
 
-Status: proposed; no runtime or public-exposure changes made.
+Status: implemented and locally qualified. Live Tailscale
+enrollment and public-path qualification require operator configuration.
+See `docs/webapp.md` for the implementation workflow.
 
 ## Objective and scope
 
@@ -89,10 +91,10 @@ public HTTPS -> optional Funnel -> fixed ingress -> webapp proxy -> Hermes :9120
 
 Qualify the exact pinned Hermes image before choosing final configuration:
 
-- Candidate design: non-loopback webapp bind on the isolated backend,
+- Qualified design: non-loopback webapp bind on the isolated backend,
   password authentication required, and no fixed `webapp.public_url`, allowing
-  each browser origin to remain itself. This has not yet been qualified end to
-  end. Do not assume a single public URL supports localhost and Funnel correctly.
+  each browser origin to remain itself. Browser tests against the pinned image
+  verify simultaneous local HTTP and simulated external HTTPS origins.
 - Enforce exact configured external hosts at ingress. Reject unexpected hosts,
   including DNS-rebinding shapes. Preserve the real external host; do not
   rewrite all origins to an internal container name.
@@ -155,3 +157,34 @@ Run `make check`, `make test`, and the focused ingress/browser checks. Preserve
 state volumes during rollback; remove ingress layers and restore prior config
 without changing executor privileges or deleting credentials, workspaces,
 conversations, or Tor state.
+
+## Implementation and local qualification record
+
+The implementation uses optional `compose.webapp.yaml` and `compose.funnel.yaml`
+layers selected from `.env` by `scripts/stack.py`. Operator instructions and the
+remaining live-Funnel qualification are in `docs/webapp.md`.
+
+The pinned Hermes image supports the two origins without a fixed public URL.
+Its browser terminal executes in the agent container. Its workspace file API
+uses the SSH backend when the canonical `terminal.ssh_*` configuration fields are
+set; process environment alone does not configure that API. The template and
+webapp setup now write those fields explicitly.
+
+The disposable ingress suite passed real browser login/logout on HTTP and HTTPS,
+cookie flags, native throttling, forbidden origins and hosts, forwarding-header
+spoofing, authenticated and unauthenticated WebSockets, terminal streaming,
+SSH workspace file access, staged upload/download, session persistence across
+restart, password/signing-secret rotation, executor isolation, and webapp
+disablement. No real Tailscale service was started or enrolled. Unit checks also
+exercise disabled Funnel startup, DNS-name mismatch, reset/shutdown failures,
+and deployment reconfiguration. The pinned Tailscale binary and containerboot
+entrypoint were checked offline.
+
+`make check` passed all 17 unit checks, Compose validation and Python compilation.
+`make test` also passed the existing Tor/direct-inference routing, host/VM and
+rpcbind denial, SSH terminal/code execution, selected MCP streaming, and Tor
+outage regressions. `make webapp-test` passed the browser qualification above.
+
+Live enrollment, public login/streaming/WebSockets, and external verification
+that disabling Funnel stops access remain pending operator configuration. The
+TLS fixture does not establish those results.

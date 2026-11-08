@@ -43,8 +43,9 @@ See [configuration and backups](docs/configuration.md) for ownership and backup 
 
 Requires Docker Engine 28+ with Linux containers and Compose 2.36+. The isolated
 bridge gateway mode is required, not an optional optimization. The fixed
-`10.203.80.0/24` through `10.203.84.0/24` address plan must not overlap existing
-networks. `scripts/preflight.py` checks engine features and pool conflicts.
+`10.203.80.0/24` through `10.203.84.0/24` base address plan must not overlap existing
+networks. Optional ingress uses `10.203.85.0/24` through `10.203.87.0/24`.
+`scripts/preflight.py` checks engine features and selected pool conflicts.
 
 ```sh
 make init
@@ -74,16 +75,25 @@ are preserved. Incompatible existing configuration blocks agent startup. Tor boo
 Before inference, edit the model to an ID returned by teep:
 
 ```sh
-docker compose exec teep curl -fsS http://127.0.0.1:8337/v1/models
-docker compose run --rm hermes config set model.default 'provider:model'
-docker compose run --rm hermes chat
+python3 scripts/stack.py compose exec teep curl -fsS http://127.0.0.1:8337/v1/models
+python3 scripts/stack.py compose run --rm hermes config set model.default 'provider:model'
+make chat
 ```
 
 The default `hermes` service command runs a messaging gateway. Configure its
-platform/allowlist credentials using `docker compose run --rm hermes setup`
-if desired, then start it with `docker compose up -d hermes`. Keep the custom
+platform/allowlist credentials using `python3 scripts/stack.py compose run --rm hermes setup`
+if desired, then start it with `make gateway`. Keep the custom
 inference endpoint and SSH backend. No dashboard,
-API, SSH, Tor, or inference ports are published to the host.
+API, SSH, Tor, or inference ports are published by the base stack.
+The optional authenticated webapp publishes only its selected loopback endpoint.
+
+## Authenticated webapp and optional Funnel
+
+See [webapp setup](docs/webapp.md) for native password authentication on host
+loopback and optional public HTTPS through Tailscale Funnel. Both features are
+explicitly enabled in the unified `.env`. Image builds and tests never enroll
+a Tailscale node. An authenticated browser user has administrative access to
+the agent container; its browser terminal is separate from the SSH code executor.
 
 ## Network and execution boundaries
 
@@ -213,8 +223,8 @@ forbidden host/VM/RPC/private destinations, actual Streamable HTTP MCP
 initialize/list/call with SSE responses, unselected ports, and Tor failure.
 Only the test project's containers, networks, and volumes are deleted.
 
-Use `docker compose logs -f tor executor` for startup diagnostics. `make down`
-retains state. `docker compose down -v` permanently deletes the deployment's
+Use `python3 scripts/stack.py compose logs -f tor executor` for startup diagnostics. `make down`
+retains state. `python3 scripts/stack.py compose down -v` permanently deletes the deployment's
 keys, workspaces, memories, and Tor guard state.
 
 References: [Hermes backends](https://hermes-agent.nousresearch.com/docs/user-guide/configuration/#terminal-backend-configuration),

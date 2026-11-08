@@ -1,0 +1,97 @@
+x-webapp-isolated: &isolated
+  internal: true
+  driver_opts:
+    com.docker.network.bridge.gateway_mode_ipv4: isolated
+    com.docker.network.bridge.gateway_mode_ipv6: isolated
+
+services:
+  agent-net:
+    environment:
+      PRIVATE_HERMES_WEBAPP: "1"
+    networks:
+      webapp-backend:
+        ipv4_address: 10.203.85.2
+
+  webapp-setup:
+    image: private-hermes-executor:local
+    network_mode: none
+    entrypoint: [python3, /opt/webapp-setup.py]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    environment:
+      WEBAPP_USERNAME: ${WEBAPP_USERNAME:-admin}
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+      x402_treazury-setup: {condition: service_completed_successfully}
+    volumes:
+      - ./components/webapp/setup.py:/opt/webapp-setup.py:ro
+      - ./components/webapp/auth.py:/opt/auth.py:ro
+      - type: bind
+        source: ./config/webapp/auth.json
+        target: /run/webapp/auth.json
+        read_only: true
+        bind: {create_host_path: false}
+      - hermes-data:/agent-data
+
+  hermes:
+    depends_on:
+      webapp-setup: {condition: service_completed_successfully}
+
+  webapp-proxy:
+    image: private-hermes-webapp-proxy:local
+    build:
+      context: .
+      dockerfile: components/webapp/proxy.Dockerfile
+    user: "10005:10005"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    depends_on:
+      agent-net: {condition: service_healthy}
+    volumes:
+      - type: bind
+        source: ./config/webapp/proxy.cfg
+        target: /usr/local/etc/haproxy/haproxy.cfg
+        read_only: true
+        bind: {create_host_path: false}
+    networks:
+      webapp-backend:
+        ipv4_address: 10.203.85.3
+      webapp-ingress:
+        ipv4_address: 10.203.86.2
+    restart: unless-stopped
+
+  webapp-publisher:
+    image: private-hermes-webapp-publisher:local
+    init: true
+    build:
+      context: .
+      dockerfile: components/webapp/publisher.Dockerfile
+    command: ["${WEBAPP_PORT:-9120}", "10.203.86.2", "8080"]
+    user: "10004:10004"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    depends_on:
+      webapp-proxy: {condition: service_started}
+    ports:
+      - "${WEBAPP_BIND:-127.0.0.1}:${WEBAPP_PORT:-9120}:${WEBAPP_PORT:-9120}"
+    networks:
+      webapp-ingress:
+        ipv4_address: 10.203.86.3
+      webapp-publish: {}
+    restart: unless-stopped
+
+networks:
+  webapp-backend:
+    <<: *isolated
+    ipam:
+      config: [{subnet: 10.203.85.0/24}]
+  webapp-ingress:
+    <<: *isolated
+    ipam:
+      config: [{subnet: 10.203.86.0/24}]
+  webapp-publish:
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"

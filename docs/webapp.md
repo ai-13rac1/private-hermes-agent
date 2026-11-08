@@ -1,0 +1,171 @@
+# Authenticated webapp and optional Tailscale Funnel
+
+The webapp is opt-in. Local access uses native Hermes username/password login
+and binds only to host loopback. Funnel optionally publishes the same webapp
+through public HTTPS. No Tailscale account is needed to visit a Funnel endpoint;
+the visitor authenticates with Hermes. Native password authentication is intended
+upstream for trusted networks/VPN use. Public exposure also exposes the native
+login and session implementation to Internet traffic.
+
+## Enable localhost access
+
+Run `make init` and edit the root `.env` explicitly (initialization never adds
+settings to an existing file):
+
+```dotenv
+WEBAPP_ENABLED=true
+WEBAPP_BIND=127.0.0.1
+WEBAPP_PORT=9120
+WEBAPP_USERNAME=admin
+TAILSCALE_FUNNEL_ENABLED=false
+```
+
+Then generate credentials and build the selected services:
+
+```sh
+make webapp-credentials
+make build
+make up
+```
+
+Open `http://127.0.0.1:9120` or `http://localhost:9120`. Read the generated password
+locally from `config/webapp/password`. The generator never prints it. The password
+file and `config/webapp/auth.json` have mode 0600; auth.json contains the scrypt
+hash and persistent random signing secret. Repeating the generation command
+preserves existing credentials.
+
+The root `.env` supplies deployment settings. `config/webapp/proxy.cfg` is
+generated from those settings and regenerated on `make up`; edit `.env` or the
+component renderer rather than treating the generated proxy file as authoritative. Generated credentials live under
+`config/webapp/`, outside Git and Docker build contexts. Only the networkless
+setup container mounts auth.json. It writes the native authentication settings
+into Hermes's private state volume; neither the executor nor Tailscale receives
+the webapp credentials. Protect backups of `config/` and Hermes state as secrets.
+
+`make up` starts Hermes automatically when the webapp is enabled. It reapplies
+authentication/proxy settings and recreates the gateway so changes take effect.
+Changing enablement recreates the agent namespace and its consumers together.
+Use `make down` before rebuilding/changing namespace configuration on an active
+stack. Application state remains in named volumes.
+
+Use the deployment-aware Compose wrapper for other operator commands:
+
+```sh
+python3 scripts/stack.py compose logs -f hermes webapp-proxy
+make chat
+python3 scripts/stack.py compose exec teep curl -fsS http://127.0.0.1:8337/v1/models
+```
+
+This selects the same overlays as `.env`. Bare base-only Compose commands can
+otherwise recreate services without their optional networks. Use `make up` and
+`make down` for applying feature changes and shutdown.
+
+## Optional public Funnel
+
+Create a legitimate Tailscale enrollment key and permit Funnel for the node in
+your tailnet policy. Set these additional root `.env` settings:
+
+```dotenv
+TAILSCALE_FUNNEL_ENABLED=true
+TAILSCALE_HOSTNAME=private-hermes
+TAILSCALE_FUNNEL_HOST=private-hermes.your-tailnet.ts.net
+TAILSCALE_FUNNEL_PORT=443
+TS_AUTHKEY=your-enrollment-key
+```
+
+The hostname is an example: supply your node's exact assigned `.ts.net` name.
+Ports 443, 8443, and 10000 are supported by Tailscale Funnel. With a nondefault
+HTTPS port, include it in the browser URL. Then run `make build` and `make up`.
+Only this explicit activation starts the Tailscale container and enrollment.
+Building images and running automated tests do not enroll or publish a node.
+
+Tailscale starts with empty forwarding configuration. The wrapper waits for a
+running authenticated node, checks that its DNS name exactly matches the configured
+host, then publishes the fixed webapp target. A name mismatch fails closed.
+Credentials and node identity persist in the private `tailscale-state` volume;
+TS_AUTHKEY can be removed after successful enrollment. An unenrolled node requires
+the key. No host networking, TUN device, network capabilities, or Docker socket
+is used; Tailscale runs with userspace networking.
+
+Set `TAILSCALE_FUNNEL_ENABLED=false` and run `make up` to disable public ingress
+while retaining local access. The workflow resets active Funnel configuration,
+stops/removes the Tailscale and fixed-ingress containers, and retains node state.
+Shutdown also attempts reset. If reset cannot be confirmed, the workflow stops
+the node and reports failure; the next start always begins with empty forwarding
+configuration. `make down` remains available even after malformed feature settings
+and shuts down the whole deployment without deleting volumes.
+
+Set `WEBAPP_ENABLED=false` and `TAILSCALE_FUNNEL_ENABLED=false`, then run `make up`
+to remove all web ingress. Bootstrap also disables the native webapp setting.
+
+## Authentication, origins, and authority
+
+The native provider uses scrypt password hashes, 12-hour access tokens, and
+30-day refresh tokens. The refresh token permits renewal after access-token
+expiry. Its tokens are stateless: clearing browser cookies is not proof that
+all captured tokens have been revoked. Rotate both the password and signing key
+to invalidate outstanding provider tokens:
+
+```sh
+make webapp-rotate
+make up
+```
+
+This saves a new password in the same private file and applies the new credentials
+when the gateway is recreated. HTTP and HTTPS sessions use separate cookie names;
+HTTPS cookies have the native Secure prefix/flag. Cookies are HttpOnly and
+SameSite=Lax. Each hostname requires its own login.
+
+HAProxy enforces exact Host authorities separately on local and Funnel paths.
+It strips Forwarded and every X-Forwarded-* header, then sets scheme and peer
+identity from the selected ingress path. Hermes trusts only the proxy's exact
+backend IP. There is no fixed public_url, so native origin checks use the actual
+host and trusted scheme. WebSockets, streaming responses and application headers
+pass through. No additional body/storage/idle-time limits are introduced.
+HAProxy warns about the intentionally infinite client/server timeouts at startup.
+
+The native password throttle allows 10 attempts per 60 seconds per observed
+client address and resets on process restart. The fixed TCP gateways aggregate
+visitors by ingress address, so this deployment does not claim independent
+per-Internet-client throttling. Supplied client-address headers are discarded.
+
+An authenticated webapp user is an administrator of the agent container. The
+browser terminal runs there and can access agent state; it is separate from
+model-generated terminal/Python execution over SSH. The browser file API is
+backend-aware: workspace paths use SSH, while staged host-side files can remain
+in the agent container. These UI capabilities must not be treated as executor
+sandboxing. The executor has neither ingress network membership nor webapp or
+Tailscale credentials and cannot connect to the private webapp paths.
+
+## Verification and current limits
+
+```sh
+make check
+make test
+make webapp-test
+```
+
+Provision the optional browser-test environment explicitly:
+
+```sh
+python3 -m venv /tmp/private-hermes-browser-tests
+/tmp/private-hermes-browser-tests/bin/pip install -r tests/requirements-browser.txt
+/tmp/private-hermes-browser-tests/bin/python -m playwright install chromium
+WEBAPP_BROWSER_PYTHON=/tmp/private-hermes-browser-tests/bin/python make webapp-test
+```
+
+The ingress suite uses that interpreter (or the invoking Python when unset).
+Use `PLAYWRIGHT_BROWSERS_PATH` if the browser cache is outside its default location.
+It uses disposable native Hermes state, dummy inference credentials, and a local
+TLS fixture on ports 19120 and 10000. No real Tailscale container starts and no
+inference or paid MCP calls are made. Stop normal deployments before testing
+because fixed subnets are shared.
+
+Local/browser qualification does not prove real Funnel enrollment or public
+reachability. Those require the operator's tailnet key, policy, assigned hostname,
+and an external test of login, streaming, WebSockets and disablement. Report
+that step separately; do not equate the TLS fixture with a live Funnel.
+
+References: [Tailscale Docker parameters](https://tailscale.com/docs/features/containers/docker/docker-params),
+[Tailscale Funnel](https://tailscale.com/docs/features/tailscale-funnel), and
+[HAProxy header rules](https://docs.haproxy.org/3.4/configuration.html).

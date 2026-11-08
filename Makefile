@@ -4,16 +4,16 @@ init:
 	python3 scripts/init-config.py
 check:
 	python3 -m unittest discover -s tests -p 'test_*.py'
-	docker compose config --quiet
+	python3 scripts/stack.py config
+	docker compose -f compose.yaml -f compose.webapp.yaml -f compose.funnel.yaml config --quiet
 	python3 -m compileall -q components scripts tests
 build: init check
-	docker compose build
+	python3 scripts/stack.py build
 up: init
-	python3 scripts/preflight.py
-	docker compose up -d --wait bootstrap tor agent-net executor-net executor teep x402_treazury-setup x402_treazury
+	python3 scripts/stack.py up
 
 down:
-	docker compose down
+	python3 scripts/stack.py down
 
 test: check
 	python3 scripts/preflight.py private-hermes-test
@@ -21,9 +21,24 @@ test: check
 
 .PHONY: x402_treazury-setup
 x402_treazury-setup: init
-	docker compose run --rm x402_treazury-setup
+	python3 scripts/stack.py compose run --rm x402_treazury-setup
 
 .PHONY: x402_treazury-test
 x402_treazury-test: check
 	python3 scripts/preflight.py private-hermes-x402-treazury-test
 	python3 -u tests/x402_treazury_smoke.py
+
+.PHONY: webapp-credentials webapp-rotate webapp-test
+webapp-credentials: init
+	python3 scripts/webapp-credentials.py
+webapp-rotate: init
+	python3 scripts/webapp-credentials.py --rotate
+webapp-test: check
+	python3 scripts/preflight.py private-hermes-webapp-test --ingress --funnel
+	python3 -u tests/webapp_smoke.py
+
+.PHONY: chat gateway
+chat:
+	python3 scripts/stack.py compose run --rm hermes chat
+gateway:
+	python3 scripts/stack.py compose up -d hermes

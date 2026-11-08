@@ -21,9 +21,15 @@ Compose explicitly selects each service's environment variables:
 | --- | --- |
 | Inference provider API keys | teep |
 | `BASE_RPC_URL` | x402_treazury |
+| `TS_AUTHKEY` | Optional Tailscale container |
+| Webapp/Funnel enablement, local port and hostname | Deployment workflow and selected ingress components |
+
+Generated webapp credentials are kept separately under `config/webapp/`; see
+[webapp setup](webapp.md). The networkless setup copies native auth settings into
+Hermes state without exposing them to the executor.
 
 No service loads the entire root `.env`. Hermes and the SSH executor receive
-neither set of credentials. Keep provider and funding credentials out of the
+none of the provider, funding, or Tailscale credentials. Keep provider and funding credentials out of the
 Hermes workspace, skills, and profile. Add future deployment settings to the
 example and explicit Compose mappings together.
 
@@ -32,7 +38,8 @@ initial file is `config/network/mcp-allowlist.json`; its tracked default is
 `components/network/mcp-allowlist.json`. `make init` creates the local copy only
 if missing. Existing local policy is preserved. The service mounts it read-only,
 and Compose refuses to create a directory if the source file is missing. Run
-`make init` before using plain `docker compose up` on a fresh checkout.
+`make init` before starting a fresh checkout. Use `make up` and the
+`scripts/stack.py compose` wrapper so enabled ingress layers are selected.
 
 Other component files, such as Tor/SSH settings, resolver settings, and the
 initial Hermes configuration template, remain implementation-owned defaults.

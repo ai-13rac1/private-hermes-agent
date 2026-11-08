@@ -1,0 +1,40 @@
+services:
+  hermes:
+    user: "0:0"
+    init: false
+    entrypoint: !reset null
+    command: [gateway, run]
+    cap_drop: !override [NET_ADMIN, NET_RAW]
+  webapp-setup:
+    volumes:
+      - type: bind
+        source: ${WEBAPP_TEST_AUTH:?test auth required}
+        target: /run/webapp/auth.json
+        read_only: true
+        bind: {create_host_path: false}
+  webapp-proxy:
+    volumes:
+      - type: bind
+        source: ${WEBAPP_TEST_PROXY:?test proxy required}
+        target: /usr/local/etc/haproxy/haproxy.cfg
+        read_only: true
+        bind: {create_host_path: false}
+  tailscale:
+    profiles: [real-funnel]
+  tls-fixture:
+    image: private-hermes-executor:local
+    init: true
+    user: "10000:10000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    command: [python3, /opt/webapp-tls.py]
+    volumes:
+      - ./tests/fixtures/webapp-tls.py:/opt/webapp-tls.py:ro
+      - ./components/webapp/publisher.py:/opt/publisher.py:ro
+      - ${WEBAPP_TEST_TLS:?test TLS required}:/run/test-tls:ro
+    ports: ["127.0.0.1:10000:10000"]
+    networks:
+      funnel-link:
+        ipv4_address: 10.203.87.2
+      webapp-publish: {}
