@@ -1,0 +1,23 @@
+# Bootstrap copies this only when /opt/data/config.yaml does not exist.
+model:
+  provider: custom
+  base_url: http://10.203.83.3:8337/v1
+  api_key: unused
+  default: venice:e2ee-qwen3-5-122b-a10b
+auxiliary:
+  vision:
+    provider: main
+  title_generation:
+    provider: main
+  compression:
+    provider: main
+  mcp:
+    provider: main
+  approval:
+    provider: main
+terminal:
+  backend: ssh
+  cwd: /workspace
+  env_passthrough: []
+# Selected MCP servers will be added here after the base deployment is qualified.
+mcp_servers: {}

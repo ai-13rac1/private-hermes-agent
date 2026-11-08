@@ -1,0 +1,31 @@
+services:
+  hermes:
+    user: "10000:10000"
+    init: true
+    entrypoint: [/bin/sleep]
+    command: [infinity]
+    cap_drop: [ALL]
+    environment:
+      HERMES_HOME: /opt/data
+      AGENT_ONLY_SENTINEL: must-not-reach-executor
+  teep:
+    env_file: !reset []
+    environment:
+      VENICE_API_KEY: integration-placeholder-not-a-real-key
+  agent-net:
+    volumes:
+      - ./tests/mcp-allowlist.json:/etc/private-hermes/mcp-allowlist.json:ro
+  fixture:
+    image: private-hermes-executor:local
+    user: "10000:10000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    command: [python3, /opt/fixture.py]
+    volumes:
+      - ./tests/fixture.py:/opt/fixture.py:ro
+    networks:
+      mcp-access:
+        ipv4_address: 10.203.84.10
+      agent-route:
+        ipv4_address: 10.203.80.10

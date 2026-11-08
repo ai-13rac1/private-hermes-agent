@@ -1,0 +1,5 @@
+*
+!docker/
+!docker/**
+!config/
+!config/sshd_config
