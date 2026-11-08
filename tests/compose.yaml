@@ -29,3 +29,12 @@ services:
         ipv4_address: 10.203.84.10
       agent-route:
         ipv4_address: 10.203.80.10
+  research-desk:
+    # Real Rust server; test config has local catalogs, an ephemeral static key,
+    # no treasury, no funding configuration, and only a free Tor-check API.
+    env_file: !reset []
+    entrypoint: [python3, /opt/research-fixture.py]
+    working_dir: /tmp
+    volumes:
+      - ./tests/research-fixture.py:/opt/research-fixture.py:ro
+      - ./docker/research_endpoints.py:/opt/research_endpoints.py:ro

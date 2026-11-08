@@ -56,9 +56,12 @@ services:
   tor:
     <<: *network
     command: [router]
+    environment:
+      PRIVATE_HERMES_RESEARCH_SOCKS: "1"
     cap_add: [NET_ADMIN, SETUID, SETGID, CHOWN, FOWNER, DAC_OVERRIDE]
     volumes:
       - tor-state:/var/lib/tor
+      - tor-research:/run/tor-research
       - ./config/torrc:/etc/tor/torrc:ro
     tmpfs:
       - /tmp:mode=1777
@@ -162,6 +165,46 @@ services:
     tmpfs: [/tmp:mode=1777]
     restart: unless-stopped
 
+  research-setup:
+    image: private-hermes-executor:local
+    network_mode: none
+    entrypoint: [python3, /opt/research-setup.py]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    volumes:
+      - ./docker/research-setup.py:/opt/research-setup.py:ro
+      - ./docker/research_endpoints.py:/opt/research_endpoints.py:ro
+      - research-auth:/research-auth
+      - hermes-data:/agent-data
+
+  research-desk:
+    image: private-hermes-research:local
+    build:
+      context: .
+      dockerfile: docker/x402-treazury.Dockerfile
+    user: "10003:10003"
+    group_add: ["102"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:mode=1777]
+    depends_on:
+      tor: {condition: service_healthy}
+      research-setup: {condition: service_completed_successfully}
+      agent-net: {condition: service_healthy}
+    network_mode: service:agent-net
+    volumes:
+      - tor-research:/run/tor-research:ro
+      - research-auth:/run/research-auth:ro
+      - research-state:/var/lib/x402
+    env_file:
+      - path: ./research.env
+        required: false
+    restart: unless-stopped
+
   hermes:
     image: ${HERMES_IMAGE:-nousresearch/hermes-agent@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002}
     network_mode: service:agent-net
@@ -170,6 +213,8 @@ services:
       agent-net: {condition: service_healthy}
       executor: {condition: service_healthy}
       teep: {condition: service_healthy}
+      research-setup: {condition: service_completed_successfully}
+      research-desk: {condition: service_started}
     cap_drop: [NET_ADMIN, NET_RAW]
     security_opt: [no-new-privileges:true]
     volumes:
@@ -222,3 +267,6 @@ volumes:
   executor-auth: {}
   executor-home: {}
   executor-work: {}
+  tor-research: {}
+  research-auth: {}
+  research-state: {}

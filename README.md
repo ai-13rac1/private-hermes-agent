@@ -31,7 +31,8 @@ networks. `scripts/preflight.py` checks engine features and pool conflicts.
 ```sh
 cp -n .env.example .env
 cp -n teep.env.example teep.env
-chmod 600 .env teep.env
+cp -n research.env.example research.env
+chmod 600 .env teep.env research.env
 ```
 
 Add at least one provider key to `teep.env`. These keys are supplied only to
@@ -40,10 +41,12 @@ private cookie-authenticated Unix socket in the Tor container.
 
 ```sh
 make build
-make up
+make research-setup
 ```
 
-`make up` starts the routing, inference, and executor services. Hermes runs
+Before the first `make up`, follow the [research desk setup guide](docs/research-desk.md)
+to configure `BASE_RPC_URL` and explicitly initialize or restore the treasury.
+Then `make up` starts routing, inference, executor, and research MCP services. Hermes runs
 interactively with the command below, or as a gateway after messaging setup.
 
 `bootstrap` runs without networking. It generates separate SSH client and host
@@ -145,7 +148,16 @@ alone does not replace either application's network namespace.
   their firewall rules and have no direct fallback. Existing local teep/MCP/SSH
   paths remain usable. Initial startup waits for Tor readiness.
 
-## Adding selected HTTP MCP servers later
+## Research desk MCP servers
+
+The default [research desk integration](docs/research-desk.md) builds
+x402_treazury and connects its twelve authenticated MCP endpoints over shared
+localhost. It keeps wallet state in a separate container volume and uses a
+private Tor SOCKS Unix socket. The SSH executor has no access to these endpoints
+or their bearer token. See that guide for build, wallet initialization, startup,
+and verification instructions.
+
+## Adding other selected HTTP MCP servers
 
 The base allowlist is deliberately empty. A server should join only the
 `mcp-access` internal network and receive a fixed unused address such as
@@ -173,14 +185,15 @@ Do not give an MCP server an uplink, host mounts, or engine access unless its
 role requires that authority. Servers needing public access can be given a
 separately reviewed Tor route; they do not inherit the agent's egress. Powerful
 MCP tools remain explicitly granted capabilities available through Hermes.
-No actual MCP server is configured until you select one.
+The twelve research MCP servers run by default; this allowlist is for additional servers.
 
 ## Images and other Hermes isolation choices
 
 - Tor: `dockurr/tor:0.4.9.16`, pinned by digest in
   `docker/network.Dockerfile`. The derived image adds our firewall/route setup
   and local authenticated bootstrap health check. Tor runs as UID 101 after
-  initialization; there is no TCP control API, SOCKS service, or HTTP proxy.
+  initialization; there is no TCP control API, TCP SOCKS service, or HTTP proxy.
+  A private SOCKS Unix socket is mounted only into the research container.
 - Hermes: inspected official v0.23.0 image, pinned by digest. Override
   `HERMES_IMAGE` in `.env` when reviewing an upgrade.
 - teep: built from commit `789918ea606826650447a7f1930b917521d3d135`
@@ -207,8 +220,9 @@ make test
 ```
 
 The live test uses a separate disposable Compose project with the actual pinned
-Hermes image, the real SSH executor, real Tor, and teep with a dummy provider
-key. It performs no inference. Stop a normal deployment before running it:
+Hermes image, the real SSH executor, real Tor, teep with a dummy provider
+key, and the research server with an unfunded fixture wallet. It performs no
+inference or paid research calls. Stop a normal deployment before running it:
 projects use the same fixed subnets, and preflight refuses overlaps.
 
 Tests cover actual Hermes terminal and Python execution over SSH, absence of

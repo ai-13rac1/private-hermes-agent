@@ -19,5 +19,5 @@ terminal:
   backend: ssh
   cwd: /workspace
   env_passthrough: []
-# Selected MCP servers will be added here after the base deployment is qualified.
+# research-setup adds the twelve local research MCP endpoints after bootstrap.
 mcp_servers: {}
