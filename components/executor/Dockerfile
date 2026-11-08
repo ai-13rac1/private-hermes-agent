@@ -5,7 +5,7 @@ RUN apk add --no-cache bash python3 py3-pip py3-yaml git curl openssh-server ope
     && passwd -u runner \
     && mkdir -p /workspace /run/sshd \
     && chown runner:runner /workspace
-COPY docker/bootstrap.py /opt/bootstrap.py
-COPY config/sshd_config /etc/ssh/sshd_config
+COPY components/provisioning/bootstrap.py /opt/bootstrap.py
+COPY components/executor/sshd_config /etc/ssh/sshd_config
 WORKDIR /workspace
 CMD ["/usr/sbin/sshd", "-D", "-e", "-f", "/etc/ssh/sshd_config"]

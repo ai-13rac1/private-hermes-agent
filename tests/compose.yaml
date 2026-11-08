@@ -9,12 +9,21 @@ services:
       HERMES_HOME: /opt/data
       AGENT_ONLY_SENTINEL: must-not-reach-executor
   teep:
-    env_file: !reset []
     environment:
       VENICE_API_KEY: integration-placeholder-not-a-real-key
+      NEARAI_API_KEY: ""
+      CHUTES_API_KEY: ""
+      TINFOIL_API_KEY: ""
+      NANOGPT_API_KEY: ""
+      PHALA_API_KEY: ""
   agent-net:
     volumes:
-      - ./tests/mcp-allowlist.json:/etc/private-hermes/mcp-allowlist.json:ro
+      - type: bind
+        source: ./tests/fixtures/mcp-allowlist.json
+        target: /etc/private-hermes/mcp-allowlist.json
+        read_only: true
+        bind:
+          create_host_path: false
   fixture:
     image: private-hermes-executor:local
     user: "10000:10000"
@@ -23,18 +32,19 @@ services:
     read_only: true
     command: [python3, /opt/fixture.py]
     volumes:
-      - ./tests/fixture.py:/opt/fixture.py:ro
+      - ./tests/fixtures/mcp.py:/opt/fixture.py:ro
     networks:
       mcp-access:
         ipv4_address: 10.203.84.10
       agent-route:
         ipv4_address: 10.203.80.10
-  research-desk:
+  x402_treazury:
     # Real Rust server; test config has local catalogs, an ephemeral static key,
     # no treasury, no funding configuration, and only a free Tor-check API.
-    env_file: !reset []
-    entrypoint: [python3, /opt/research-fixture.py]
+    environment:
+      BASE_RPC_URL: ""
+    entrypoint: [python3, /opt/x402_treazury-fixture.py]
     working_dir: /tmp
     volumes:
-      - ./tests/research-fixture.py:/opt/research-fixture.py:ro
-      - ./docker/research_endpoints.py:/opt/research_endpoints.py:ro
+      - ./tests/fixtures/x402_treazury.py:/opt/x402_treazury-fixture.py:ro
+      - ./components/x402_treazury/endpoints.py:/opt/endpoints.py:ro

@@ -153,15 +153,15 @@ def router():
     state.chmod(0o700)
     print('router: firewall installed; starting Tor without network capabilities', flush=True)
     config = '/etc/tor/torrc'
-    if os.environ.get('PRIVATE_HERMES_RESEARCH_SOCKS', '0') == '1':
-        socks = Path('/run/tor-research')
+    if os.environ.get('PRIVATE_HERMES_X402_TREAZURY_SOCKS', '0') == '1':
+        socks = Path('/run/tor-x402_treazury')
         os.chown(socks, 101, 102)
         socks.chmod(0o750)
         original = Path(config).read_text()
         if original.splitlines().count('SocksPort 0') != 1:
             raise ValueError('Expected one disabled SOCKS listener in the base Tor config')
-        rendered = original.replace('SocksPort 0', 'SocksPort unix:/run/tor-research/socks IsolateSOCKSAuth GroupWritable RelaxDirModeCheck')
-        config = '/tmp/research-torrc'
+        rendered = original.replace('SocksPort 0', 'SocksPort unix:/run/tor-x402_treazury/socks IsolateSOCKSAuth GroupWritable RelaxDirModeCheck')
+        config = '/tmp/x402_treazury-torrc'
         Path(config).write_text(rendered)
     os.execvp('su-exec', ['su-exec', '101:102', '/usr/bin/tor', '-f', config])
 

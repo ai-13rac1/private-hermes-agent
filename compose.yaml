@@ -1,5 +1,8 @@
 name: private-hermes
 
+# Official Hermes v0.23.0, upstream 2bd378ed; shared by runtime and maintenance.
+x-hermes-image: &hermes-image nousresearch/hermes-agent@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002
+
 x-isolated: &isolated
   internal: true
   driver_opts:
@@ -10,7 +13,7 @@ x-network: &network
   image: private-hermes-network:local
   build:
     context: .
-    dockerfile: docker/network.Dockerfile
+    dockerfile: components/network/Dockerfile
   cap_drop: [ALL]
   cap_add: [NET_ADMIN]
   security_opt: [no-new-privileges:true]
@@ -30,7 +33,7 @@ services:
     image: private-hermes-executor:local
     build:
       context: .
-      dockerfile: docker/executor.Dockerfile
+      dockerfile: components/executor/Dockerfile
     network_mode: none
     entrypoint: [python3, /opt/bootstrap.py]
     volumes:
@@ -39,11 +42,11 @@ services:
       - hermes-data:/agent-data
       - executor-home:/executor-home
       - executor-work:/executor-work
-      - ./config/hermes.example.yaml:/opt/hermes-config.yaml:ro
+      - ./components/hermes/config.example.yaml:/opt/hermes-config.yaml:ro
 
   configure:
     profiles: [maintenance]
-    image: ${HERMES_IMAGE:-nousresearch/hermes-agent@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002}
+    image: *hermes-image
     network_mode: none
     user: "10000:10000"
     init: true
@@ -57,12 +60,12 @@ services:
     <<: *network
     command: [router]
     environment:
-      PRIVATE_HERMES_RESEARCH_SOCKS: "1"
+      PRIVATE_HERMES_X402_TREAZURY_SOCKS: "1"
     cap_add: [NET_ADMIN, SETUID, SETGID, CHOWN, FOWNER, DAC_OVERRIDE]
     volumes:
       - tor-state:/var/lib/tor
-      - tor-research:/run/tor-research
-      - ./config/torrc:/etc/tor/torrc:ro
+      - tor-x402_treazury:/run/tor-x402_treazury
+      - ./components/network/torrc:/etc/tor/torrc:ro
     tmpfs:
       - /tmp:mode=1777
       - /run/tor-control:uid=101,gid=102,mode=0700
@@ -86,7 +89,12 @@ services:
     depends_on:
       tor: {condition: service_healthy}
     volumes:
-      - ./config/mcp-allowlist.json:/etc/private-hermes/mcp-allowlist.json:ro
+      - type: bind
+        source: ./config/network/mcp-allowlist.json
+        target: /etc/private-hermes/mcp-allowlist.json
+        read_only: true
+        bind:
+          create_host_path: false
     networks:
       agent-route:
         ipv4_address: 10.203.80.2
@@ -112,7 +120,7 @@ services:
     image: private-hermes-executor:local
     build:
       context: .
-      dockerfile: docker/executor.Dockerfile
+      dockerfile: components/executor/Dockerfile
     network_mode: service:executor-net
     depends_on:
       bootstrap: {condition: service_completed_successfully}
@@ -126,7 +134,7 @@ services:
       - executor-auth:/run/executor-auth:ro
       - executor-home:/home/runner
       - executor-work:/workspace
-      - ./config/executor-resolv.conf:/etc/resolv.conf:ro
+      - ./components/executor/resolv.conf:/etc/resolv.conf:ro
     restart: unless-stopped
     healthcheck:
       test: [CMD-SHELL, "test -f /run/sshd.pid && kill -0 $$(cat /run/sshd.pid)"]
@@ -140,12 +148,15 @@ services:
     image: private-hermes-teep:local
     build:
       context: .
-      dockerfile: docker/teep.Dockerfile
-    env_file:
-      - path: ${TEEP_ENV_FILE:-./teep.env}
-        required: false
+      dockerfile: components/teep/Dockerfile
     environment:
       TEEP_LISTEN_ADDR: 0.0.0.0:8337
+      VENICE_API_KEY: ${VENICE_API_KEY:-}
+      NEARAI_API_KEY: ${NEARAI_API_KEY:-}
+      CHUTES_API_KEY: ${CHUTES_API_KEY:-}
+      TINFOIL_API_KEY: ${TINFOIL_API_KEY:-}
+      NANOGPT_API_KEY: ${NANOGPT_API_KEY:-}
+      PHALA_API_KEY: ${PHALA_API_KEY:-}
       HTTP_PROXY: ""
       HTTPS_PROXY: ""
       ALL_PROXY: ""
@@ -165,26 +176,26 @@ services:
     tmpfs: [/tmp:mode=1777]
     restart: unless-stopped
 
-  research-setup:
+  x402_treazury-setup:
     image: private-hermes-executor:local
     network_mode: none
-    entrypoint: [python3, /opt/research-setup.py]
+    entrypoint: [python3, /opt/x402_treazury-setup.py]
     cap_drop: [ALL]
     cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
     security_opt: [no-new-privileges:true]
     depends_on:
       bootstrap: {condition: service_completed_successfully}
     volumes:
-      - ./docker/research-setup.py:/opt/research-setup.py:ro
-      - ./docker/research_endpoints.py:/opt/research_endpoints.py:ro
-      - research-auth:/research-auth
+      - ./components/x402_treazury/setup.py:/opt/x402_treazury-setup.py:ro
+      - ./components/x402_treazury/endpoints.py:/opt/endpoints.py:ro
+      - x402_treazury-auth:/x402_treazury-auth
       - hermes-data:/agent-data
 
-  research-desk:
-    image: private-hermes-research:local
+  x402_treazury:
+    image: private-hermes-x402_treazury:local
     build:
       context: .
-      dockerfile: docker/x402-treazury.Dockerfile
+      dockerfile: components/x402_treazury/Dockerfile
     user: "10003:10003"
     group_add: ["102"]
     cap_drop: [ALL]
@@ -193,35 +204,34 @@ services:
     tmpfs: [/tmp:mode=1777]
     depends_on:
       tor: {condition: service_healthy}
-      research-setup: {condition: service_completed_successfully}
+      x402_treazury-setup: {condition: service_completed_successfully}
       agent-net: {condition: service_healthy}
     network_mode: service:agent-net
     volumes:
-      - tor-research:/run/tor-research:ro
-      - research-auth:/run/research-auth:ro
-      - research-state:/var/lib/x402
-    env_file:
-      - path: ./research.env
-        required: false
+      - tor-x402_treazury:/run/tor-x402_treazury:ro
+      - x402_treazury-auth:/run/x402_treazury-auth:ro
+      - x402_treazury-state:/var/lib/x402
+    environment:
+      BASE_RPC_URL: ${BASE_RPC_URL:-}
     restart: unless-stopped
 
   hermes:
-    image: ${HERMES_IMAGE:-nousresearch/hermes-agent@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002}
+    image: *hermes-image
     network_mode: service:agent-net
     depends_on:
       bootstrap: {condition: service_completed_successfully}
       agent-net: {condition: service_healthy}
       executor: {condition: service_healthy}
       teep: {condition: service_healthy}
-      research-setup: {condition: service_completed_successfully}
-      research-desk: {condition: service_started}
+      x402_treazury-setup: {condition: service_completed_successfully}
+      x402_treazury: {condition: service_started}
     cap_drop: [NET_ADMIN, NET_RAW]
     security_opt: [no-new-privileges:true]
     volumes:
       - hermes-data:/opt/data
       - agent-ssh:/run/agent-ssh:ro
-      - ./config/ssh-client.conf:/etc/ssh/ssh_config.d/99-private-hermes.conf:ro
-      - ./config/agent-resolv.conf:/etc/resolv.conf:ro
+      - ./components/hermes/ssh-client.conf:/etc/ssh/ssh_config.d/99-private-hermes.conf:ro
+      - ./components/hermes/resolv.conf:/etc/resolv.conf:ro
     environment:
       HERMES_UID: "10000"
       HERMES_GID: "10000"
@@ -267,6 +277,6 @@ volumes:
   executor-auth: {}
   executor-home: {}
   executor-work: {}
-  tor-research: {}
-  research-auth: {}
-  research-state: {}
+  tor-x402_treazury: {}
+  x402_treazury-auth: {}
+  x402_treazury-state: {}

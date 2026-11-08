@@ -1,5 +1,5 @@
-.env
-teep.env
+/.env
+/config/
+/data/
 __pycache__/
 reference_repos/
-research.env

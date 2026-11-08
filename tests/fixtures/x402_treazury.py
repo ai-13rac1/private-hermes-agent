@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 import secrets
-from research_endpoints import ADDRESS, ENDPOINTS
+from endpoints import ADDRESS, ENDPOINTS
 
 spec = {
     'openapi': '3.0.3', 'info': {'title': 'Free Tor check', 'version': '1'},
@@ -14,7 +14,7 @@ Path('/tmp/tor-check.json').write_text(json.dumps(spec))
 config = '''version=1
 [network]
 mode="tor"
-socks_endpoint="unix:/run/tor-research/socks"
+socks_endpoint="unix:/run/tor-x402_treazury/socks"
 socks_auth="tor_extended"
 [wallets.fixture]
 mode="static"
@@ -34,8 +34,8 @@ bearer_token_env="X402_TREAZURY_MCP_TOKEN"
 wallet="fixture"
 sources=["torcheck"]
 '''
-Path('/tmp/research-test.toml').write_text(config)
-os.environ['X402_TREAZURY_MCP_TOKEN'] = Path('/run/research-auth/token').read_text().strip()
+Path('/tmp/x402_treazury-test.toml').write_text(config)
+os.environ['X402_TREAZURY_MCP_TOKEN'] = Path('/run/x402_treazury-auth/token').read_text().strip()
 os.environ['RESEARCH_TEST_KEY'] = secrets.token_hex(32)
-os.environ['X402_TREAZURY_CONFIG'] = '/tmp/research-test.toml'
+os.environ['X402_TREAZURY_CONFIG'] = '/tmp/x402_treazury-test.toml'
 os.execvp('x402_treazury', ['x402_treazury', 'serve'])

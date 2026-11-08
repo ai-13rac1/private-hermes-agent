@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 import sys
 import tomllib
-from research_endpoints import ADDRESS, ENDPOINTS
+from endpoints import ADDRESS, ENDPOINTS
 
 
 def render(source):
@@ -11,10 +11,10 @@ def render(source):
     servers = before['servers']
     expected = ENDPOINTS
     if {name: server['listen'] for name, server in servers.items()} != {name: f'{ADDRESS}:{port}' for name, port in expected.items()}:
-        raise ValueError('Upstream research-desk endpoint inventory changed; review the integration')
+        raise ValueError('Upstream x402_treazury endpoint inventory changed; review the integration')
     if before['network']['mode'] != 'tor':
         raise ValueError('Research desk must retain Tor mode')
-    text, count = re.subn(r'^socks_endpoint = .*$', 'socks_endpoint = "unix:/run/tor-research/socks"', source, flags=re.M)
+    text, count = re.subn(r'^socks_endpoint = .*$', 'socks_endpoint = "unix:/run/tor-x402_treazury/socks"', source, flags=re.M)
     if count != 1:
         raise ValueError('Expected one SOCKS endpoint')
     text, count = re.subn(r'^state_dir = .*$', 'state_dir = "/var/lib/x402/state"', text, flags=re.M)

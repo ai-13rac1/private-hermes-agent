@@ -4,7 +4,7 @@ from pathlib import Path
 import secrets
 import tempfile
 import yaml
-from research_endpoints import ADDRESS, ENDPOINTS
+from endpoints import ADDRESS, ENDPOINTS
 
 
 def publish(path, text, uid, mode):
@@ -20,7 +20,7 @@ def publish(path, text, uid, mode):
 
 
 
-auth = Path('/research-auth')
+auth = Path('/x402_treazury-auth')
 os.chown(auth, 10003, 10003)
 auth.chmod(0o700)
 token_path = auth / 'token'
@@ -28,14 +28,14 @@ if not token_path.exists():
     publish(token_path, secrets.token_urlsafe(32) + '\n', 10003, 0o600)
 token = token_path.read_text().strip()
 if not token or any(c.isspace() for c in token):
-    raise SystemExit('Existing research MCP token is invalid; it was not replaced')
+    raise SystemExit('Existing x402_treazury MCP token is invalid; it was not replaced')
 
 home = Path('/agent-data')
 config_path = home / 'config.yaml'
 config = yaml.safe_load(config_path.read_text())
 servers = config.setdefault('mcp_servers', {})
 for name, port in ENDPOINTS.items():
-    key = 'research_' + name
+    key = 'x402_treazury_' + name
     entry = {'url': f'http://{ADDRESS}:{port}/mcp',
              'headers': {'Authorization': 'Bearer ${X402_TREAZURY_MCP_TOKEN}'}}
     if key in servers and (not isinstance(servers[key], dict) or servers[key].get('url') != entry['url'] or servers[key].get('headers', {}).get('Authorization') != entry['headers']['Authorization']):
@@ -50,4 +50,4 @@ lines = [line for line in lines if not line.lstrip().startswith(('X402_TREAZURY_
 lines.append('X402_TREAZURY_MCP_TOKEN=' + token)
 publish(env_path, '\n'.join(lines) + '\n', 10000, 0o600)
 publish(config_path, yaml.safe_dump(config, sort_keys=False), 10000, 0o600)
-print('Provisioned 12 research MCP endpoints and their bearer token; wallet state was not accessed.')
+print('Provisioned 12 x402_treazury MCP endpoints and their bearer token; wallet state was not accessed.')

@@ -5,7 +5,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('policy', Path(__file__).parents[1] / 'docker/network.py')
+spec = importlib.util.spec_from_file_location('policy', Path(__file__).parents[1] / 'components/network/network.py')
 policy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(policy)
 

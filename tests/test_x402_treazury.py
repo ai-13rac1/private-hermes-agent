@@ -1,13 +1,13 @@
-"""Keep research deployment adaptation narrow and reject upstream layout drift."""
+"""Keep x402_treazury deployment adaptation narrow and reject upstream layout drift."""
 import importlib.util
 from pathlib import Path
 import sys
 import tomllib
 import unittest
 
-sys.path.insert(0, str(Path(__file__).parents[1] / 'docker'))
-from research_endpoints import ENDPOINTS
-spec = importlib.util.spec_from_file_location('research_render', Path(__file__).parents[1] / 'docker/render-research-desk.py')
+sys.path.insert(0, str(Path(__file__).parents[1] / 'components/x402_treazury'))
+from endpoints import ENDPOINTS
+spec = importlib.util.spec_from_file_location('x402_treazury_render', Path(__file__).parents[1] / 'components/x402_treazury/render-config.py')
 renderer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(renderer)
 
@@ -37,7 +37,7 @@ wallet="web"
     return text
 
 
-class ResearchRendererTests(unittest.TestCase):
+class X402TreazuryRendererTests(unittest.TestCase):
     def test_policy_and_source_selection_are_preserved(self):
         before = tomllib.loads(example())
         after = tomllib.loads(renderer.render(example()))
@@ -45,7 +45,7 @@ class ResearchRendererTests(unittest.TestCase):
             self.assertEqual(before[field], after[field])
         self.assertEqual(after['network']['socks_auth'], 'tor_extended')
         self.assertEqual(after['network']['mode'], 'tor')
-        self.assertEqual(after['network']['socks_endpoint'], 'unix:/run/tor-research/socks')
+        self.assertEqual(after['network']['socks_endpoint'], 'unix:/run/tor-x402_treazury/socks')
         self.assertEqual(after['treasury']['state_dir'], '/var/lib/x402/state')
         self.assertEqual(after['servers']['web']['listen'], '127.0.0.1:3010')
         self.assertEqual(after['servers']['web']['allowed_hosts'], ['127.0.0.1'])

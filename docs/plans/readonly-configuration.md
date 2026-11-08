@@ -15,7 +15,7 @@ to the SSH execution boundary are outside scope.
 
 ## Current baseline
 
-- `bootstrap` copies `config/hermes.example.yaml` into the `hermes-data` volume
+- `bootstrap` copies `components/hermes/config.example.yaml` into the `hermes-data` volume
   only when `/opt/data/config.yaml` is absent.
 - For an existing config, bootstrap checks the SSH backend and custom teep
   endpoint before permitting agent startup.

@@ -59,14 +59,18 @@ public HTTPS -> optional Funnel -> fixed ingress -> webapp proxy -> Hermes :9120
 
 ## Configuration and activation
 
-1. Introduce strictly parsed, documented `.env.wrapper` settings for webapp
-   enablement, localhost binding/port, Funnel enablement, and Tailscale node
-   identity. Retain existing `.env` image selection behavior deliberately.
-2. Render/select Compose layers through the existing Make workflow. Invalid
+1. Introduce strictly parsed, documented settings in the root `.env` and
+   `.env.example` for webapp enablement, localhost binding/port, Funnel
+   enablement, and Tailscale node identity. Keep image pins in `compose.yaml`
+   and component Dockerfiles. Pass each service only its selected settings.
+2. Integrate optional Compose service activation with the Make workflow. Invalid
    booleans or inconsistent settings must fail before startup. With Funnel
    disabled, run no Tailscale service and require no Tailscale credentials.
 3. Store webapp authentication and Tailscale secrets outside Git, with scoped
-   mounts/environment injection and restrictive file permissions. Generate a
+   mounts/environment injection and restrictive file permissions. Use the root
+   `.env` for supplied deployment settings, `config/` for editable mounted
+   configuration, and private persistent storage for generated identities.
+   Keep container implementation files under `components/`. Generate a
    strong unique password and persistent random session-signing secret through
    an explicit operator workflow; never log credentials or pass them to code
    execution. Preserve credentials across ordinary restarts.
@@ -129,7 +133,7 @@ Do not disable authentication or origin protections to force compatibility.
 
 ## Qualification and acceptance
 
-- Check fresh setup, existing-volume migration, ordinary restart, and clean
+- Check fresh setup, repeated initialization, ordinary restart, and clean
   shutdown. Refuse exposure when authentication is missing.
 - Test unauthenticated page, API, download/upload, and WebSocket requests. A
   successful login-page redirect alone is insufficient evidence of protection.

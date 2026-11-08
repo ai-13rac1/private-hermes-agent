@@ -21,6 +21,24 @@ configure routes and firewall rules before applications start, then remain as
 stable namespace owners. Tor is in a third namespace; impersonating Tor's UID
 inside an application cannot grant a direct uplink.
 
+## Repository layout and local configuration
+
+- `components/`: tracked Dockerfiles, container scripts, and component defaults.
+- `.env`: private operator settings, selected explicitly for each service.
+- `config/`: private editable bind-mount configuration; initialized from defaults.
+- `data/`: reserved for future application-state bind mounts; currently unused.
+- `scripts/`: host-side initialization and checks.
+- `tests/fixtures/`: disposable test servers and configuration.
+
+`make init` creates missing local configuration files and leaves existing files
+unchanged. Add new settings explicitly using `.env.example` as a reference.
+`make build`, `make up`, and
+`make x402_treazury-setup` run it automatically. Image pins and source revisions live
+in Compose and component Dockerfiles, not `.env`. Existing named volumes remain
+the authoritative application state.
+
+See [configuration and backups](docs/configuration.md) for ownership and backup requirements.
+
 ## Setup
 
 Requires Docker Engine 28+ with Linux containers and Compose 2.36+. The isolated
@@ -29,29 +47,27 @@ bridge gateway mode is required, not an optional optimization. The fixed
 networks. `scripts/preflight.py` checks engine features and pool conflicts.
 
 ```sh
-cp -n .env.example .env
-cp -n teep.env.example teep.env
-cp -n research.env.example research.env
-chmod 600 .env teep.env research.env
+make init
 ```
 
-Add at least one provider key to `teep.env`. These keys are supplied only to
-teep. The old `TORPROXY_API_TOKEN` setting is no longer needed: Tor control is a
-private cookie-authenticated Unix socket in the Tor container.
+Edit `.env` to add at least one inference provider key and the x402_treazury
+`BASE_RPC_URL`. Compose supplies provider keys only to teep and the RPC URL
+only to x402_treazury. Tor control uses a private
+cookie-authenticated Unix socket in the Tor container.
 
 ```sh
 make build
-make research-setup
+make x402_treazury-setup
 ```
 
-Before the first `make up`, follow the [research desk setup guide](docs/research-desk.md)
+Before the first `make up`, follow the [x402_treazury setup guide](docs/x402_treazury.md)
 to configure `BASE_RPC_URL` and explicitly initialize or restore the treasury.
-Then `make up` starts routing, inference, executor, and research MCP services. Hermes runs
+Then `make up` starts routing, inference, executor, and x402_treazury MCP services. Hermes runs
 interactively with the command below, or as a gateway after messaging setup.
 
 `bootstrap` runs without networking. It generates separate SSH client and host
 keys in separate named volumes, pins the executor host key, initializes the
-executor's workspace/home, and copies `config/hermes.example.yaml` only if the
+executor's workspace/home, and copies `components/hermes/config.example.yaml` only if the
 Hermes configuration does not already exist. Existing compatible configuration and keys
 are preserved. Incompatible existing configuration blocks agent startup. Tor bootstrapping can take several minutes.
 
@@ -68,40 +84,6 @@ platform/allowlist credentials using `docker compose run --rm hermes setup`
 if desired, then start it with `docker compose up -d hermes`. Keep the custom
 inference endpoint and SSH backend. No dashboard,
 API, SSH, Tor, or inference ports are published to the host.
-
-### Migrating the earlier prototype
-
-Stop the old deployment first with `docker compose down`, without `-v`, using
-its original Compose file if containers have already been started. The obsolete
-socat containers can be removed with `docker compose down --remove-orphans`.
-The `hermes-data` and `tor-state` volumes are retained by this deployment.
-Before starting the agent, update any existing config to use:
-
-```yaml
-model:
-  provider: custom
-  base_url: http://10.203.83.3:8337/v1
-  api_key: unused
-terminal:
-  backend: ssh
-  cwd: /workspace
-  env_passthrough: []
-```
-
-Use the networkless operator helper to edit an existing volume without starting
-an agent or requiring successful bootstrap:
-
-```sh
-docker compose run --rm configure set terminal.backend ssh
-docker compose run --rm configure set terminal.cwd /workspace
-docker compose run --rm configure set model.provider custom
-docker compose run --rm configure set model.base_url http://10.203.83.3:8337/v1
-```
-
-`make up` validates an existing config rather than silently converting it. If
-you change network-namespace owners or the address plan, use `make down` then
-`make up` to recreate their consumers together. Restarting or replacing Tor
-alone does not replace either application's network namespace.
 
 ## Network and execution boundaries
 
@@ -148,9 +130,9 @@ alone does not replace either application's network namespace.
   their firewall rules and have no direct fallback. Existing local teep/MCP/SSH
   paths remain usable. Initial startup waits for Tor readiness.
 
-## Research desk MCP servers
+## x402_treazury MCP servers
 
-The default [research desk integration](docs/research-desk.md) builds
+The default [x402_treazury integration](docs/x402_treazury.md) builds
 x402_treazury and connects its twelve authenticated MCP endpoints over shared
 localhost. It keeps wallet state in a separate container volume and uses a
 private Tor SOCKS Unix socket. The SSH executor has no access to these endpoints
@@ -162,7 +144,7 @@ and verification instructions.
 The base allowlist is deliberately empty. A server should join only the
 `mcp-access` internal network and receive a fixed unused address such as
 `10.203.84.10`. Grant exactly its streaming HTTP port in
-`config/mcp-allowlist.json`, for example:
+`config/network/mcp-allowlist.json`, for example:
 
 ```json
 [{"ip": "10.203.84.10", "port": 8000}]
@@ -185,17 +167,17 @@ Do not give an MCP server an uplink, host mounts, or engine access unless its
 role requires that authority. Servers needing public access can be given a
 separately reviewed Tor route; they do not inherit the agent's egress. Powerful
 MCP tools remain explicitly granted capabilities available through Hermes.
-The twelve research MCP servers run by default; this allowlist is for additional servers.
+The twelve x402_treazury MCP servers run by default; this allowlist is for additional servers.
 
 ## Images and other Hermes isolation choices
 
 - Tor: `dockurr/tor:0.4.9.16`, pinned by digest in
-  `docker/network.Dockerfile`. The derived image adds our firewall/route setup
+  `components/network/Dockerfile`. The derived image adds our firewall/route setup
   and local authenticated bootstrap health check. Tor runs as UID 101 after
   initialization; there is no TCP control API, TCP SOCKS service, or HTTP proxy.
-  A private SOCKS Unix socket is mounted only into the research container.
-- Hermes: inspected official v0.23.0 image, pinned by digest. Override
-  `HERMES_IMAGE` in `.env` when reviewing an upgrade.
+  A private SOCKS Unix socket is mounted only into the x402_treazury container.
+- Hermes: inspected official v0.23.0 image, pinned once by digest in
+  `compose.yaml` under `x-hermes-image`, reused by runtime and maintenance.
 - teep: built from commit `789918ea606826650447a7f1930b917521d3d135`
   with Go 1.26. It runs as UID 10002, read-only except temporary files, without
   `--offline`, `--force`, or debug tags. Upstream's default attestation policy
@@ -221,7 +203,7 @@ make test
 
 The live test uses a separate disposable Compose project with the actual pinned
 Hermes image, the real SSH executor, real Tor, teep with a dummy provider
-key, and the research server with an unfunded fixture wallet. It performs no
+key, and the x402_treazury server with an unfunded fixture wallet. It performs no
 inference or paid research calls. Stop a normal deployment before running it:
 projects use the same fixed subnets, and preflight refuses overlaps.
 

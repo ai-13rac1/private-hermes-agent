@@ -1,5 +1,4 @@
 *
-!docker/
-!docker/**
-!config/
-!config/sshd_config
+!components/
+!components/**
+**/__pycache__/

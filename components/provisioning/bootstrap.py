@@ -48,8 +48,8 @@ else:
     except Exception:
         valid = False
     if not valid:
-        raise SystemExit('Existing Hermes config is incompatible with SSH/teep isolation. Migrate it using the networkless config helper in README.md; it was not overwritten.')
-    print('Existing compatible Hermes config preserved.')
+        raise SystemExit('Hermes config must set terminal.backend=ssh, model.provider=custom, and model.base_url=http://10.203.83.3:8337/v1. Edit settings with: docker compose run --rm configure set <key> <value>.')
+    print('Hermes SSH/teep configuration validated.')
 directory("/executor-home", 10000, 0o755)
 directory("/executor-work", 10000, 0o755)
 print("Provisioned SSH client trust, executor identity, and separate workspaces.")

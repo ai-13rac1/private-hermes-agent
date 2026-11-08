@@ -19,5 +19,5 @@ terminal:
   backend: ssh
   cwd: /workspace
   env_passthrough: []
-# research-setup adds the twelve local research MCP endpoints after bootstrap.
+# x402_treazury-setup adds the twelve local x402_treazury MCP endpoints after bootstrap.
 mcp_servers: {}

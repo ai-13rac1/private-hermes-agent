@@ -8,24 +8,24 @@ import time
 from pathlib import Path
 import smoke
 
-sys.path.insert(0, str(Path(__file__).parents[1] / 'docker'))
-from research_endpoints import ADDRESS, ENDPOINTS
+sys.path.insert(0, str(Path(__file__).parents[1] / 'components/x402_treazury'))
+from endpoints import ADDRESS, ENDPOINTS
 
-smoke.COMPOSE = ['docker', 'compose', '-p', 'private-hermes-research-test',
+smoke.COMPOSE = ['docker', 'compose', '-p', 'private-hermes-x402-treazury-test',
                  '-f', 'compose.yaml', '-f', 'tests/compose.yaml']
 
 
 def main():
     failed = True
     try:
-        print('Validating the production research configuration offline...', flush=True)
-        command = ['docker', 'run', '--rm', '--network', 'none', 'private-hermes-research:local']
+        print('Validating the production x402_treazury configuration offline...', flush=True)
+        command = ['docker', 'run', '--rm', '--network', 'none', 'private-hermes-x402_treazury:local']
         production = json.loads(subprocess.check_output(command + ['config', 'show'], text=True))
         assert set(production['servers']) == set(ENDPOINTS)
         identity = json.loads(subprocess.check_output(command + ['build-info'], text=True))
         assert identity['source_revision'] == 'e1420b6364726e0c1a9d69dda72a15d8253a2b8b'
         assert identity['source_dirty'] is False
-        print('PASS: pinned release identity and production research config validated without wallet/catalog I/O', flush=True)
+        print('PASS: pinned release identity and production x402_treazury config validated without wallet/catalog I/O', flush=True)
         smoke.compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '600')
         # No new readiness policy in production: just allow test listeners to
         # finish startup, reporting server failure rather than making paid probes.
@@ -45,7 +45,7 @@ for port in range(3010,3022):
 c=load_config(); env=load_env()
 assert env.get('X402_TREAZURY_MCP_TOKEN')
 for name,port in zip(('web','science','health','social','business','finance','property','security','world','travel','toolbox','shopping'),range(3010,3022)):
- entry=c['mcp_servers']['research_'+name]
+ entry=c['mcp_servers']['x402_treazury_'+name]
  assert entry['url']==f'http://127.0.0.1:{port}/mcp'
 assert c['terminal']['backend']=='ssh'
 """)
@@ -81,30 +81,30 @@ for port in range(3010,3022):
 """)
         smoke.python('executor', """import os, pathlib, socket
 assert not os.getenv('X402_TREAZURY_MCP_TOKEN')
-for path in ('/opt/data/.env','/run/research-auth/token','/var/lib/x402/state','/home/runner/.hermes/.env'):
+for path in ('/opt/data/.env','/run/x402_treazury-auth/token','/var/lib/x402/state','/home/runner/.hermes/.env'):
  assert not pathlib.Path(path).exists(), path
 for host in ('127.0.0.1','10.203.80.2','10.203.82.2'):
  for port in (3010,3021):
   try: s=socket.create_connection((host,port),timeout=.5)
   except OSError: pass
-  else: s.close(); raise AssertionError('Executor reached a research MCP listener')
+  else: s.close(); raise AssertionError('Executor reached an x402_treazury MCP listener')
 """)
         smoke.python('hermes', """import json
 from tools.code_execution_tool import execute_code
 r=json.loads(execute_code('''import os, pathlib, hermes_tools
 assert not os.getenv("X402_TREAZURY_MCP_TOKEN")
 assert not pathlib.Path("/opt/data/.env").exists()
-r=hermes_tools._call("mcp_research_toolbox_raw_call",{})
+r=hermes_tools._call("mcp_x402_treazury_toolbox_raw_call",{})
 assert "not available" in str(r), r
-print("MCP_RPC_DENIED")''',task_id='research-isolation'))
+print("MCP_RPC_DENIED")''',task_id='x402_treazury-isolation'))
 assert 'MCP_RPC_DENIED' in str(r), r
 """)
         smoke.python('hermes', """import pathlib, socket
-assert not pathlib.Path('/run/research-auth/token').exists()
+assert not pathlib.Path('/run/x402_treazury-auth/token').exists()
 assert not pathlib.Path('/var/lib/x402/state').exists()
-try: socket.socket(socket.AF_UNIX).connect('/run/tor-research/socks')
+try: socket.socket(socket.AF_UNIX).connect('/run/tor-x402_treazury/socks')
 except OSError: pass
-else: raise AssertionError('Agent gained the research Tor socket mount')
+else: raise AssertionError('Agent gained the x402_treazury Tor socket mount')
 """)
         # Verify no SSH channel can turn the connection into an MCP tunnel.
         policy = smoke.execute('executor', '/usr/sbin/sshd', '-T').stdout
@@ -112,8 +112,8 @@ else: raise AssertionError('Agent gained the research Tor socket mount')
         assert 'permittunnel no' in policy
         print('PASS: unauthenticated access and code RPC denied; executor lacks secrets, wallet mounts and MCP network access', flush=True)
         smoke.compose('stop', 'tor')
-        smoke.python('research-desk', """import socket
-try: socket.socket(socket.AF_UNIX).connect('/run/tor-research/socks')
+        smoke.python('x402_treazury', """import socket
+try: socket.socket(socket.AF_UNIX).connect('/run/tor-x402_treazury/socks')
 except OSError: pass
 else: raise AssertionError('Stopped Tor still accepted a SOCKS connection')
 """)
@@ -124,11 +124,11 @@ else: raise AssertionError('Stopped Tor still accepted a SOCKS connection')
     except Exception as error:
         if isinstance(error, subprocess.CalledProcessError):
             print(error.stdout, error.stderr, flush=True)
-        print(smoke.compose('logs','--tail','25','research-desk','research-setup','tor',check=False).stdout, flush=True)
+        print(smoke.compose('logs','--tail','25','x402_treazury','x402_treazury-setup','tor',check=False).stdout, flush=True)
         raise
     finally:
         if failed and os.getenv('KEEP_FAILED_TEST_STACK') == '1':
-            print('Retained test project: private-hermes-research-test', flush=True)
+            print('Retained test project: private-hermes-x402-treazury-test', flush=True)
         else:
             smoke.compose('down','--volumes','--remove-orphans',check=False)
 
