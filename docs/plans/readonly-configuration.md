@@ -19,6 +19,9 @@ to the SSH execution boundary are outside scope.
   only when `/opt/data/config.yaml` is absent.
 - For an existing config, setup checks the SSH backend and custom teep
   endpoint before permitting agent startup.
+- Setup seeds a missing native Teep picker catalog and saves a nonblank root
+  `HERMES_DEFAULT_MODEL` preference on each managed startup. Any future
+  authoritative configuration design must account for these writes too.
 - Hermes owns its writable state under `/opt/data`, including configuration,
   sessions, skills, and memories.
 - The networkless `setup config` command currently edits that same data volume

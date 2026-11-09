@@ -22,6 +22,7 @@ Compose explicitly selects each service's environment variables:
 | Settings | Recipient |
 | --- | --- |
 | Inference provider API keys | teep |
+| `HERMES_DEFAULT_MODEL` | Offline setup, which saves the preferred Hermes default |
 | `TEEP_HOST_PORT` | Compose loopback port publication for teep |
 | `TS_AUTHKEY` | Optional Tailscale container |
 | `WEBAPP_EXTERNAL_CONTENT` | Deployment validation, Hermes, offline setup and ingress proxy |
@@ -107,13 +108,41 @@ See [updates and plugins](updates-and-plugins.md) for the version-check/update
 workflow, persistent user plugins, and privacy defaults independent of notifications.
 
 The recommended provider is NearAI via teep's `neardirect` backend. Set
-`NEARAI_API_KEY` in `.env`. Hermes defaults to
-`neardirect:z-ai/glm-5.3-flash-long`; the other recommended model is
-`neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated`. Other supported
-providers remain available; use `setup config set model.default` and `make up`
-to select a different model.
+`NEARAI_API_KEY` in `.env`. The native Hermes model picker has a **Teep** entry
+with these choices:
 
-List models and select the documented alternative with:
+- `neardirect:z-ai/glm-5.3-flash-long` (initial default)
+- `neardirect:z-ai/glm-5.3-flash`
+- `neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated`
+- `neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017`
+
+To set a preferred default, add this to the root `.env`, then run `make up`:
+
+```dotenv
+HERMES_DEFAULT_MODEL=neardirect:z-ai/glm-5.3-flash
+```
+
+This accepts any model ID supported by a configured Teep provider, including
+models outside the supplied choices. Keep the complete Teep ID, including its
+provider prefix and any organization path. Availability still depends on the
+provider's catalog and credentials; adding an ID does not validate inference.
+
+`make init` only creates missing host files; rerunning it does not change Hermes's
+saved model. `make up` runs offline setup, saves a nonblank `HERMES_DEFAULT_MODEL`
+to `model.default`, adds it to the native picker catalog, and recreates Hermes.
+The supplied catalog is seeded for existing profiles if absent; operator-edited
+catalogs are preserved. The picker uses this saved catalog rather than fetching
+Teep's full catalog automatically. Blank or absent `HERMES_DEFAULT_MODEL` preserves
+the saved default, including a choice made through Hermes's native configuration.
+Clearing the variable does not reset the previous choice. A nonblank value is
+reapplied on every `make up`; clear it to manage the default entirely in Hermes.
+Existing sessions may retain their session-specific model selections.
+
+Without an `.env` preference, use `setup config set model.default` followed by
+`make up` to save another default. Preserve the custom Teep endpoint and SSH
+backend when editing native configuration.
+
+List Teep's live model IDs and select an alternative with:
 
 ```sh
 python3 scripts/stack.py compose exec teep curl -fsS http://127.0.0.1:8337/v1/models

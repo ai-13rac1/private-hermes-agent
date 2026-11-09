@@ -58,6 +58,7 @@ services:
     tmpfs: [/tmp:mode=1777]
     environment:
       WEBAPP_USERNAME: ${WEBAPP_USERNAME:-admin}
+      HERMES_DEFAULT_MODEL: ${HERMES_DEFAULT_MODEL:-}
       WEBAPP_EXTERNAL_CONTENT: ${WEBAPP_EXTERNAL_CONTENT-tor_proxied}
       HERMES_HOME: /opt/data
       # Root provisioning must never execute tools from the writable profile.

@@ -39,8 +39,46 @@ print(json.dumps({name:hashlib.sha256((root/name).read_bytes()).hexdigest() for 
                 return smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
                                      '/opt/hermes/.venv/bin/python', 'setup', '-c', snapshot).stdout
             original_identities = identities()
+            # An already initialized profile may predate the picker catalog.
+            smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
+                          '/opt/hermes/.venv/bin/python', 'setup', '-c',
+                          "from pathlib import Path; import hermes_yaml as yaml; p=Path('/opt/data/config.yaml'); c=yaml.safe_load(p.read_text()); c.pop('providers'); p.write_text(yaml.safe_dump(c))")
             smoke.initialize_setup(smoke.COMPOSE)
             assert identities() == original_identities
+            # An arbitrary Teep model is accepted; setup, not host make init,
+            # applies the root preference to the persistent native profile.
+            preferred = 'neardirect:qualification/arbitrary-model'
+            smoke.compose('run', '--rm', '-T', '--no-deps', '-e',
+                          'HERMES_DEFAULT_MODEL=' + preferred, 'setup', 'init')
+            smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
+                          '/opt/hermes/.venv/bin/python', 'setup', '-c', """
+from pathlib import Path
+from unittest.mock import patch
+import hermes_yaml as yaml
+from hermes_cli.model_switch_providers import _PickerBuild, _lap_user_provider_rows
+config = yaml.safe_load(Path('/opt/data/config.yaml').read_text())
+assert config['model']['default'] == 'neardirect:qualification/arbitrary-model'
+expected = set(yaml.safe_load(Path('/opt/private-hermes/hermes/config.example.yaml').read_text())['providers']['custom']['models'])
+expected.add(config['model']['default'])
+picker = _PickerBuild(current_provider='custom', current_base_url=config['model']['base_url'],
+                      current_model=config['model']['default'], max_models=None,
+                      for_picker=True, force_fresh_nous_tier=False, probe_custom_providers=True,
+                      probe_current_custom_provider=True, refresh=False, excluded=set(), curated={})
+with patch('hermes_cli.models.fetch_api_models', side_effect=AssertionError('Unexpected discovery')):
+    _lap_user_provider_rows(picker, config['providers'])
+row, = picker.results
+assert row['slug'] == 'custom' and row['is_current']
+assert set(row['models']) == expected
+assert row['api_url'] == 'http://10.203.83.3:8337/v1'
+""")
+            smoke.initialize_setup(smoke.COMPOSE)
+            smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
+                          '/opt/hermes/.venv/bin/python', 'setup', '-c',
+                          "from pathlib import Path; import hermes_yaml as yaml; assert yaml.safe_load(Path('/opt/data/config.yaml').read_text())['model']['default']=='neardirect:qualification/arbitrary-model'")
+            smoke.compose('run', '--rm', '-T', '--no-deps', 'setup', 'config',
+                          'set', 'model.default', 'setup-qualification-model')
+            assert identities() == original_identities
+            print('PASS: root model preference and native Teep picker accept additional model IDs without changing the inference route', flush=True)
             smoke.compose('run', '--rm', '-T', '--no-deps', 'setup', 'config',
                           'set', 'terminal.backend', 'local')
             try:

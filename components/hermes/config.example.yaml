@@ -4,6 +4,17 @@ model:
   base_url: http://10.203.83.3:8337/v1
   api_key: unused
   default: neardirect:z-ai/glm-5.3-flash-long
+providers:
+  custom:
+    name: Teep
+    base_url: http://10.203.83.3:8337/v1
+    api_key: unused
+    discover_models: false
+    models:
+      neardirect:z-ai/glm-5.3-flash-long: {}
+      neardirect:z-ai/glm-5.3-flash: {}
+      neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated: {}
+      neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017: {}
 auxiliary:
   vision:
     provider: main

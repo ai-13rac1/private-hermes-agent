@@ -1,5 +1,7 @@
 services:
   setup:
+    environment:
+      HERMES_DEFAULT_MODEL: ""
     volumes:
       - type: bind
         source: ./tests/fixtures/webapp-auth.json

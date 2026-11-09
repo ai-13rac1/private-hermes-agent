@@ -66,11 +66,17 @@ class OperatorConfigurationTests(unittest.TestCase):
         provider_keys = ('VENICE_API_KEY', 'NEARAI_API_KEY', 'CHUTES_API_KEY',
                          'TINFOIL_API_KEY', 'NANOGPT_API_KEY', 'PHALA_API_KEY')
         secrets = {key: 'test-only-' + key for key in (*provider_keys, 'BASE_RPC_URL', 'TS_AUTHKEY')}
-        environment = dict(os.environ, **secrets, TEEP_HOST_PORT='18337')
+        environment = dict(os.environ, **secrets, TEEP_HOST_PORT='18337',
+                           HERMES_DEFAULT_MODEL='neardirect:qualification/custom-model')
         result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', '-f', 'compose.funnel.yaml', '--profile', '*', 'config', '--format', 'json'],
                                 cwd=ROOT, env=environment, text=True,
                                 capture_output=True, check=True)
         services = json.loads(result.stdout)['services']
+        self.assertEqual(services['setup']['environment']['HERMES_DEFAULT_MODEL'],
+                         environment['HERMES_DEFAULT_MODEL'])
+        for name, service in services.items():
+            if name != 'setup':
+                self.assertNotIn('HERMES_DEFAULT_MODEL', service.get('environment', {}), name)
         publication = services['teep']['ports']
         self.assertEqual(len(publication), 1)
         self.assertEqual(publication[0]['host_ip'], '127.0.0.1')
