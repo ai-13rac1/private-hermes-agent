@@ -120,7 +120,7 @@ class ShutdownTests(unittest.TestCase):
             auth_path.parent.mkdir(parents=True)
             credentials = {'password_hash':hash_password('test-only-password'),'secret':'s'*64}
             auth_path.write_text(json.dumps(credentials))
-            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render'), patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run, patch.object(stack,'Controller'), patch.object(stack,'initialize_setup') as provision:
+            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render'), patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run, patch.object(stack,'Controller'), patch.object(stack,'initialize_setup') as provision, patch.object(stack, 'initialize_research_config'):
                 events = []
                 run.side_effect = lambda command: events.append(command)
                 provision.side_effect = lambda command: events.append(['offline-setup'])
@@ -152,6 +152,7 @@ class ShutdownTests(unittest.TestCase):
             with patch.object(sys, 'argv', ['stack.py', 'up']), patch.object(stack, 'ROOT', root), \
                     patch.object(stack, 'settings', return_value=selected), patch.object(stack, 'render'), \
                     patch.object(stack, 'initialize_setup') as setup, patch.object(stack, 'Controller'), \
+                    patch.object(stack, 'initialize_research_config'), \
                     patch.object(stack, 'run') as run:
                 stack.main()
                 setup.assert_called_once()

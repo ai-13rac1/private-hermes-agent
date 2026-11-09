@@ -15,7 +15,9 @@ Read [AGENTS.md](../AGENTS.md) before changing the stack and follow the
 - `tests/fixtures/`: disposable test servers and configuration.
 
 `make init` creates missing local configuration files and leaves existing files
-unchanged. Add new settings explicitly using `.env.example` as a reference.
+unchanged. The research TOML is seeded separately from the built treasury image
+after `make build` or before managed startup/treasury commands; see
+[research configuration](x402_treazury.md#edit-the-research-configuration). Add new settings explicitly using `.env.example` as a reference.
 `make build`, `make up`, and
 `make x402_treazury-init` run it automatically. Image pins and source revisions live
 in Compose and component Dockerfiles, not `.env`. Hermes and wallet state use native named volumes; other persistent files live

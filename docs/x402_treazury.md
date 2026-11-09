@@ -69,11 +69,75 @@ locked dependencies. The renderer changes only the Tor SOCKS endpoint, persisten
 state path, and HTTP Host allowlists. Wallet groups, rotation, funding, payment
 caps, source selection, and tool selection retain upstream policy.
 
-Inspect that policy offline before funding:
+Inspect the packaged default policy offline before funding:
 
 ```sh
 docker run --rm --network none private-hermes-x402_treazury:local config show
 ```
+
+## Edit the research configuration
+
+After a successful `make build`, the policy is available at
+`config/x402_treazury/research_desk.toml`. Managed startup and treasury commands
+also create it if missing, using the already built image. `make init` alone does
+not create this file before the image exists. Initialization never replaces an
+existing file; image updates also leave your edits intact. Compare new packaged
+defaults with your saved policy when upgrading.
+
+The directory is bind-mounted read-only into serving and both maintenance
+services. You can edit the host file before wallet initialization or later.
+Relative `../../providers/` paths continue to refer to the image's packaged
+provider definitions. Additional provider files can be placed in this directory
+and referenced relative to the TOML. Keep the directory traversable and files
+readable by container UID 10003; the initial directory/file modes are 0755/0644.
+Include this directory in configuration backups.
+
+For later edits, gracefully stop first, then edit and start again:
+
+```sh
+make down
+# Edit config/x402_treazury/research_desk.toml.
+python3 scripts/stack.py compose run --rm --no-deps x402_treazury config show
+make up
+```
+
+There is no hot reload. Native configuration inspection above uses the mounted
+file and does not fund wallets or download catalogs. Managed startup checks the
+fixed deployment fields: Tor mode, private SOCKS socket with extended Tor
+authentication, treasury state/key paths, and the twelve authenticated loopback
+listeners with their Host checks and token variable. Keep those fields intact;
+wallet policy, payment caps, source/tool selections and instructions are editable.
+Malformed or unsupported configuration fails visibly without selecting defaults.
+
+Policy edits do not erase initial preparation eligibility. Native `serve` applies
+the new policy, can fund newly declared groups when automatic funding is enabled
+and sufficient ZEC is available, and downloads new catalogs under the configured
+Tor/relay policy. These later starts can spend funds and take time. Initial
+explicit preparation is still required; a saved completion record is historical
+evidence, not proof that every newly configured group is funded or catalog cached.
+
+### Rename a wallet group without replacing it
+
+Back up the treasury using the native backup procedure below. Stop serving and
+rename the saved group **before starting with the new name**, then update every
+wallet declaration and source/listener reference in the TOML:
+
+```sh
+make down
+python3 scripts/stack.py compose run --rm --no-deps --entrypoint /usr/local/bin/x402_treazury x402_treazury-admin wallet rename general research
+# Rename [wallets.general] to [wallets.research] and update its references.
+python3 scripts/stack.py compose run --rm --no-deps --entrypoint /usr/local/bin/x402_treazury x402_treazury-admin wallet preview --json
+make up
+```
+
+The offline rename uses the same mounted configuration, UID and wallet volume.
+It preserves the group's UUID, payer keys, funds, history and pending work; it
+changes neither the TOML nor funding authority. The destination must be unused,
+including by an empty group created during an earlier startup. Simply changing
+a name in TOML creates a different group on startup; the old group and its funds
+remain saved but are no longer selected by the renamed references. Renaming a
+group also preserves its historical payer correlation. See the pinned upstream
+[wallet rename guide](https://github.com/mikeperry-tor/x402_treazury/blob/424f36a814711d542fbff27f139842c9d08d5b76/docs/wallet-cli.md#rename-a-managed-wallet-group).
 
 ## Create the wallet and deposit when ready
 
@@ -164,8 +228,8 @@ Do not use an auto-restarting serving container for one-shot financial commands.
 
 Completion is recorded atomically under `/var/lib/x402/onboarding/` in the
 `x402_treazury-data` named volume, bound to the treasury identity, source/build identity,
-coordinator code and effective configuration. The record contains no full
-deployment configuration.
+coordinator code. Ordinary configuration edits do not invalidate that initial
+completion. The record contains no full deployment configuration.
 Only successful bootstrap and complete Tor catalog warming authorize serving.
 The entrypoint checks this even when the serving profile is started manually.
 
@@ -179,8 +243,8 @@ make x402_treazury-prepare
 ```
 
 Subsequent `make up` automatically starts and connects a prepared deployment.
-Changed or missing preparation leaves research disconnected and prints the next
-step. A completion record is historical evidence: balances can change, catalogs
+A changed implementation, missing preparation or different treasury identity
+leaves research disconnected and prints the next step. A completion record is historical evidence: balances can change, catalogs
 expire, and serving continues native synchronization, replacement funding, and
 discovery under its policy. Startup does not rerun explicit bootstrap/warming.
 
@@ -243,8 +307,15 @@ With all normal deployments stopped, run:
 ```sh
 make check
 make x402_treazury-test
+python3 tests/research_config_smoke.py
 make test
 ```
+
+The offline research configuration check uses the real image with a disposable,
+unfunded treasury and controlled historical completion marker. It covers mounted
+policy loading, atomic host edits and restart visibility, read-only writes,
+forbidden/malformed/missing configuration, preview and the missing-source rename
+error path. It does not run funding, warming or successful rename of a saved group.
 
 The x402_treazury test uses a disposable project and the real Rust server, twelve
 local MCP listeners, an ephemeral unfunded static key, local catalog fixtures,

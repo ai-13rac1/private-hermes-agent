@@ -70,6 +70,11 @@ services:
     entrypoint: [python3, /opt/x402_treazury-fixture.py]
     working_dir: /tmp
     volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/config/x402_treazury
+        target: /opt/x402/examples/deployments
+        read_only: true
+        bind: {create_host_path: false}
       - ./tests/fixtures/x402_treazury.py:/opt/x402_treazury-fixture.py:ro
       - ./components/x402_treazury/endpoints.py:/opt/endpoints.py:ro
       - type: bind
@@ -103,4 +108,16 @@ services:
     # production job. Production admin only performs offline inspection.
     tmpfs: [/tmp:mode=1777]
     volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/config/x402_treazury
+        target: /opt/x402/examples/deployments
+        read_only: true
+        bind: {create_host_path: false}
       - ./tests/fixtures/storage-check.py:/opt/storage-check.py:ro
+  x402_treazury-setup:
+    volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/config/x402_treazury
+        target: /opt/x402/examples/deployments
+        read_only: true
+        bind: {create_host_path: false}

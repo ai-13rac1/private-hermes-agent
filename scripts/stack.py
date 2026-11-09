@@ -9,7 +9,7 @@ import sys
 from deployment import ROOT, compose, render, settings
 from auth import validate
 from x402_treazury import Controller, operation_lock
-from provisioning import initialize_setup
+from provisioning import initialize_setup, initialize_research_config
 
 
 def run(command, **kwargs):
@@ -55,6 +55,7 @@ def main_unlocked():
         run(command + ['config', '--quiet'])
     elif args.action == 'build':
         run(command + ['--profile', '*', 'build'])
+        initialize_research_config(command, ROOT)
     elif args.action == 'down':
         try:
             stop_funnel(all_command)
@@ -71,6 +72,7 @@ def main_unlocked():
             stop_funnel(all_command)
         # A changed bind-mounted credential file does not itself recreate a
         # completed container. Always apply current settings before startup.
+        initialize_research_config(command, ROOT)
         initialize_setup(command)
         infrastructure = ['tor', 'agent-net', 'executor-net', 'executor', 'teep']
         run(command + ['up', '-d', '--wait', '--no-deps', *infrastructure])

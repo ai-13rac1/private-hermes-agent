@@ -202,6 +202,7 @@ not by itself change the deployment or replace full application qualification.
 | `data/ssh/agent/` | Agent SSH client identity and pinned host trust |
 | `data/ssh/executor/` | Executor host identity and authorized client key |
 | `x402_treazury-data` named volume | Entire treasury home: wallet state/key, financial journals, catalog cache and onboarding record |
+| `config/x402_treazury/` | Editable research policy and host operation lock |
 | `data/x402_treazury-auth/` | Persistent MCP bearer token, separately mounted from the wallet |
 | `data/tor/` | Tor guard-selection and persistent Tor state |
 | `data/tailscale/` | Optional Funnel node enrollment and identity |
@@ -264,8 +265,11 @@ Hermes's generated profile `.env` in `hermes-data` is distinct from the root
 deployment `.env`: it contains the MCP token and Hermes-owned credentials.
 `x402_treazury-data` contains preparation records and catalog cache as well as
 the wallet. Those records are historical preparation evidence, not current
-spendability or perpetual cache freshness. Host operation locks remain under
-`config/x402_treazury/`. See [staged onboarding](x402_treazury.md).
+spendability or perpetual cache freshness. Editable research policy and host
+operation locks remain under
+`config/x402_treazury/`; include this directory in backups. See
+[editing research policy](x402_treazury.md#edit-the-research-configuration) and
+[staged onboarding](x402_treazury.md).
 
 ## External-content policy rollout
 

@@ -248,6 +248,11 @@ services:
         target: /run/x402_treazury-auth
         read_only: true
         bind: {create_host_path: false}
+      - type: bind
+        source: ./config/x402_treazury
+        target: /opt/x402/examples/deployments
+        read_only: true
+        bind: {create_host_path: false}
       - x402_treazury-data:/var/lib/x402
     restart: unless-stopped
 
@@ -268,6 +273,11 @@ services:
     tmpfs: [/tmp:mode=1777]
     volumes:
       - tor-x402_treazury:/run/tor-x402_treazury:ro
+      - type: bind
+        source: ./config/x402_treazury
+        target: /opt/x402/examples/deployments
+        read_only: true
+        bind: {create_host_path: false}
       - x402_treazury-data:/var/lib/x402
 
   x402_treazury-admin:
@@ -283,6 +293,11 @@ services:
     security_opt: [no-new-privileges:true]
     read_only: true
     volumes:
+      - type: bind
+        source: ./config/x402_treazury
+        target: /opt/x402/examples/deployments
+        read_only: true
+        bind: {create_host_path: false}
       - x402_treazury-data:/var/lib/x402
 
   hermes:

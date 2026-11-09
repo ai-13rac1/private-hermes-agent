@@ -117,7 +117,9 @@ make x402_treazury-prepare
 Preparation funds the API wallets, warms provider catalogs, and connects research
 tools without restarting Hermes. It can spend ZEC and USDC under the configured
 policy and may wait for spendable funds while the webapp remains available.
-Use `make x402_treazury-status` to inspect saved status.
+Use `make x402_treazury-status` to inspect saved status. Research policy is editable
+in `config/x402_treazury/research_desk.toml` after building; see
+[configuration and wallet renaming](docs/x402_treazury.md#edit-the-research-configuration).
 
 Live ZEC receipt, managed USDC funding, and funded catalog preparation remain
 unqualified in this deployment wrapper; local fixture tests do not establish

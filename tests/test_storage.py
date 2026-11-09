@@ -75,6 +75,7 @@ class PersistentStorageTests(unittest.TestCase):
         config = json.loads(result.stdout)
         self.assertEqual(set(config['volumes']), {'tor-x402_treazury', 'hermes-data', 'x402_treazury-data'})
         wallet_readers = set()
+        config_readers = set()
         root = ROOT / 'data'
         for name, service in config['services'].items():
             for mount in service.get('volumes', []):
@@ -83,6 +84,11 @@ class PersistentStorageTests(unittest.TestCase):
                 if mount['type'] != 'bind':
                     continue
                 source = Path(mount['source'])
+                if source == ROOT / 'config/x402_treazury':
+                    config_readers.add(name)
+                    self.assertEqual(mount['target'], '/opt/x402/examples/deployments')
+                    self.assertTrue(mount['read_only'])
+                    self.assertFalse(mount['bind']['create_host_path'])
                 if source == root:
                     self.assertEqual(name, 'setup')
                     self.assertEqual(service['network_mode'], 'none')
@@ -93,6 +99,7 @@ class PersistentStorageTests(unittest.TestCase):
                                       ('ssh/executor', 'executor/home', 'executor/workspace'))
                     if name == 'hermes':
                         self.assertEqual(source.relative_to(root).as_posix(), 'ssh/agent')
+        self.assertEqual(config_readers, {'x402_treazury', 'x402_treazury-setup', 'x402_treazury-admin'})
         self.assertEqual(wallet_readers, {'setup', 'x402_treazury', 'x402_treazury-setup', 'x402_treazury-admin'})
 
 

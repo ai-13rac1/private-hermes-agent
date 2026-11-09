@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from endpoints import ADDRESS, ENDPOINTS
 
 HOME = Path('/var/lib/x402')
 RECORD = HOME / 'onboarding' / 'preparation.json'
@@ -105,9 +106,26 @@ def context():
     identity = native(['build-info'], 'build identity', structured=True, quiet=True)
     if config.get('network', {}).get('mode') != 'tor' or config['network'].get('socks_endpoint') != 'unix:/run/tor-x402_treazury/socks':
         raise RuntimeError('Onboarding requires the configured private Tor Unix socket; direct transport is refused')
-    # Config includes wallet assignments, funding/source policy and transport.
-    # Never store the full configuration in the preparation record.
-    payload = {'config': config, 'build': identity,
+    if config['network'].get('socks_auth') != 'tor_extended':
+        raise RuntimeError('Deployment requires Tor extended SOCKS authentication for wallet isolation')
+    treasury = config.get('treasury') or {}
+    state = HOME / 'state'
+    if treasury.get('state_dir') != str(state) or treasury.get('key_file', str(state / 'wallet.key')) != str(state / 'wallet.key'):
+        raise RuntimeError('Deployment treasury state/key must remain at /var/lib/x402/state and /var/lib/x402/state/wallet.key')
+    servers = config.get('servers', {})
+    if set(servers) != set(ENDPOINTS):
+        raise RuntimeError('Deployment requires its twelve managed MCP listeners')
+    for name, port in ENDPOINTS.items():
+        server = servers[name]
+        if (server.get('listen') != f'{ADDRESS}:{port}'
+                or server.get('allowed_hosts') != [ADDRESS]
+                or server.get('disable_host_check') is not False
+                or server.get('auth') is not True
+                or server.get('bearer_token_env') != 'X402_TREAZURY_MCP_TOKEN'):
+            raise RuntimeError(f'Deployment listener {name} must retain its authenticated loopback address and Host checks')
+    # Native serving reconciles policy edits, wallet groups and catalog changes.
+    # Preparation remains bound to this treasury and packaged implementation.
+    payload = {'build': identity,
                'coordinator': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return config, identity, fingerprint

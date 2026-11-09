@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'components/provisi
 from storage import initialize as initialize_storage
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from provisioning import initialize_setup
+from provisioning import initialize_setup, initialize_research_config
 
 COMPOSE = ['docker', 'compose', '-p', 'private-hermes-test', '-f', 'compose.yaml', '-f', 'tests/compose.yaml']
 
@@ -35,6 +35,7 @@ def storage_fixture():
     os.environ['TEST_DATA_DIR'] = str(root)
     retain = False
     try:
+        initialize_research_config(COMPOSE, root)
         yield root
     except BaseException:
         retain = os.getenv('KEEP_FAILED_TEST_STACK') == '1'

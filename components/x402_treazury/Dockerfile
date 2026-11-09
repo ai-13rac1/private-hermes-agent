@@ -27,7 +27,7 @@ COPY --from=build /out/x402_treazury /usr/local/bin/x402_treazury
 COPY --from=build /out/research_desk.toml /opt/x402/examples/deployments/research_desk.toml
 COPY --from=build /src/providers /opt/x402/providers
 COPY components/x402_treazury/entrypoint.py /opt/x402_treazury-entrypoint.py
-COPY components/x402_treazury/onboarding.py /opt/onboarding.py
+COPY components/x402_treazury/onboarding.py components/x402_treazury/endpoints.py /opt/
 USER 10003:10003
 ENV HOME=/var/lib/x402 \
     X402_TREAZURY_CONFIG=/opt/x402/examples/deployments/research_desk.toml

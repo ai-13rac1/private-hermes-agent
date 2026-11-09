@@ -52,9 +52,12 @@ applying changes; see [backup scope](configuration.md#backup-scope).
 The official Hermes image refuses in-place core updates. Its native passive
 core version check currently reports an image-managed install as unsupported;
 the stack checker supplies the useful version comparison. Changes to the
-treasury build or configuration invalidate its preparation fingerprint, so
+treasury build or preparation coordinator invalidate its preparation fingerprint, so
 the workflow may require explicit `make x402_treazury-prepare` before reconnecting
-research tools. Review native funding policy before that operation.
+research tools. Review native funding policy before that operation. The editable research TOML
+is preserved across image builds; compare packaged defaults and apply desired
+policy changes explicitly. Ordinary policy edits retain initial preparation
+eligibility; see [research configuration](x402_treazury.md#edit-the-research-configuration).
 
 ## Manage persistent user plugins
 

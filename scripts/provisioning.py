@@ -1,6 +1,9 @@
 """Run the canonical offline setup service and check its actual exit status."""
 import json
+import os
+from pathlib import Path
 import subprocess
+import tempfile
 from deployment import ROOT
 
 
@@ -31,3 +34,37 @@ def ensure_storage(command):
     # Wallet commands before first startup only need storage preparation. They
     # must not depend on valid Hermes configuration or initialize SSH/auth state.
     subprocess.run([*command, 'run', '--rm', '-T', '--no-deps', 'setup', 'storage'], cwd=ROOT, check=True)
+
+
+def initialize_research_config(command, root=ROOT):
+    """Seed operator policy from the built image without mounting private state."""
+    path = Path(root) / 'config/x402_treazury/research_desk.toml'
+    if path.exists():
+        if not path.is_file():
+            raise RuntimeError('config/x402_treazury/research_desk.toml must be a file')
+        return
+    model = json.loads(subprocess.check_output(
+        [*command, '--profile', 'x402_treazury', 'config', '--format', 'json'],
+        cwd=ROOT, text=True))
+    image = model['services']['x402_treazury']['image']
+    content = subprocess.check_output(
+        ['docker', 'run', '--rm', '--pull', 'never', '--network', 'none', '--entrypoint', 'cat', image,
+         '/opt/x402/examples/deployments/research_desk.toml'], cwd=ROOT)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Treasury UID 10003 needs read access; the host-owned config parent can
+    # remain private. Mount the leaf directory only, read-only in containers.
+    path.parent.chmod(0o755)
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.research-config-', delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+            os.fchmod(stream.fileno(), 0o644)
+            try:
+                os.link(temporary, path)
+            except FileExistsError:
+                if not path.is_file():
+                    raise RuntimeError('config/x402_treazury/research_desk.toml must be a file')
+        finally:
+            temporary.unlink()

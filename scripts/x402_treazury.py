@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from deployment import ROOT, compose, settings
-from provisioning import ensure_storage
+from provisioning import ensure_storage, initialize_research_config
 
 
 @contextmanager
@@ -184,6 +184,7 @@ def main():
     parser.add_argument('action', choices=('init', 'status', 'prepare'))
     args = parser.parse_args()
     controller = Controller(compose(settings()))
+    initialize_research_config(controller.command, ROOT)
     ensure_storage(controller.command)
     if args.action == 'status':
         controller.admin('status')

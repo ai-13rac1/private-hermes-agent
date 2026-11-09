@@ -14,11 +14,13 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'components/x402_treazury'))
 spec = importlib.util.spec_from_file_location('onboarding', ROOT / 'components/x402_treazury/onboarding.py')
 onboarding = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(onboarding)
 sys.path.insert(0, str(ROOT / 'scripts'))
 from x402_treazury import Controller, operation_lock
+from endpoints import ADDRESS, ENDPOINTS
 
 
 class PreparationTests(unittest.TestCase):
@@ -30,10 +32,15 @@ class PreparationTests(unittest.TestCase):
         self.state.mkdir()
         (self.state / 'wallet.key').write_text('unfunded test placeholder')
         self.config = {'treasury': {'state_dir': str(self.state)}, 'sources': {'a': {}, 'b': {}},
-                       'network': {'mode': 'tor', 'socks_endpoint': 'unix:/run/tor-x402_treazury/socks'}}
+                       'network': {'mode': 'tor', 'socks_endpoint': 'unix:/run/tor-x402_treazury/socks', 'socks_auth': 'tor_extended'},
+                       'servers': {name: {'listen': f'{ADDRESS}:{port}', 'allowed_hosts': [ADDRESS],
+                                          'auth': True, 'disable_host_check': False,
+                                          'bearer_token_env': 'X402_TREAZURY_MCP_TOKEN'}
+                                   for name, port in ENDPOINTS.items()}}
         self.calls = []
         self.fail = None
         self.treasury_id = 'test-treasury-identity'
+        self.build_revision = 'test-source'
         self.native_patch = patch.object(onboarding, 'native', side_effect=self.native)
         self.native_patch.start()
         self.addCleanup(self.native_patch.stop)
@@ -52,7 +59,7 @@ class PreparationTests(unittest.TestCase):
         if args == ['config', 'show']:
             return self.config
         if args == ['build-info']:
-            return {'source_revision': 'test-source', 'source_dirty': False}
+            return {'source_revision': self.build_revision, 'source_dirty': False}
         if args == ['wallet', 'status', '--json']:
             return {'treasury_id': self.treasury_id}
         if args == ['wallet', 'addresses']:
@@ -75,14 +82,25 @@ class PreparationTests(unittest.TestCase):
         self.treasury_id = 'different-wallet'
         self.assertFalse(onboarding.inspect()['prepared'])
 
-    def test_config_change_and_corrupt_record_never_authorize_serving(self):
+    def test_implementation_change_still_requires_explicit_preparation(self):
         onboarding.prepare()
-        self.config['sources']['new-source'] = {}
+        self.build_revision = 'different-source'
         self.assertFalse(onboarding.inspect()['prepared'])
         with self.assertRaises(RuntimeError):
             onboarding.serve()
         self.assertNotIn(['serve'], self.calls)
+
+    def test_policy_changes_allow_native_serving_but_corrupt_record_does_not(self):
+        onboarding.prepare()
+        self.config['sources']['new-source'] = {}
+        self.assertTrue(onboarding.inspect()['prepared'])
+        onboarding.serve()
+        self.assertIn(['serve'], self.calls)
         onboarding.RECORD.write_text('{invalid')
+        self.calls.clear()
+        with self.assertRaises(RuntimeError):
+            onboarding.serve()
+        self.assertNotIn(['serve'], self.calls)
         self.assertFalse(onboarding.inspect()['prepared'])
 
     def test_each_failure_stops_later_phases_and_retry_keeps_wallet(self):
@@ -137,13 +155,15 @@ class PreparationTests(unittest.TestCase):
         self.assertTrue(onboarding.inspect()['prepared'])
         self.assertEqual(self.calls.count(['wallet', 'init']), 2)
 
-    def test_funding_policy_change_invalidates_record_without_storing_config(self):
+    def test_funding_and_wallet_policy_edits_preserve_preparation_without_storing_config(self):
         self.config['funding'] = {'near_api_key_env': 'TEST_PROVIDER_CREDENTIAL'}
         onboarding.prepare()
         self.assertTrue(onboarding.inspect()['prepared'])
         self.assertNotIn('TEST_PROVIDER_CREDENTIAL', onboarding.RECORD.read_text())
         self.config['funding']['near_api_key_env'] = 'OTHER_PROVIDER_CREDENTIAL'
-        self.assertFalse(onboarding.inspect()['prepared'])
+        self.config['wallets'] = {'renamed': {'mode': 'zcash_rotation'}}
+        self.config['servers']['web']['wallet'] = 'renamed'
+        self.assertTrue(onboarding.inspect()['prepared'])
 
     def test_wallet_owner_and_host_operation_locks_refuse_competing_operations(self):
         with onboarding.owner(), self.assertRaises(RuntimeError):
@@ -166,6 +186,31 @@ class PreparationTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             onboarding.prepare()
         self.assertNotIn(['wallet', 'bootstrap', '--json'], self.calls)
+
+    def test_forbidden_deployment_edits_refuse_serving_before_wallet_work(self):
+        onboarding.prepare()
+        mutations = (
+            ('network', 'socks_endpoint', '127.0.0.1:9050'),
+            ('network', 'socks_auth', 'none'),
+            ('treasury', 'state_dir', '/tmp/new-wallet'),
+            ('treasury', 'key_file', '/tmp/wallet.key'),
+            ('server', 'listen', '0.0.0.0:3011'),
+            ('server', 'allowed_hosts', ['example.com']),
+            ('server', 'auth', False),
+            ('server', 'disable_host_check', True),
+            ('server', 'bearer_token_env', 'OTHER_TOKEN'),
+        )
+        for section, key, value in mutations:
+            target = self.config['servers']['web'] if section == 'server' else self.config[section]
+            with self.subTest(section=section, key=key), patch.dict(target, {key: value}):
+                self.calls.clear()
+                with self.assertRaises(RuntimeError):
+                    onboarding.serve()
+                self.assertNotIn(['serve'], self.calls)
+                self.assertNotIn(['wallet', 'status', '--json'], self.calls)
+        with patch.dict(self.config['servers'], {'extra': {}}):
+            self.assertFalse(onboarding.inspect()['prepared'])
+        self.assertTrue(onboarding.inspect()['prepared'])
 
     def test_activation_failure_does_not_erase_completed_preparation(self):
         onboarding.prepare()
