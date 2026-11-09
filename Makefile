@@ -59,3 +59,7 @@ plugins:
 plugins-test: check
 	python3 scripts/preflight.py private-hermes-plugins-test
 	python3 -u tests/plugins_smoke.py
+
+.PHONY: images-test
+images-test: check
+	python3 -u tests/images_smoke.py

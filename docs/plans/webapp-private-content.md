@@ -1,6 +1,6 @@
 # Private webapp content: safe defaults and passive media
 
-Status: P1-1 implemented and build-qualified; P1-BUILD review pending. Part 1 of the browser privacy work. Part 2 is
+Status: P1-1 passed P1-BUILD; P1-2 implemented and fixture-qualified; P1-FETCH review pending. Part 1 of the browser privacy work. Part 2 is
 [interactive content and media](webapp-interactive-content.md).
 Execution follows the [planning workflow](../planning-workflow.md) and
 [repository instructions](../../AGENTS.md).
@@ -395,8 +395,24 @@ that any successful same-origin response must have used Tor.
 
 ## Evidence and completion status
 
-- Implementation: P1-1 derived image/policy input implemented; P1-BUILD pending.
-  P1-2 through P1-4 pending; this checkpoint is not safe browser containment.
+- Implementation: P1-1 derived image/policy input implemented; P1-BUILD passed at `4bd8e1b`.
+  P1-2 implemented and fixture-qualified; P1-FETCH pending. P1-3/P1-4 pending;
+  this checkpoint is not safe browser containment.
+- P1-2 evidence: clean derived backend build and `make check` (51 tests plus
+  Compose/compilation) passed. `python3 tests/images_smoke.py` passed isolated
+  real HTTP/TLS sockets, original Host/certificate identity, private/metadata/
+  host/VM/Teep/MCP denial, ambiguous URL refusal, redirects and DNS rebinding,
+  mixed DNS answers, active/false-type rejection, declared/streamed size limits,
+  redirect loop, TLS identity failure, failed dependency and explicit retry.
+  Actual native password middleware/route checks passed unauthenticated refusal,
+  old-proxy removal, forged/opaque/cross-origin consent denial, ask/no-prefetch,
+  load once, remember/reopen/revoke, independent origins and off ceiling.
+  Canaries have no uplink or published ports; this is destination policy evidence,
+  not actual Tor-route or browser containment evidence. Changed-document links
+  and diff check pass excluding patch-format blank context lines.
+- P1-1 plugin evidence: `make plugins-test` passed native dependency-bearing
+  install, update, loading and persistence after recreation, using only disposable
+  project state and a local fixture wheel.
 - P1-1 evidence: clean derived build passed on arm64; native renderer recipe
   installs 1,143 locked dependencies and compiles source. Removing inherited
   disposable build output avoids overlay `EXDEV` on native publication.
@@ -409,6 +425,10 @@ that any successful same-origin response must have used Tor.
 - P1-DESIGN: fresh read-only review of `dba3be8` passed with the redirect
   clarification above incorporated. The reviewer identified cross-origin redirect
   consent ambiguity; `ask` now rejects before next-hop DNS/network activity.
+  P1-BUILD: fresh read-only review of `4bd8e1b` passed; reviewer independently
+  ran `tests/hermes_build.py`, including UID/GID handling. No material findings.
+  Diff-check evidence excludes unified-patch context blank lines, which Git
+  diagnoses as whitespace in newly added patch files.
   Review explicitly requires plugin HTML/SVG, preview blobs, file tickets/direct
   navigation and old-proxy closure coverage. Phase/final reviews remain pending.
 - Existing evidence: source inspection and the preliminary intercepted Chromium

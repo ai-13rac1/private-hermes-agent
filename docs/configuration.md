@@ -260,3 +260,13 @@ policy changes.
 The derived-image/policy-input phase is an incomplete implementation checkpoint.
 Browser containment and private image loading are not yet implemented or qualified;
 see the retained [part 1 plan](plans/webapp-private-content.md).
+
+Tor-image remembered consent uses `webapp-image-consent.sqlite3` in `hermes-data`,
+with a native SQLite table and mode 0600. Its method is fixed to private image
+retrieval; it is separate from profile/model configuration and not mounted in the
+executor. One authenticated deployment administrator shares remembered grants
+across sessions on the same exact browser origin. Logout and restart retain them;
+explicit revocation removes them. Backing up/restoring Hermes's named volume
+includes this state. Load once creates no persistent grant or reusable bearer
+credential. Policy and retrieval responses are no-store, with no server image
+cache that could bypass a changed policy or revoked grant.

@@ -21,4 +21,5 @@ COPY --from=webapp-build /opt/hermes/hermes_bootstrap.py /opt/hermes/hermes_boot
 COPY --from=webapp-build /opt/hermes/hermes_cli/ /opt/hermes/hermes_cli/
 COPY --from=webapp-build /opt/hermes/apps/desktop/dist-webapp/ /opt/hermes/apps/desktop/dist-webapp/
 COPY components/hermes/external_content.py /opt/hermes/hermes_cli/private_external_content.py
+COPY components/hermes/public_images.py /opt/hermes/hermes_cli/private_public_images.py
 ENV HERMES_WEBAPP_DIST=/opt/hermes/apps/desktop/dist-webapp

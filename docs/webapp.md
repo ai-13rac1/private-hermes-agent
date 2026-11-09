@@ -202,3 +202,33 @@ qualification does not itself authorize enrollment or public exposure.
 References: [Tailscale Docker parameters](https://tailscale.com/docs/features/containers/docker/docker-params),
 [Tailscale Funnel](https://tailscale.com/docs/features/tailscale-funnel), and
 [HAProxy header rules](https://docs.haproxy.org/3.4/configuration.html).
+
+## Private-image backend checkpoint
+
+The deployment policy and authenticated Tor-image backend are implemented; UI and
+all-document browser enforcement remain pending in
+[part 1](plans/webapp-private-content.md). This intermediate build does **not** yet
+provide private browser rendering. The old CDN proxy route has been removed.
+
+The backend accepts validated public IPv4 HTTP(S) raster images (PNG, JPEG, GIF,
+WebP, BMP and ICO), through the existing transparent Tor route. It pins a checked
+numeric destination while retaining TLS identity checks, revalidates redirects,
+strips browser credentials/referrers, rejects SVG/HTML and keeps the native 25 MiB
+image limit with streaming checks. IPv6-only and unsupported formats fail visibly;
+there is no direct browser retry. Socket operations allow 60 seconds for Tor
+latency. Failed retrieval may be retried explicitly.
+
+In `ask`, a same-origin authenticated image POST may approve exactly that load.
+Remembered permissions apply only to Tor-image loading for one external origin
+and one exact browser origin; localhost and Funnel do not share them. In `ask`,
+cross-origin redirects are rejected before next-hop DNS or network traffic;
+opening externally remains available. `off` denies retrieval despite old grants
+or load-once requests. Revocation denies future requests; delivered image bytes
+cannot be recalled.
+
+Run `make images-test` for controlled HTTP/TLS raster, DNS-change, SSRF and native
+auth/consent qualification. It uses a separate disposable project, public-numbered
+canary addresses on isolated networks and no published ports or uplink. Stop other
+test/deployment stacks first because inference/MCP fixture subnets are shared.
+This establishes destination enforcement, not evidence that a canary fetch used
+Tor. Actual Tor route and browser traffic checks remain separate qualification.

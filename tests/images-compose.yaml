@@ -1,0 +1,44 @@
+name: private-hermes-images-test
+services:
+  canary:
+    image: private-hermes-agent:local
+    entrypoint: [/opt/hermes/.venv/bin/python, /opt/image-canary.py]
+    user: "10000:10000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    volumes:
+      - ./fixtures/image-canary.py:/opt/image-canary.py:ro
+      - ${IMAGE_TEST_TLS:?disposable TLS fixture required}:/run/test-tls:ro
+    networks:
+      public: {ipv4_address: 11.203.88.3}
+      inference: {ipv4_address: 10.203.83.3}
+      mcp: {ipv4_address: 10.203.84.10}
+  check:
+    image: private-hermes-agent:local
+    entrypoint: [/opt/hermes/.venv/bin/python, /opt/images_check.py]
+    user: "10000:10000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      WEBAPP_EXTERNAL_CONTENT: tor_proxied
+      SSL_CERT_FILE: /run/test-tls/cert.pem
+    volumes:
+      - ./images_check.py:/opt/images_check.py:ro
+      - ${IMAGE_TEST_TLS:?disposable TLS fixture required}:/run/test-tls:ro
+    networks:
+      public: {ipv4_address: 11.203.88.2}
+      inference: {ipv4_address: 10.203.83.2}
+      mcp: {ipv4_address: 10.203.84.2}
+networks:
+  # A public-numbered destination is entirely inside this isolated fixture.
+  # No service publishes a host port or joins an uplink.
+  public:
+    internal: true
+    ipam: {config: [{subnet: 11.203.88.0/24}]}
+  inference:
+    internal: true
+    ipam: {config: [{subnet: 10.203.83.0/24}]}
+  mcp:
+    internal: true
+    ipam: {config: [{subnet: 10.203.84.0/24}]}
