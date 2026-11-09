@@ -220,4 +220,33 @@ make paid research calls. The main test uses the same unfunded x402_treazury fix
 and checks host/VM isolation and normal SSH, inference, and transparent Tor
 behavior separately.
 
+## Pending live qualification
+
+The staged onboarding implementation is complete and has passed local fixture
+qualification. Live wallet birthday discovery, ZEC receipt, managed USDC funding
+and funded catalog preparation have not been qualified. The local checks above
+do not establish those financial outcomes.
+
+The operator intends to perform this qualification after
+[the first webapp privacy plan](plans/webapp-private-content.md) is complete.
+At that point, follow the existing workflow in this guide:
+
+1. Confirm Hermes is usable before treasury creation or funding.
+2. Run `make x402_treazury-init`, verify that it displays the receive address,
+   and back up the wallet before depositing ZEC. Repeated initialization must
+   preserve the wallet identity.
+3. Deposit when ready, then run `make x402_treazury-prepare`. Confirm successful
+   native bootstrap and catalog warming, followed by authenticated readiness of
+   all twelve MCP endpoints and Hermes registration without a gateway restart.
+4. Check saved status and normal prepared-stack restart/reconnection. If a phase
+   fails, use the documented diagnosis and retry path against the same wallet;
+   do not discard state or repeat payments manually to force success.
+5. Record the tested revision and observed outcomes privately, without including
+   seeds, keys, bearer tokens or financial identifiers in repository evidence.
+   MCP initialization/listing alone does not qualify paid research calls; record
+   any separately authorized paid-call testing distinctly.
+
+This remaining operator qualification requires deliberate wallet/funding actions;
+removing the completed implementation plan does not perform or authorize them.
+
 Upstream: [x402_treazury](https://github.com/mikeperry-tor/x402_treazury).
