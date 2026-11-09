@@ -1,0 +1,132 @@
+# Planning workflow
+
+This is maintained guidance for Private Hermes, used with
+[AGENTS.md](../AGENTS.md). Feature designs and acceptance criteria belong in
+`docs/plans/`; operating instructions belong in the relevant maintained guides.
+This workflow does not select a new architecture or authorize unrelated work.
+
+Use a plan when requested or when substantial staged work needs explicit design
+decisions, commit boundaries and acceptance criteria. Small changes, including
+ordinary documentation edits, need neither a ceremonial plan nor independent
+review. Scale the process to the actual change.
+
+## Define and review the approach
+
+Before substantive planned implementation, identify the working branch, starting
+commit and plan path. Create or update the plan and commit it locally before
+implementing it. An already committed, still-current plan needs no duplicate
+commit. Preserve unrelated workspace changes.
+
+A useful plan states:
+
+- User intent, scope, current behavior, intended behavior and explicit deferrals.
+  Separate observed facts from proposals and unresolved assumptions.
+- Accepted trust boundaries and operator workflows to preserve. For affected
+  integrations, identify the relevant image/source revision and actual component
+  contract, not merely the presence of a reference checkout.
+- The simplest proposed approach. Justify added services, state transitions,
+  persistent records, configuration options and abstractions against concrete
+  needs. Do not add a framework to accommodate hypothetical future integrations.
+- Ordered, coherent implementation phases with stable identifiers, affected
+  consumers, focused acceptance checks and operating-documentation updates.
+  Do not create phases solely to satisfy a commit or review count.
+- Independent design and final combined review gates for substantive work, plus
+  intermediate gates where meaningful architectural or security boundaries
+  change. Specify what each gate establishes and the evidence it needs.
+- Missing evidence, remaining decisions and any live exposure, financial or
+  destructive operations outside current task authorization.
+
+Check relevant active/deferred plans for shared-interface conflicts. Reconcile
+affected requirements with the change; do not silently restore superseded names,
+topologies or tooling. No legacy compatibility or migration machinery is needed
+for this prerelease stack unless the user explicitly requests it. Preserve
+current-format state and safe initialization/retry behavior.
+
+Obtain independent design review before substantive implementation. Resolve
+material findings before building on affected decisions. Commit material design
+changes and review them again when they invalidate earlier conclusions.
+
+## Independent review means a fresh subagent
+
+Start each independent audit/review with a newly spawned, read-only subagent in a
+fresh conversation, with no prior turns or inherited history. Use
+`fork_turns="none"` when supported. Neither an implementer's self-review nor reuse
+of a previous review conversation counts as a new independent review.
+
+Give the reviewer a self-contained brief containing user intent, constraints,
+scope, baseline and exact reviewed SHA or identified snapshot including new files,
+relevant plans/guides, validation evidence, and earlier findings when applicable.
+The reviewer should inspect the repository independently, trace affected
+consumers and failure paths, and examine relevant unchanged high-risk code.
+Reviewers must not author the changes they review.
+
+Ask reviewers to challenge unnecessary complexity as well as correctness and
+security. New hardening must address a concrete threat within the agreed trust
+model. A recommendation does not itself authorize scope expansion, extra
+services, migrations or a new framework. Delegation grants no additional access,
+spending or publication authority.
+
+Use reviews for meaningful phase commits, named gates and the final combined
+change. One review can cover a phase and a gate, or a final phase and completion,
+when its brief explicitly covers both scopes. There is no fixed reviewer count
+and no requirement to review an unchanged snapshot repeatedly. If independent
+review is unavailable, disclose it and perform useful remaining work without
+claiming the missing gate passed.
+
+## Implement, commit and validate
+
+Commit coherent work during development and at phase boundaries, including
+completed changes. Local development commits have standing authorization under
+AGENTS.md; do not wait for separate commit requests. Stage only named intended
+files. Incomplete checkpoints must be identified honestly and cannot be reported
+as completed phases or evidence that acceptance criteria passed.
+
+Include affected consumers, focused checks and relevant guide updates with their
+implementation. Use native component behavior and straightforward helpers where
+appropriate. Do not turn plan execution or evidence collection into an additional
+orchestration, receipt or recovery system.
+
+Validate changed behavior using existing focused checks and controlled fixtures.
+Security claims require allowed and forbidden path evidence, with failure and
+restart coverage where relevant. Keep fixtures separate from production state
+and secrets; serialize checks sharing fixed networks/runtime state. Do not add
+arbitrary resource limits or deadlines to force a test or workflow to finish.
+
+Record concise evidence in the plan: implemented phases, reviewed revisions,
+material findings and dispositions, relevant check results and remaining work.
+Do not create a progress diary, duplicate generated reports or store secrets.
+Update maintained guides as behavior lands; a retained plan is not a substitute
+for operator documentation.
+
+## Resolve findings and finish
+
+Resolve material defects before dependent work or completion. Consider
+simplifications, but assess their scope and value rather than treating every
+suggestion as mandatory. Record reasons for rejecting recommendations. Deferring
+a material defect does not satisfy the affected acceptance criterion.
+
+Commit focused corrections. Use ordinary correction commits or fixup commits as
+appropriate; do not require a separate review ceremony for every trivial fixup.
+Re-review affected decisions or behavior when corrections invalidate prior
+evidence, using a fresh subagent. Reuse still-valid evidence and rerun affected
+checks; broaden testing only for changed inputs, failures or unresolved concerns.
+
+At completion, independently review the resulting combined change, including
+corrections and relevant unchanged contracts. Verify acceptance criteria, current
+guides and affected plan consistency. Distinguish implementation, validation and
+review completion; unavailable checks are missing coverage, not passes.
+
+Update the plan's status and remaining limitations, and commit the completed
+development/documentation work. Retain completed plans with clear status and
+links to maintained guides; there is no automatic deletion or archive step.
+Keep genuinely deferred work explicit with a concrete next action. Do not create
+extra plans or guides merely to record incidental improvement ideas.
+
+Do not rewrite existing history, push, merge or publish without authorization.
+Plan execution does not independently authorize live Funnel enrollment, funded
+operations or destruction of private state. Existing task authorization remains
+valid; do not repeatedly seek approval for already authorized work.
+
+At handoff, report what changed, the committed revision or uncommitted snapshot,
+plan status, review and validation evidence, and material limitations or next
+steps. Keep the handoff proportional to the task.

@@ -15,6 +15,8 @@ optional Tailscale Funnel. Do not add framework selection or unrelated services.
 - Read relevant plans under `docs/plans/` and inspect the implementation before
   changing a shared interface. Plans describe intended work; their existence
   does not make a proposed feature implemented or independently authorize it.
+- Read the [planning workflow](docs/planning-workflow.md) before creating,
+  executing, materially revising or completing an implementation plan.
 - `reference_repos/` contains read-only reference checkouts. Do not edit them or
   put build/runtime state there. Check exact revisions: a reference checkout can
   differ from the pinned image or source used by the stack.
@@ -138,6 +140,11 @@ delete private state as a shortcut to simplifying implementation or tests.
   meaningful phase commits, named plan gates and the completed combined change.
   Scale review to the change; no fixed reviewer count or repeated review of an
   unchanged snapshot is required. Small documentation edits can use self-review.
+- An independent audit/review means a newly spawned subagent with a fresh
+  conversation and no prior turns or inherited conversation history. Use
+  `fork_turns="none"` when supported. Do not reuse an implementation agent or an
+  existing review conversation for a new independent review. Supply context in
+  the review brief; the reviewer's own fresh inspection supplies the assessment.
 - Give reviewers self-contained briefs with intent, constraints, exact SHA or
   identified snapshot including new files, relevant guides and evidence. Ask
   them to trace consumers/failure paths and challenge unnecessary complexity.
