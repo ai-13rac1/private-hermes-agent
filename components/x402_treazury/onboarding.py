@@ -1,0 +1,262 @@
+"""Treasury-local preparation and serving gate; never imported by Hermes."""
+from contextlib import contextmanager
+from collections import deque
+from datetime import datetime, timezone
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
+
+HOME = Path('/var/lib/x402')
+RECORD = HOME / 'onboarding' / 'preparation.json'
+BINARY = '/usr/local/bin/x402_treazury'
+
+
+class PhaseError(RuntimeError):
+    def __init__(self, phase, code, tail):
+        self.phase, self.code, self.tail = phase, code, tail
+        super().__init__(f'{phase} failed (exit {code}). Recent output:\n{tail}')
+
+
+def sanitize(value):
+    for key, secret in os.environ.items():
+        if secret and (key == 'BASE_RPC_URL' or any(word in key for word in ('TOKEN', 'SECRET', 'KEY'))):
+            value = value.replace(secret, '[redacted]')
+    return value
+
+
+def native(arguments, phase, structured=False, quiet=False):
+    """Stream output, preserve a diagnostic tail, and forward graceful signals."""
+    child = subprocess.Popen([BINARY, *arguments], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    tail, output = deque(maxlen=80), []
+    cancelled = []
+    def forward(signum, _frame):
+        cancelled.append(signum)
+        if child.poll() is None:
+            child.send_signal(signum)
+    previous = {sig: signal.signal(sig, forward) for sig in (signal.SIGINT, signal.SIGTERM)}
+    def drain(stream, stdout):
+        for line in stream:
+            if stdout and structured:
+                output.append(line)
+            safe = sanitize(line)
+            tail.append(safe)
+            if not quiet:
+                print(safe, end='', file=sys.stdout if stdout else sys.stderr, flush=True)
+        stream.close()
+    threads = [threading.Thread(target=drain, args=(child.stdout, True)),
+               threading.Thread(target=drain, args=(child.stderr, False))]
+    try:
+        for thread in threads:
+            thread.start()
+        code = child.wait()
+        for thread in threads:
+            thread.join()
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+    if cancelled:
+        code = 128 + cancelled[0]
+    if code:
+        raise PhaseError(phase, code, ''.join(tail))
+    if structured:
+        try:
+            return json.loads(''.join(output))
+        except ValueError as error:
+            raise PhaseError(phase, 1, 'Successful command returned invalid JSON') from error
+
+
+@contextmanager
+def owner():
+    """The same guard covers preparation and the full serving lifetime."""
+    with (HOME / 'onboarding.lock').open('a') as lock:
+        os.chmod(lock.name, 0o600)
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise RuntimeError('Another preparation or serving process owns this treasury; stop it gracefully first.') from error
+        yield
+
+
+def write_record(record):
+    RECORD.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    record['updated_at'] = datetime.now(timezone.utc).isoformat()
+    with tempfile.NamedTemporaryFile(mode='w', dir=RECORD.parent, delete=False) as stream:
+        temporary = Path(stream.name)
+        json.dump(record, stream)
+        stream.write('\n')
+        stream.flush()
+        os.fsync(stream.fileno())
+    try:
+        temporary.chmod(0o600)
+        temporary.replace(RECORD)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def context():
+    config = native(['config', 'show'], 'configuration', structured=True, quiet=True)
+    identity = native(['build-info'], 'build identity', structured=True, quiet=True)
+    if config.get('network', {}).get('mode') != 'tor' or config['network'].get('socks_endpoint') != 'unix:/run/tor-x402_treazury/socks':
+        raise RuntimeError('Onboarding requires the configured private Tor Unix socket; direct transport is refused')
+    # Config includes wallet assignments, funding/source policy and transport.
+    # Hash the supplied RPC setting too; never store its value or full config.
+    payload = {'config': config, 'build': identity, 'rpc': os.environ.get('BASE_RPC_URL', ''),
+               'coordinator': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+    fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return config, identity, fingerprint
+
+
+def wallet(config):
+    state = Path(config['treasury']['state_dir'])
+    key = Path(config['treasury'].get('key_file') or state / 'wallet.key')
+    if not state.is_absolute() or not key.is_absolute():
+        raise RuntimeError('Treasury state and key paths must be absolute in the rendered deployment')
+    if not os.path.lexists(state) and not os.path.lexists(key):
+        return None
+    if not state.is_dir() or not key.is_file():
+        raise RuntimeError('Existing treasury state/key is incomplete; initialization refused. Inspect or restore it.')
+    status = native(['wallet', 'status', '--json'], 'wallet inspection', structured=True, quiet=True)
+    # Metadata-only status can succeed without a readable key. Require the
+    # encrypted address snapshot to be readable too before trusting identity.
+    addresses = native(['wallet', 'addresses'], 'wallet addresses', structured=True, quiet=True)
+    if not status.get('treasury_id') or not addresses:
+        raise RuntimeError('Existing wallet has no readable identity/address snapshot')
+    return status['treasury_id']
+
+
+def inspect():
+    try:
+        config, identity, fingerprint = context()
+        treasury_id = wallet(config)
+        result = {'prepared': False, 'wallet_absent': treasury_id is None,
+                  'wallet_valid': treasury_id is not None, 'record': {},
+                  'reason': 'Wallet/preparation is absent or does not match this deployment.'}
+        try:
+            record = json.loads(RECORD.read_text()) if RECORD.exists() else {}
+            if not isinstance(record, dict):
+                raise ValueError('Preparation record must be an object')
+        except (OSError, ValueError) as error:
+            return {**result, 'reason': 'Preparation record is unreadable: ' + sanitize(str(error))}
+        valid = (treasury_id is not None and record.get('schema') == 1
+                 and record.get('treasury_id') == treasury_id
+                 and record.get('fingerprint') == fingerprint
+                 and record.get('completed') == ['bootstrap', 'catalogs'])
+        return {**result, 'prepared': valid, 'record': record,
+                'reason': 'prepared' if valid else result['reason']}
+    except (OSError, ValueError, KeyError, RuntimeError) as error:
+        return {'prepared': False, 'wallet_absent': False, 'wallet_valid': False,
+                'reason': sanitize(str(error)), 'record': {}}
+
+
+def initialize():
+    with owner():
+        config, identity, fingerprint = context()
+        if wallet(config) is None:
+            previous = json.loads(RECORD.read_text()) if RECORD.exists() else {}
+            if not isinstance(previous, dict) or previous.get('treasury_id'):
+                raise RuntimeError('Onboarding records an existing treasury but its wallet is absent; inspect or restore state instead of replacing it.')
+            record = {'schema': 1, 'phase': 'wallet-init', 'completed': [],
+                      'fingerprint': fingerprint, 'build': identity, 'activation': 'disconnected'}
+            write_record(record)
+            try:
+                native(['wallet', 'init'], 'wallet creation')
+                record['treasury_id'] = wallet(config)
+                if not record['treasury_id']:
+                    raise RuntimeError('Wallet creation exited successfully without readable state')
+                record['phase'] = 'wallet-created'
+                write_record(record)
+            except Exception as cause:
+                error = cause if isinstance(cause, PhaseError) else PhaseError('wallet creation', 1, sanitize(str(cause)))
+                record['failure'] = {'phase': error.phase, 'exit_code': error.code, 'recent_output': error.tail}
+                write_record(record)
+                raise error
+        else:
+            native(['wallet', 'status'], 'wallet status')
+        print('Back up the wallet with the native wallet backup command before depositing ZEC.\n'
+              'Deposit when ready, then run make x402_treazury-prepare. Hermes remains available.')
+
+
+def prepare():
+    with owner():
+        config, identity, fingerprint = context()
+        treasury_id = wallet(config)
+        if treasury_id is None:
+            raise RuntimeError('Create the wallet first with make x402_treazury-init')
+        record = {'schema': 1, 'treasury_id': treasury_id, 'fingerprint': fingerprint,
+                  'build': identity, 'completed': [], 'activation': 'disconnected'}
+        for phase, arguments in (
+                ('bootstrap', ['wallet', 'bootstrap', '--json']),
+                ('catalogs', ['catalog', 'warm'])):
+            record['phase'] = phase
+            write_record(record)
+            print(f'Starting {phase}; native network/funding policy applies.', flush=True)
+            try:
+                result = native(arguments, phase, structured=True)
+                if not isinstance(result, dict) or not result:
+                    raise PhaseError(phase, 1, 'Expected a structured command result')
+                if phase == 'bootstrap' and (result.get('schema_version') != 3 or
+                        not isinstance(result.get('captured_completed_groups'), list) or
+                        result.get('incomplete_captured_jobs') != []):
+                    raise PhaseError(phase, 1, 'Bootstrap summary did not confirm completion of captured funding work')
+                if phase == 'catalogs' and (result.get('direct') is not False or
+                        {source['source'] for source in result.get('sources', [])} != set(config['sources'])):
+                    raise PhaseError(phase, 1, 'Catalog summary did not cover configured sources over Tor')
+                record['completed'].append(phase)
+                record['result'] = result
+                write_record(record)
+            except Exception as cause:
+                error = cause if isinstance(cause, PhaseError) else PhaseError(phase, 1, sanitize(str(cause)))
+                record['failure'] = {'phase': phase, 'exit_code': error.code, 'recent_output': error.tail}
+                write_record(record)
+                raise error
+        record['phase'] = 'prepared'
+        write_record(record)
+        print('Bootstrap and catalog warming completed. Serving and MCP activation are separate checks.', flush=True)
+
+
+def serve():
+    with owner():
+        result = inspect()
+        if not result['prepared']:
+            raise RuntimeError('Serving refused: ' + result['reason'] + ' Run make x402_treazury-prepare.')
+        native(['serve'], 'serving')
+
+
+def main():
+    action = sys.argv[1]
+    if action == 'inspect':
+        print(json.dumps(inspect()))
+    elif action == 'init':
+        initialize()
+    elif action == 'prepare':
+        prepare()
+    elif action == 'status':
+        result = inspect()
+        print(json.dumps(result, indent=2))
+        if not result['wallet_absent']:
+            native(['wallet', 'status'], 'wallet status')
+    elif action in ('connected', 'disconnected', 'activation-failed'):
+        record = json.loads(RECORD.read_text()) if RECORD.exists() else {}
+        if record:
+            record['activation'] = action
+            write_record(record)
+    else:
+        raise RuntimeError('Unknown onboarding action')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except PhaseError as error:
+        print(error, file=sys.stderr)
+        sys.exit(error.code if 0 < error.code < 256 else 1)
+    except (OSError, ValueError, KeyError, RuntimeError) as error:
+        print(sanitize(str(error)), file=sys.stderr)
+        sys.exit(1)

@@ -194,10 +194,12 @@ services:
     tmpfs: [/tmp:mode=1777]
     restart: unless-stopped
 
-  x402_treazury-setup:
+  x402_treazury-config:
+    profiles: [maintenance]
     image: private-hermes-executor:local
     network_mode: none
     entrypoint: [python3, /opt/x402_treazury-setup.py]
+    command: [disconnect]
     cap_drop: [ALL]
     cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
     security_opt: [no-new-privileges:true]
@@ -210,7 +212,10 @@ services:
       - hermes-data:/agent-data
 
   x402_treazury:
-    image: private-hermes-x402_treazury:local
+    profiles: [x402_treazury]
+    stop_grace_period: -1s
+    image: &x402-image private-hermes-x402_treazury:local
+    init: true
     build:
       context: .
       dockerfile: components/x402_treazury/Dockerfile
@@ -222,7 +227,6 @@ services:
     tmpfs: [/tmp:mode=1777]
     depends_on:
       tor: {condition: service_healthy}
-      x402_treazury-setup: {condition: service_completed_successfully}
       agent-net: {condition: service_healthy}
     network_mode: service:agent-net
     volumes:
@@ -233,6 +237,42 @@ services:
       BASE_RPC_URL: ${BASE_RPC_URL:-}
     restart: unless-stopped
 
+  x402_treazury-job:
+    profiles: [maintenance]
+    image: *x402-image
+    init: true
+    user: "10003:10003"
+    group_add: ["102"]
+    network_mode: service:agent-net
+    entrypoint: [python3, /opt/onboarding.py]
+    command: [status]
+    restart: "no"
+    stop_grace_period: -1s
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:mode=1777]
+    environment:
+      BASE_RPC_URL: ${BASE_RPC_URL:-}
+    volumes:
+      - tor-x402_treazury:/run/tor-x402_treazury:ro
+      - x402_treazury-state:/var/lib/x402
+
+  x402_treazury-admin:
+    profiles: [maintenance]
+    image: *x402-image
+    user: "10003:10003"
+    network_mode: none
+    entrypoint: [python3, /opt/onboarding.py]
+    command: [status]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    environment:
+      BASE_RPC_URL: ${BASE_RPC_URL:-}
+    volumes:
+      - x402_treazury-state:/var/lib/x402
+
   hermes:
     image: *hermes-image
     network_mode: service:agent-net
@@ -241,8 +281,6 @@ services:
       agent-net: {condition: service_healthy}
       executor: {condition: service_healthy}
       teep: {condition: service_healthy}
-      x402_treazury-setup: {condition: service_completed_successfully}
-      x402_treazury: {condition: service_started}
     cap_drop: [NET_ADMIN, NET_RAW]
     security_opt: [no-new-privileges:true]
     volumes:

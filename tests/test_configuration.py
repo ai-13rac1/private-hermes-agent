@@ -73,7 +73,7 @@ class OperatorConfigurationTests(unittest.TestCase):
         services = json.loads(result.stdout)['services']
         for name, service in services.items():
             supplied = service.get('environment', {})
-            expected = set(provider_keys) if name == 'teep' else {'BASE_RPC_URL'} if name == 'x402_treazury' else {'TS_AUTHKEY'} if name == 'tailscale' else set()
+            expected = set(provider_keys) if name == 'teep' else {'BASE_RPC_URL'} if name in ('x402_treazury', 'x402_treazury-admin', 'x402_treazury-job') else {'TS_AUTHKEY'} if name == 'tailscale' else set()
             self.assertEqual(set(secrets) & set(supplied), expected, name)
             for key in expected:
                 self.assertEqual(supplied[key], secrets[key])
@@ -84,6 +84,8 @@ class OperatorConfigurationTests(unittest.TestCase):
         self.assertEqual(auth_recipients, ['bootstrap'])
         self.assertNotIn('webapp-setup', services)
         self.assertIn('webapp-proxy', services)
+        self.assertEqual(services['x402_treazury-job']['restart'], 'no')
+        self.assertEqual(services['x402_treazury-job']['stop_grace_period'], '-1s')
         self.assertEqual(services['hermes']['image'], services['configure']['image'])
         self.assertTrue(services['hermes']['image'].startswith('nousresearch/hermes-agent@sha256:'))
 

@@ -33,7 +33,7 @@ inside an application cannot grant a direct uplink.
 `make init` creates missing local configuration files and leaves existing files
 unchanged. Add new settings explicitly using `.env.example` as a reference.
 `make build`, `make up`, and
-`make x402_treazury-setup` run it automatically. Image pins and source revisions live
+`make x402_treazury-init` run it automatically. Image pins and source revisions live
 in Compose and component Dockerfiles, not `.env`. Existing named volumes remain
 the authoritative application state.
 
@@ -51,22 +51,26 @@ networks. Local ingress uses `10.203.85.0/24`; optional Funnel adds `10.203.87.0
 make init
 ```
 
-Edit `.env` to add at least one inference provider key and the x402_treazury
-`BASE_RPC_URL`. Compose supplies provider keys only to teep and the RPC URL
+Edit `.env` to add at least one inference provider key. The x402_treazury
+`BASE_RPC_URL` is needed later, when preparing research services. Compose supplies provider keys only to teep and the RPC URL
 only to x402_treazury. Tor control uses a private
 cookie-authenticated Unix socket in the Tor container.
 
 ```sh
 make build
-make x402_treazury-setup
+make up
 ```
 
-Before the first `make up`, follow the [x402_treazury setup guide](docs/x402_treazury.md)
-to configure `BASE_RPC_URL` and explicitly initialize or restore the treasury.
-Then `make up` starts routing, inference, executor, x402_treazury MCP services,
-and the Hermes gateway with its authenticated local webapp. Open
-`http://127.0.0.1:9120` using username `admin` and the password saved by
-`make init` in `config/webapp/password`. The CLI remains available below.
+`make up` starts routing, inference, executor, and the Hermes gateway with its
+authenticated local webapp. Open `http://127.0.0.1:9120` using username `admin`
+and the password saved by `make init` in `config/webapp/password`. The CLI
+remains available below. Explore Hermes before funding research services.
+
+When ready, follow the [x402_treazury onboarding guide](docs/x402_treazury.md):
+`make x402_treazury-init` displays the receive address; after backing up and
+depositing ZEC, `make x402_treazury-prepare` bootstraps funding, warms catalogs,
+and connects research tools without restarting Hermes. Preparation may wait for
+funds while the webapp remains available.
 
 `bootstrap` runs without networking. It generates separate SSH client and host
 keys in separate named volumes, pins the executor host key, initializes the
@@ -147,7 +151,7 @@ the agent container; its browser terminal is separate from the SSH code executor
 ## x402_treazury MCP servers
 
 The default [x402_treazury integration](docs/x402_treazury.md) builds
-x402_treazury and connects its twelve authenticated MCP endpoints over shared
+x402_treazury and, after staged preparation, connects its twelve authenticated MCP endpoints over shared
 localhost. It keeps wallet state in a separate container volume and uses a
 private Tor SOCKS Unix socket. The SSH executor has no access to these endpoints
 or their bearer token. See that guide for build, wallet initialization, startup,
@@ -181,7 +185,7 @@ Do not give an MCP server an uplink, host mounts, or engine access unless its
 role requires that authority. Servers needing public access can be given a
 separately reviewed Tor route; they do not inherit the agent's egress. Powerful
 MCP tools remain explicitly granted capabilities available through Hermes.
-The twelve x402_treazury MCP servers run by default; this allowlist is for additional servers.
+The twelve x402_treazury MCP servers activate after preparation; this allowlist is for additional servers.
 
 ## Images and other Hermes isolation choices
 

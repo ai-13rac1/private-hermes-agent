@@ -8,6 +8,7 @@ import subprocess
 import sys
 from deployment import ROOT, compose, render, settings
 from auth import validate
+from x402_treazury import Controller, operation_lock
 
 
 def run(command, **kwargs):
@@ -31,7 +32,7 @@ def stop_funnel(all_command):
     run(all_command + ['rm', '-f', 'tailscale'])
 
 
-def main():
+def main_unlocked():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=('build', 'up', 'down', 'config', 'compose'))
     parser.add_argument('arguments', nargs=argparse.REMAINDER)
@@ -52,12 +53,12 @@ def main():
     elif args.action == 'config':
         run(command + ['config', '--quiet'])
     elif args.action == 'build':
-        run(command + ['build'])
+        run(command + ['--profile', '*', 'build'])
     elif args.action == 'down':
         try:
             stop_funnel(all_command)
         finally:
-            run(all_command + ['down'])
+            run(all_command + ['down', '--timeout', '-1'])
     else:
         run([sys.executable, 'scripts/preflight.py', *(['--funnel'] if config.funnel else [])])
         path = ROOT / 'config/webapp/auth.json'
@@ -70,12 +71,24 @@ def main():
         # A changed bind-mounted credential file does not itself recreate a
         # completed container. Always apply current settings before startup.
         run(command + ['up', '-d', '--wait', '--no-deps', '--force-recreate', 'bootstrap'])
-        infrastructure = ['tor', 'agent-net', 'executor-net', 'executor', 'teep',
-                          'x402_treazury-setup', 'x402_treazury']
+        infrastructure = ['tor', 'agent-net', 'executor-net', 'executor', 'teep']
         run(command + ['up', '-d', '--wait', *infrastructure])
+        controller = Controller(command, ROOT)
+        # This gateway is about to be recreated and reads the disconnected
+        # configuration at boot; do not wait on an old gateway's control RPC.
+        controller.configure('disconnect')
         run(command + ['up', '-d', '--no-deps', '--force-recreate', 'webapp-proxy', 'hermes'])
         if config.funnel:
             run(command + ['up', '-d', 'tailscale'])
+        controller.startup()
+
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] in ('up', 'down'):
+        with operation_lock(ROOT):
+            main_unlocked()
+    else:
+        main_unlocked()
 
 
 if __name__ == '__main__':

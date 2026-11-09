@@ -93,7 +93,7 @@ class ShutdownTests(unittest.TestCase):
         with patch.dict(os.environ, {'TAILSCALE_FUNNEL_ENABLED':'bad'}), patch.object(sys,'argv',['stack.py','down']), patch.object(stack,'settings',side_effect=selected), patch.object(stack,'stop_funnel',side_effect=RuntimeError('test reset failure')), patch.object(stack,'run') as run:
             with self.assertRaises(RuntimeError):
                 stack.main()
-            self.assertEqual(run.call_args.args[0][-1], 'down')
+            self.assertIn('down', run.call_args.args[0])
 
     def test_startup_reprovisions_auth_before_gateway_without_starting_funnel(self):
         sys.path.insert(0, str(ROOT / 'scripts'))
@@ -105,7 +105,7 @@ class ShutdownTests(unittest.TestCase):
             auth_path.parent.mkdir(parents=True)
             credentials = {'password_hash':hash_password('test-only-password'),'secret':'s'*64}
             auth_path.write_text(json.dumps(credentials))
-            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render'), patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run:
+            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render'), patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run, patch.object(stack,'Controller'):
                 stack.main()
                 commands = [call.args[0] for call in run.call_args_list]
                 bootstrap = next(i for i,c in enumerate(commands) if '--force-recreate' in c and c[-1]=='bootstrap')

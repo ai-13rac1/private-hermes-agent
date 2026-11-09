@@ -20,7 +20,7 @@ Compose explicitly selects each service's environment variables:
 | Settings | Recipient |
 | --- | --- |
 | Inference provider API keys | teep |
-| `BASE_RPC_URL` | x402_treazury |
+| `BASE_RPC_URL` | x402_treazury serving/administration containers |
 | `TS_AUTHKEY` | Optional Tailscale container |
 | Funnel enablement, local webapp port and hostname | Deployment workflow and selected ingress components |
 
@@ -78,3 +78,10 @@ Hermes's generated profile `.env` inside its data volume is distinct from the
 root deployment `.env`: the profile contains its MCP token and any Hermes-owned
 credentials. Neither that token nor wallet/SSH keys are moved into the root
 `.env` by this reorganization. `data/` does not contain these volumes yet.
+
+The private x402_treazury state volume also holds its preparation record and
+catalog cache. Hermes and the executor receive neither. The record authorizes
+staged serving for a matching treasury/configuration; it is not proof of current
+balances or perpetual cache freshness. Host-side operation locks live under
+`config/x402_treazury/`; they contain no wallet state. See
+[staged onboarding](x402_treazury.md) for initialization, preparation and recovery.

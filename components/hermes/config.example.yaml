@@ -23,5 +23,5 @@ terminal:
   ssh_key: /run/agent-ssh/id_ed25519
   cwd: /workspace
   env_passthrough: []
-# x402_treazury-setup adds the twelve local x402_treazury MCP endpoints after bootstrap.
+# Staged x402_treazury activation adds its twelve MCP endpoints after preparation.
 mcp_servers: {}

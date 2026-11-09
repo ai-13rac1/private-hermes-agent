@@ -1,7 +1,7 @@
 # Staged x402_treazury onboarding
 
-Status: planned; not implemented. The current stack still starts x402_treazury
-and provisions its Hermes MCP entries during ordinary startup.
+Status: implemented and locally qualified. Live wallet creation and funded
+preparation have not been performed.
 
 ## Objective
 
@@ -36,10 +36,12 @@ their exact behavior against the pinned image during implementation.
 | `make x402_treazury-status` | Display saved wallet status/address and the deployment's preparation phase, including any recorded failure. Do not sync, fund, or warm catalogs. |
 | `make x402_treazury-prepare` | Run `wallet bootstrap`, then `catalog warm`, then start `serve` and connect Hermes after successful readiness checks. Stop at the first failed phase. |
 
-These are intended command semantics, not commands already implemented by this
-plan. The current `x402_treazury-setup` target only provisions the MCP token and
-Hermes entries; replace or rename that responsibility during implementation.
-Do not retain an alias or migration path for the old workflow.
+The networkless `x402_treazury-config` helper replaces the previous setup target.
+There is no alias or migration path for the old workflow.
+`make x402_treazury-prepare` is also the retry command. A matching successful
+preparation record retries activation without repeating bootstrap or catalog
+warming. Incomplete or invalidated preparation resumes through the native
+bootstrap and warming commands and their existing journals/cache policy.
 
 Initial use:
 
@@ -104,7 +106,7 @@ useful structured result, and immediately preceding output without printing
 keys, tokens, environment dumps, or seed material. Do not impose arbitrary phase
 deadlines, retry budgets, storage quotas, or new transaction limits.
 
-A failed phase stops the sequence and leaves Hermes usable. Repeating preparation
+A failed phase stops the sequence and leaves Hermes usable. Retrying incomplete or invalidated preparation
 reruns the native resumable commands against the same treasury; it does not
 erase state, recreate keys, replay shell-level payments, or discard completed
 cache entries. Native journals and cache policy determine what work remains.
@@ -179,7 +181,7 @@ configuration and MCP entries when connecting or disconnecting research tools.
 No backward compatibility, migration code, wallet restoration automation, new
 webapp onboarding UI, or arbitrary resource/storage limits are part of this work.
 Update README, configuration, and x402_treazury operator guidance together; the
-current requirement to initialize/fund before ordinary `make up` becomes stale.
+operator workflow allows ordinary `make up` before treasury initialization or funding.
 
 ## Implementation sequence and acceptance
 
@@ -220,3 +222,47 @@ Use controlled command substitutes to test orchestration failures and disposable
 unfunded fixtures for real CLI/MCP checks. Never make tests depend on a production
 wallet, a ZEC deposit, paid catalogs, or live financial transactions. Report live
 funding/catalog qualification separately from locally verified orchestration.
+
+## Implementation notes and qualification
+
+The main Compose file now defines the serving service, a non-restarting networked
+job service, an offline administration service, and the networkless MCP
+configuration helper. Profiles select lifecycle roles internally; no separate
+onboarding overlay or operator enable flag was introduced. Core startup removes
+managed research registrations before starting Hermes and conditionally activates
+a matching prepared treasury afterward.
+
+The coordinator validates native bootstrap summary schema 3, completed captured
+work, and a complete non-direct catalog-warm summary. The record fingerprints
+native config/build identity, coordinator contents and the supplied RPC setting;
+it stores the fingerprint rather than the RPC setting. Native cache files live
+under the treasury's `http-cache/` directory. The serving entrypoint refuses
+unprepared or mismatched state, including command-line configuration overrides.
+
+One-shot jobs never inherit the serving service's automatic restart policy.
+Detached jobs let the operator command capture the actual exit status while
+streaming logs and retaining control of graceful shutdown. Serving and jobs use
+an infinite Docker shutdown grace period; host cancellation forwards signals and
+waits for native cleanup. A retained job is not overwritten automatically.
+
+Local checks cover initialization and preparation failure/retry, lost/incomplete
+state, competing owners, malformed/stale records, configuration and RPC changes,
+atomic-record failure, direct-transport refusal, credential redaction, and signal
+forwarding. Real unfunded Rust and pinned Hermes fixtures qualify authenticated
+MCP activation and live reload/disconnection without a gateway restart. A free
+public JSON OpenAPI fixture qualifies native warming over Tor, persistent cache
+writes and reuse by another process with Tor stopped.
+
+No real wallet was created, deposited into, or bootstrapped with funds. Native
+financial success/failure branches are substituted for orchestration tests; live
+birthday discovery, ZEC receipt and managed USDC funding remain operator
+qualification steps. This distinction must remain explicit in implementation
+reports and operator documentation.
+
+Completed local checks: `make check` (36 unit checks, Compose validation and
+Python compilation), `make test`, `make x402_treazury-test`, and
+`make webapp-test`. Browser qualification also exercises a failed detached
+production preparation job against an absent wallet, cleanup without restarting
+Hermes, preservation of an unrelated MCP entry, and explicit attachment to the
+existing gateway for reload. Docker's effective shutdown timeout was verified
+as `-1` for the serving container. Disposable projects were removed after tests.

@@ -19,9 +19,13 @@ test: check
 	python3 scripts/preflight.py private-hermes-test
 	python3 -u tests/smoke.py
 
-.PHONY: x402_treazury-setup
-x402_treazury-setup: init
-	python3 scripts/stack.py compose run --rm x402_treazury-setup
+.PHONY: x402_treazury-init x402_treazury-status x402_treazury-prepare
+x402_treazury-init: init
+	python3 scripts/x402_treazury.py init
+x402_treazury-status: init
+	python3 scripts/x402_treazury.py status
+x402_treazury-prepare: init
+	python3 scripts/x402_treazury.py prepare
 
 .PHONY: x402_treazury-test
 x402_treazury-test: check

@@ -20,6 +20,13 @@ services:
         target: /usr/local/etc/haproxy/haproxy.cfg
         read_only: true
         bind: {create_host_path: false}
+  x402_treazury:
+    profiles: [x402_treazury]
+    depends_on: !override
+      tor: {condition: service_healthy}
+      agent-net: {condition: service_healthy}
+  x402_treazury-config:
+    profiles: [maintenance]
   tailscale:
     profiles: [real-funnel]
   tls-fixture:

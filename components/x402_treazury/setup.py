@@ -1,5 +1,7 @@
 """Networkless MCP token and Hermes configuration provisioning; no wallet access."""
 import os
+import json
+import sys
 from pathlib import Path
 import secrets
 import tempfile
@@ -20,22 +22,33 @@ def publish(path, text, uid, mode):
 
 
 
+mode = sys.argv[1]
+if mode not in ('token', 'connect', 'disconnect'):
+    raise SystemExit('Expected token, connect or disconnect')
 auth = Path('/x402_treazury-auth')
-os.chown(auth, 10003, 10003)
-auth.chmod(0o700)
-token_path = auth / 'token'
-if not token_path.exists():
-    publish(token_path, secrets.token_urlsafe(32) + '\n', 10003, 0o600)
-token = token_path.read_text().strip()
-if not token or any(c.isspace() for c in token):
-    raise SystemExit('Existing x402_treazury MCP token is invalid; it was not replaced')
+token = None
+if mode != 'disconnect':
+    os.chown(auth, 10003, 10003)
+    auth.chmod(0o700)
+    token_path = auth / 'token'
+    if not token_path.exists():
+        publish(token_path, secrets.token_urlsafe(32) + '\n', 10003, 0o600)
+    token = token_path.read_text().strip()
+    if not token or any(c.isspace() for c in token):
+        raise SystemExit('Existing x402_treazury MCP token is invalid; it was not replaced')
 
 home = Path('/agent-data')
 config_path = home / 'config.yaml'
 config = yaml.safe_load(config_path.read_text())
+original = yaml.safe_dump(config, sort_keys=False)
 servers = config.setdefault('mcp_servers', {})
 for name, port in ENDPOINTS.items():
     key = 'x402_treazury_' + name
+    if mode == 'disconnect':
+        servers.pop(key, None)
+        continue
+    if mode == 'token':
+        continue
     entry = {'url': f'http://{ADDRESS}:{port}/mcp',
              'headers': {'Authorization': 'Bearer ${X402_TREAZURY_MCP_TOKEN}'}}
     if key in servers and (not isinstance(servers[key], dict) or servers[key].get('url') != entry['url'] or servers[key].get('headers', {}).get('Authorization') != entry['headers']['Authorization']):
@@ -45,9 +58,15 @@ for name, port in ENDPOINTS.items():
 # Copy only the MCP bearer token, never treasury or wallet credentials, into
 # Hermes's profile secrets. Preserve unrelated existing .env entries.
 env_path = home / '.env'
-lines = env_path.read_text().splitlines() if env_path.exists() else []
+old_env = env_path.read_text() if env_path.exists() else ''
+lines = old_env.splitlines()
 lines = [line for line in lines if not line.lstrip().startswith(('X402_TREAZURY_MCP_TOKEN=', 'export X402_TREAZURY_MCP_TOKEN='))]
-lines.append('X402_TREAZURY_MCP_TOKEN=' + token)
-publish(env_path, '\n'.join(lines) + '\n', 10000, 0o600)
-publish(config_path, yaml.safe_dump(config, sort_keys=False), 10000, 0o600)
-print('Provisioned 12 x402_treazury MCP endpoints and their bearer token; wallet state was not accessed.')
+if token:
+    lines.append('X402_TREAZURY_MCP_TOKEN=' + token)
+text = '\n'.join(lines) + ('\n' if lines else '')
+if text != old_env:
+    publish(env_path, text, 10000, 0o600)
+updated = yaml.safe_dump(config, sort_keys=False)
+if updated != original:
+    publish(config_path, updated, 10000, 0o600)
+print(json.dumps({'mode': mode, 'changed': updated != original or text != old_env}))

@@ -34,6 +34,17 @@ def main():
         identity = json.loads(subprocess.check_output(command + ['build-info'], text=True))
         assert identity['source_revision'] == '6f3e1e6fd6738c5fece86dc796c5ef0686653552'
         assert identity['source_dirty'] is False
+        gate = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'python3',
+                               'private-hermes-x402_treazury:local', '-c',
+                               "import sys; sys.path.insert(0,'/opt'); from onboarding import serve; serve()"],
+                              text=True, capture_output=True)
+        assert gate.returncode != 0 and 'Serving refused' in gate.stderr
+        partial = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'python3',
+                                  'private-hermes-x402_treazury:local', '-c',
+                                  "import sys; from pathlib import Path; sys.path.insert(0,'/opt'); from onboarding import initialize; Path('/var/lib/x402/state').mkdir(); initialize()"],
+                                 text=True, capture_output=True)
+        assert partial.returncode != 0 and 'initialization refused' in partial.stderr
+        print('PASS: native production serving gate and partial-state initialization refusal validated offline', flush=True)
         print('PASS: pinned release identity and production x402_treazury config validated without wallet/catalog I/O', flush=True)
         smoke.compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '600')
         # No new readiness policy in production: just allow test listeners to
@@ -120,12 +131,31 @@ else: raise AssertionError('Agent gained the x402_treazury Tor socket mount')
         assert 'allowtcpforwarding no' in policy
         assert 'permittunnel no' in policy
         print('PASS: unauthenticated access and code RPC denied; executor lacks secrets, wallet mounts and MCP network access', flush=True)
+        # Warm a free public OpenAPI document over real Tor, in a cache-only
+        # fixture directory: no treasury keys, managed funding, or paid relay.
+        smoke.python('x402_treazury', r"""import json, pathlib, subprocess
+root=pathlib.Path('/var/lib/x402/catalog-fixture'); root.mkdir(exist_ok=True)
+config=pathlib.Path('/tmp/x402_treazury-test.toml').read_text()
+config=config.replace('spec="/tmp/tor-check.json"','spec="https://raw.githubusercontent.com/OpenAPITools/openapi-generator/master/modules/openapi-generator/src/test/resources/3_0/petstore.json"\ncatalog_cache_ttl_seconds=3600\ninclude_operations=["GET /pet/{petId}"]')
+config+='\n[treasury]\nstate_dir="/var/lib/x402/catalog-fixture"\n'
+path=pathlib.Path('/tmp/catalog-warm.toml'); path.write_text(config)
+summary=json.loads(subprocess.check_output(['x402_treazury','catalog','warm','--config',str(path)],text=True))
+assert summary['direct'] is False and len(summary['sources'])==1, summary
+assert summary['sources'][0]['catalog_cache']=='fresh',summary
+assert any((root/'http-cache').iterdir())
+""")
+        print('PASS: native catalog warming fetched and persisted a free OpenAPI document over Tor without wallet funding', flush=True)
         smoke.compose('stop', 'tor')
         smoke.python('x402_treazury', """import socket
 try: socket.socket(socket.AF_UNIX).connect('/run/tor-x402_treazury/socks')
 except OSError: pass
 else: raise AssertionError('Stopped Tor still accepted a SOCKS connection')
 """)
+        smoke.python('x402_treazury', """import json,subprocess
+summary=json.loads(subprocess.check_output(['x402_treazury','catalog','warm','--config','/tmp/catalog-warm.toml'],text=True))
+assert summary['sources'][0]['catalog_cache']=='fresh',summary
+""")
+        print('PASS: a separate native warm process reuses persisted fresh cache with Tor stopped', flush=True)
         assert smoke.curl('hermes', 'https://check.torproject.org/api/ip', check=False).returncode != 0
         assert json.loads(smoke.curl('hermes', 'http://10.203.83.3:8337/health').stdout)['status']=='ok'
         failed = False
@@ -133,7 +163,7 @@ else: raise AssertionError('Stopped Tor still accepted a SOCKS connection')
     except Exception as error:
         if isinstance(error, subprocess.CalledProcessError):
             print(error.stdout, error.stderr, flush=True)
-        print(smoke.compose('logs','--tail','25','x402_treazury','x402_treazury-setup','tor',check=False).stdout, flush=True)
+        print(smoke.compose('logs','--tail','25','x402_treazury','x402_treazury-config','tor',check=False).stdout, flush=True)
         raise
     finally:
         if failed and os.getenv('KEEP_FAILED_TEST_STACK') == '1':

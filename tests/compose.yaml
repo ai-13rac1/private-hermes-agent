@@ -47,9 +47,15 @@ services:
         ipv4_address: 10.203.84.10
       agent-route:
         ipv4_address: 10.203.80.10
+  x402_treazury-config:
+    profiles: !reset []
+    command: [connect]
   x402_treazury:
+    profiles: !reset []
     # Real Rust server; test config has local catalogs, an ephemeral static key,
     # no treasury, no funding configuration, and only a free Tor-check API.
+    depends_on:
+      x402_treazury-config: {condition: service_completed_successfully}
     environment:
       BASE_RPC_URL: ""
     entrypoint: [python3, /opt/x402_treazury-fixture.py]

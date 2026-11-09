@@ -87,6 +87,9 @@ def main():
             smoke.compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '600')
             assert not smoke.compose('ps', '-q', 'tailscale').stdout.strip(), 'Real Tailscale must never start in tests'
             wait_ready()
+            assert not smoke.compose('ps', '-q', 'x402_treazury').stdout.strip(), 'Unprepared research service must not start'
+            smoke.python('hermes', "from hermes_cli.config import load_config,load_env; assert not any(k.startswith('x402_treazury_') for k in load_config().get('mcp_servers',{})); assert not load_env().get('X402_TREAZURY_MCP_TOKEN')")
+            print('PASS: fresh authenticated Hermes webapp starts without wallet, research RPC or research MCP registration', flush=True)
             smoke.compose('exec', '-T', '--user', '10005:10005', 'webapp-proxy', 'python3', '-c', """import pathlib,socket
 status=dict(line.split(':',1) for line in pathlib.Path('/proc/1/status').read_text().splitlines() if ':' in line)
 assert set(status['Uid'].split())=={'10005'}, status['Uid']
@@ -138,6 +141,33 @@ for host,port in (('10.203.85.2',9120),('10.203.85.3',8080),('10.203.85.3',19120
  else: raise AssertionError('Executor reached private ingress')
 """)
             print('PASS: browser terminal executes in agent container; file API uses SSH; executor cannot reach private ingress or credentials', flush=True)
+            # Financial preparation is represented by a controlled result here;
+            # serving is the real unfunded Rust fixture, with native Hermes RPC.
+            sys.path.insert(0, str(ROOT / 'scripts'))
+            from x402_treazury import Controller
+            controller = Controller(smoke.COMPOSE)
+            # Exercise detached runner exit-status/cleanup with a genuinely
+            # absent wallet: production preparation must fail before funding.
+            try:
+                controller.wallet_command('prepare')
+            except RuntimeError as error:
+                assert 'exit 1' in str(error), error
+            else:
+                raise AssertionError('Missing wallet did not stop preparation')
+            assert http('/login')[0] == 200
+            print('PASS: detached preparation reports failure and cleans up without touching a wallet or stopping Hermes', flush=True)
+            # An unrelated MCP entry must survive activation and disconnection.
+            smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint', 'python3',
+                          'x402_treazury-config', '-c',
+                          "from pathlib import Path; import yaml; p=Path('/agent-data/config.yaml'); c=yaml.safe_load(p.read_text()); c.setdefault('mcp_servers',{})['unrelated']={'url':'http://10.203.84.10:8000/mcp'}; p.write_text(yaml.safe_dump(c,sort_keys=False))")
+            controller.inspect = lambda: {'prepared': True}
+            controller.activate()
+            smoke.python('hermes', "from hermes_cli.config import load_config; assert len([k for k in load_config()['mcp_servers'] if k.startswith('x402_treazury_')])==12")
+            controller.disconnect()
+            smoke.compose('stop', '--timeout', '-1', 'x402_treazury')
+            smoke.python('hermes', "from hermes_cli.config import load_config; assert not any(k.startswith('x402_treazury_') for k in load_config()['mcp_servers']); assert load_config()['mcp_servers']['unrelated']['url']=='http://10.203.84.10:8000/mcp'")
+            assert http('/login')[0] == 200
+            print('PASS: staged fixture activation probes twelve real MCP endpoints and reloads/disconnects native Hermes without restarting it', flush=True)
             # A missing provider must fail startup instead of serving an unguarded UI.
             smoke.python('hermes', """from hermes_cli.web_server import app, _configure_auth_gate
 from hermes_cli.dashboard_auth import clear_providers
