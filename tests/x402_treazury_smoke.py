@@ -21,9 +21,18 @@ def main():
         print('Validating the production x402_treazury configuration offline...', flush=True)
         command = ['docker', 'run', '--rm', '--network', 'none', 'private-hermes-x402_treazury:local']
         production = json.loads(subprocess.check_output(command + ['config', 'show'], text=True))
-        assert set(production['servers']) == set(ENDPOINTS)
+        assert {name: entry['listen'] for name, entry in production['servers'].items()} == {
+            name: f'{ADDRESS}:{port}' for name, port in ENDPOINTS.items()}
+        assert set(production['wallets']) == {'general', 'personal', 'health', 'financial'}
+        for wallet, names in {
+            'general': ('toolbox', 'web', 'science', 'shopping', 'world'),
+            'personal': ('social', 'property', 'travel'),
+            'health': ('health',),
+            'financial': ('business', 'finance', 'security'),
+        }.items():
+            assert all(production['servers'][name]['wallet'] == wallet for name in names)
         identity = json.loads(subprocess.check_output(command + ['build-info'], text=True))
-        assert identity['source_revision'] == 'e1420b6364726e0c1a9d69dda72a15d8253a2b8b'
+        assert identity['source_revision'] == '6f3e1e6fd6738c5fece86dc796c5ef0686653552'
         assert identity['source_dirty'] is False
         print('PASS: pinned release identity and production x402_treazury config validated without wallet/catalog I/O', flush=True)
         smoke.compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '600')
@@ -44,7 +53,7 @@ for port in range(3010,3022):
         smoke.python('hermes', """from hermes_cli.config import load_config, load_env
 c=load_config(); env=load_env()
 assert env.get('X402_TREAZURY_MCP_TOKEN')
-for name,port in zip(('web','science','health','social','business','finance','property','security','world','travel','toolbox','shopping'),range(3010,3022)):
+for name,port in zip(('toolbox','web','science','shopping','world','social','property','travel','health','business','finance','security'),range(3010,3022)):
  entry=c['mcp_servers']['x402_treazury_'+name]
  assert entry['url']==f'http://127.0.0.1:{port}/mcp'
 assert c['terminal']['backend']=='ssh'

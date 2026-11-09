@@ -3,23 +3,27 @@
 The main `compose.yaml` runs one x402_treazury process in
 its own container, sharing `agent-net`'s network namespace with Hermes. Its twelve
 HTTP MCP listeners stay on `127.0.0.1:3010–3021`; no ports are published and no
-forwarding service or firewall grants are needed. Upstream's loopback restriction
-is preserved without a source patch.
+forwarding service or firewall grants are needed. Listeners are configured for
+loopback access without a source patch.
 
-| Hermes MCP name | Local port |
-| --- | --- |
-| x402_treazury_web | 3010 |
-| x402_treazury_science | 3011 |
-| x402_treazury_health | 3012 |
-| x402_treazury_social | 3013 |
-| x402_treazury_business | 3014 |
-| x402_treazury_finance | 3015 |
-| x402_treazury_property | 3016 |
-| x402_treazury_security | 3017 |
-| x402_treazury_world | 3018 |
-| x402_treazury_travel | 3019 |
-| x402_treazury_toolbox | 3020 |
-| x402_treazury_shopping | 3021 |
+| Hermes MCP name | Local port | Wallet |
+| --- | --- | --- |
+| x402_treazury_toolbox | 3010 | general |
+| x402_treazury_web | 3011 | general |
+| x402_treazury_science | 3012 | general |
+| x402_treazury_shopping | 3013 | general |
+| x402_treazury_world | 3014 | general |
+| x402_treazury_social | 3015 | personal |
+| x402_treazury_property | 3016 | personal |
+| x402_treazury_travel | 3017 | personal |
+| x402_treazury_health | 3018 | health |
+| x402_treazury_business | 3019 | financial |
+| x402_treazury_finance | 3020 | financial |
+| x402_treazury_security | 3021 | financial |
+
+Wallet pools group requests by potential payer linkability: general research,
+personal context, health context, and financial interests. They are upstream
+payment policies, not separate MCP access-control identities.
 
 ## Build and prepare
 
@@ -39,7 +43,7 @@ Compose supplies that variable only to x402_treazury; it does not pass the entir
 credentials in Hermes's environment, configuration, workspace, or skills.
 
 The image builds unmodified upstream commit
-`e1420b6364726e0c1a9d69dda72a15d8253a2b8b` using its Rust 1.99.1 toolchain and
+`6f3e1e6fd6738c5fece86dc796c5ef0686653552` using its Rust 1.99.1 toolchain and
 locked dependencies. The image includes the pinned providers and their specs.
 The renderer changes only the SOCKS endpoint, persistent state path, and HTTP
 Host allowlists in the upstream `examples/deployments/research_desk.toml`.
