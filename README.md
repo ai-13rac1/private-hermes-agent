@@ -73,7 +73,7 @@ depositing ZEC, `make x402_treazury-prepare` bootstraps funding, warms catalogs,
 and connects research tools without restarting Hermes. Preparation may wait for
 funds while the webapp remains available.
 
-`setup init` runs in the stock pinned Hermes image without networking. It generates
+`setup init` runs in the shared derived pinned Hermes image without networking. It generates
 separate SSH client and host
 keys in separate persistent directories, pins the executor host key, initializes the
 executor's workspace/home, and copies `components/hermes/config.example.yaml` only if the
@@ -209,8 +209,9 @@ The twelve x402_treazury MCP servers activate after preparation; this allowlist 
   and local authenticated bootstrap health check. Tor runs as UID 101 after
   initialization; there is no TCP control API, TCP SOCKS service, or HTTP proxy.
   A private SOCKS Unix socket is mounted only into the x402_treazury container.
-- Hermes: inspected official v0.23.0 image, pinned once by digest in
-  `compose.yaml` under `x-hermes-image`, reused by runtime and maintenance.
+- Hermes: derived from official v0.23.0, with base digest and explicit source
+  checks in `components/hermes/`. Runtime and maintenance share the derived
+  image; see [patch/build procedure](docs/updates-and-plugins.md#derived-hermes-build-and-patch-maintenance).
 - teep: built from commit `789918ea606826650447a7f1930b917521d3d135`
   with Go 1.26. It runs as UID 10002, read-only except temporary files, without
   `--offline`, `--force`, or debug tags. Upstream's default attestation policy

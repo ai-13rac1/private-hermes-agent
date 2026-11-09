@@ -112,3 +112,32 @@ available. This does not block functional model catalogs, tool downloads, or
 content the operator deliberately accesses. Those agent-side requests retain
 the existing Tor route. Profile settings are writable; these are explicit
 defaults, not immutable enforcement against arbitrary plugin or agent code.
+
+## Derived Hermes build and patch maintenance
+
+`components/hermes/Dockerfile` derives from the pinned official v0.23.0 image,
+source `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`. A disposable build stage checks
+the clean install stamp and the packaged Webapp source hash against its reviewed
+native build receipt before applying explicit patches with `git apply --check`.
+The image supplies the source and pinned Node/npm; the native build recipe installs
+locked npm dependencies and compiles the browser-hosted Desktop. The final image
+retains upstream dispatch, bootstrap and UID handling and explicitly selects the
+rebuilt `apps/desktop/dist-webapp` through `HERMES_WEBAPP_DIST`. It does not replace
+the separate legacy dashboard assets in `hermes_cli/web_dist` or install build
+dependencies at startup. Runtime, offline setup and qualification fixtures use the
+same derived image. Build contexts still contain only tracked components.
+
+`make check-updates` reads the official base pin from this Dockerfile. An upstream
+change requires reviewing source and runtime contracts, refreshing explicit
+patches and the source/hash checks, then rebuilding and rerunning affected build,
+plugin, browser and network qualification. Never bypass a failed patch/hash check
+or substitute a reference checkout revision. Remove a patch when the selected
+upstream revision provides and qualifies its behavior; do not patch compiled
+bundles or runtime startup. The first policy patch validates the deployment mode
+at HTTP server assembly and captures it in the stdlib-only native bootstrap before
+profile dotenv loads. The final image also copies that patched bootstrap. Its
+removal requires equivalent upstream deployment
+policy validation, not merely a UI preference.
+
+This build/policy checkpoint does not yet establish browser containment. Follow
+[part 1's phase and qualification status](plans/webapp-private-content.md).

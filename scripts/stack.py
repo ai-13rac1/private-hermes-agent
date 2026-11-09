@@ -40,7 +40,7 @@ def main_unlocked():
     args = parser.parse_args()
     if args.action == 'down':
         # Shutdown must remain available even after an invalid operator edit.
-        os.environ.update(TAILSCALE_FUNNEL_ENABLED='false',
+        os.environ.update(TAILSCALE_FUNNEL_ENABLED='false', WEBAPP_EXTERNAL_CONTENT='off',
                           WEBAPP_BIND='127.0.0.1', WEBAPP_PORT='9120', WEBAPP_USERNAME='admin',
                           TAILSCALE_FUNNEL_HOST='', TAILSCALE_FUNNEL_PORT='443',
                           TAILSCALE_HOSTNAME='private-hermes')

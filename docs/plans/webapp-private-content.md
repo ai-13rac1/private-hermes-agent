@@ -1,6 +1,6 @@
 # Private webapp content: safe defaults and passive media
 
-Status: design inspection in progress; implementation not started. Part 1 of the browser privacy work. Part 2 is
+Status: P1-1 implemented and build-qualified; P1-BUILD review pending. Part 1 of the browser privacy work. Part 2 is
 [interactive content and media](webapp-interactive-content.md).
 Execution follows the [planning workflow](../planning-workflow.md) and
 [repository instructions](../../AGENTS.md).
@@ -284,7 +284,9 @@ Selected answers, subject to independent design review:
   attributes, and failures never retry directly. Qualify actual browser traffic
   and DNS/preconnect canaries; document only browser versions actually tested.
 - **Policy propagation:** strict shared host parser, selected Compose environment,
-  process-level gateway mode, generated HAProxy policy with a mode marker checked
+  process-level gateway mode (captured in the stdlib-only native bootstrap
+  before profile dotenv overrides, which otherwise can replace process values),
+  generated HAProxy policy with a mode marker checked
   at proxy startup. Fail closed on missing/invalid/mismatched policy. Applying a
   mode requires configuration rendering and gateway/proxy recreation via `make up`.
   Existing documents cannot be recalled; the new backend denies newly forbidden
@@ -393,7 +395,17 @@ that any successful same-origin response must have used Tor.
 
 ## Evidence and completion status
 
-- Implementation: not started; P1-1 through P1-4 pending.
+- Implementation: P1-1 derived image/policy input implemented; P1-BUILD pending.
+  P1-2 through P1-4 pending; this checkpoint is not safe browser containment.
+- P1-1 evidence: clean derived build passed on arm64; native renderer recipe
+  installs 1,143 locked dependencies and compiles source. Removing inherited
+  disposable build output avoids overlay `EXDEV` on native publication.
+  `make check` passes 51 tests and both effective Compose models.
+  `python3 tests/hermes_build.py` passes native dispatch/version, rebuilt Webapp
+  selection, native UID/GID 10000 dispatch, all four modes, missing/empty/invalid refusal, and actual native
+  profile-dotenv override resistance. Changed-document links and diff check pass.
+  Source verification uses the packaged source/hash, not the incomplete optional
+  upstream archive download, which timed out and was never used.
 - P1-DESIGN: fresh read-only review of `dba3be8` passed with the redirect
   clarification above incorporated. The reviewer identified cross-origin redirect
   consent ambiguity; `ask` now rejects before next-hop DNS/network activity.

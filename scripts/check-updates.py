@@ -10,8 +10,8 @@ from deployment import ROOT, compose, settings
 
 def inventory(root=ROOT):
     root = Path(root)
-    hermes = re.search(r'x-hermes-image:.*? (nousresearch/hermes-agent@sha256:[a-f0-9]{64})',
-                       (root / 'compose.yaml').read_text()).group(1)
+    hermes = re.search(r'^FROM (nousresearch/hermes-agent@sha256:[a-f0-9]{64})',
+                       (root / 'components/hermes/Dockerfile').read_text(), re.M).group(1)
     images = [{'name': 'Hermes', 'pinned': hermes, 'channel': 'nousresearch/hermes-agent:latest'}]
     for name, component, channel in [('Tor', 'network', 'dockurr/tor:latest'),
                                       ('HAProxy', 'webapp/proxy', None),
@@ -24,9 +24,13 @@ def inventory(root=ROOT):
         text = (root / 'components' / component / 'Dockerfile').read_text()
         sources.append({'name': name, 'pinned': re.search(r'^ARG ' + variable + r'=([a-f0-9]{40})$', text, re.M).group(1),
                         'repository': re.search(r'git remote add origin https://github.com/([^\s]+?)\.git', text).group(1)})
-    bases = sorted({ref for path in (root / 'components').rglob('*Dockerfile')
-                    for ref in re.findall(r'^FROM (\S+)', path.read_text(), re.M) if '@sha256:' not in ref})
-    return {'images': images, 'sources': sources, 'unpinned_bases': bases}
+    bases = set()
+    for path in (root / 'components').rglob('*Dockerfile'):
+        text = path.read_text()
+        stages = set(re.findall(r'^FROM \S+ AS (\S+)', text, re.M | re.I))
+        bases.update(ref for ref in re.findall(r'^FROM (\S+)', text, re.M)
+                     if '@sha256:' not in ref and ref not in stages)
+    return {'images': images, 'sources': sources, 'unpinned_bases': sorted(bases)}
 
 
 def main():

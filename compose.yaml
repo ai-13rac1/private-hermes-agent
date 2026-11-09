@@ -1,12 +1,16 @@
 name: private-hermes
 
-# Official Hermes v0.23.0, upstream 2bd378ed; shared by runtime and maintenance.
-x-hermes-image: &hermes-image nousresearch/hermes-agent@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002
+# Derived pinned Hermes; the official base/source pin lives in its Dockerfile.
+x-hermes-image: &hermes-image private-hermes-agent:local
+x-hermes-build: &hermes-build
+  context: .
+  dockerfile: components/hermes/Dockerfile
 
 x-deployment:
   funnel_enabled: "${TAILSCALE_FUNNEL_ENABLED:-false}"
   webapp_bind: "${WEBAPP_BIND:-127.0.0.1}"
   webapp_port: "${WEBAPP_PORT:-9120}"
+  external_content: "${WEBAPP_EXTERNAL_CONTENT-tor_proxied}"
   webapp_username: "${WEBAPP_USERNAME:-admin}"
   funnel_host: "${TAILSCALE_FUNNEL_HOST:-}"
   funnel_port: "${TAILSCALE_FUNNEL_PORT:-443}"
@@ -40,6 +44,7 @@ x-network: &network
 services:
   setup:
     image: *hermes-image
+    build: *hermes-build
     user: "0:0"
     init: true
     network_mode: none
@@ -53,6 +58,7 @@ services:
     tmpfs: [/tmp:mode=1777]
     environment:
       WEBAPP_USERNAME: ${WEBAPP_USERNAME:-admin}
+      WEBAPP_EXTERNAL_CONTENT: ${WEBAPP_EXTERNAL_CONTENT-tor_proxied}
       HERMES_HOME: /opt/data
       # Root provisioning must never execute tools from the writable profile.
       PATH: /opt/hermes/bin:/opt/hermes/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -281,6 +287,7 @@ services:
 
   hermes:
     image: *hermes-image
+    build: *hermes-build
     network_mode: service:agent-net
     depends_on:
       setup: {condition: service_completed_successfully}
@@ -299,6 +306,7 @@ services:
       - ./components/hermes/ssh-client.conf:/etc/ssh/ssh_config.d/99-private-hermes.conf:ro
       - ./components/hermes/resolv.conf:/etc/resolv.conf:ro
     environment:
+      WEBAPP_EXTERNAL_CONTENT: ${WEBAPP_EXTERNAL_CONTENT-tor_proxied}
       HERMES_UID: "10000"
       HERMES_GID: "10000"
       HERMES_DASHBOARD: "0"
@@ -328,6 +336,7 @@ services:
     read_only: true
     tmpfs: [/run:mode=0755]
     environment:
+      WEBAPP_EXTERNAL_CONTENT: ${WEBAPP_EXTERNAL_CONTENT-tor_proxied}
       WEBAPP_PORT: ${WEBAPP_PORT:-9120}
       TAILSCALE_FUNNEL_ENABLED: ${TAILSCALE_FUNNEL_ENABLED:-false}
     depends_on:

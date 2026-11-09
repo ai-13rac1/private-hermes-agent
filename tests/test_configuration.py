@@ -89,7 +89,7 @@ class OperatorConfigurationTests(unittest.TestCase):
                                   for mount in service.get('volumes', []))]
         self.assertEqual(auth_recipients, ['setup'])
         self.assertTrue({'storage-init', 'bootstrap', 'configure', 'x402_treazury-config'}.isdisjoint(services))
-        self.assertNotIn('build', services['setup'])
+        self.assertEqual(services['setup']['build'], services['hermes']['build'])
         self.assertEqual(services['setup']['network_mode'], 'none')
         self.assertTrue(services['setup']['read_only'])
         self.assertNotIn('/opt/data', services['setup']['environment']['PATH'])
@@ -98,7 +98,9 @@ class OperatorConfigurationTests(unittest.TestCase):
         self.assertEqual(services['x402_treazury-setup']['restart'], 'no')
         self.assertEqual(services['x402_treazury-setup']['stop_grace_period'], '-1s')
         self.assertEqual(services['hermes']['image'], services['setup']['image'])
-        self.assertTrue(services['hermes']['image'].startswith('nousresearch/hermes-agent@sha256:'))
+        self.assertEqual(services['hermes']['image'], 'private-hermes-agent:local')
+        self.assertEqual(services['hermes']['environment']['WEBAPP_EXTERNAL_CONTENT'], 'tor_proxied')
+        self.assertNotIn('WEBAPP_EXTERNAL_CONTENT', services['executor']['environment'])
 
 
 if __name__ == '__main__':

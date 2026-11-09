@@ -4,7 +4,9 @@
 
 `components/` contains tracked implementation files and defaults, grouped by
 component. Dockerfiles retain their base image and source-revision pins. The
-Hermes image digest is defined once under `x-hermes-image` in `compose.yaml`.
+official Hermes base digest and source checks live in
+`components/hermes/Dockerfile` and `verify-build.mjs`; Compose shares the derived
+`private-hermes-agent:local` image between runtime and maintenance.
 Changing an image version is a reviewed repository change rather than a local
 `.env` override.
 
@@ -22,6 +24,7 @@ Compose explicitly selects each service's environment variables:
 | Inference provider API keys | teep |
 | `TEEP_HOST_PORT` | Compose loopback port publication for teep |
 | `TS_AUTHKEY` | Optional Tailscale container |
+| `WEBAPP_EXTERNAL_CONTENT` | Deployment validation, Hermes, offline setup and ingress proxy |
 | Funnel enablement, local webapp port and hostname | Deployment workflow and selected ingress components |
 
 Generated webapp credentials are kept separately under `config/webapp/`; see
@@ -52,7 +55,7 @@ does not implement the separate read-only Hermes configuration plan.
 ## Offline setup and maintenance
 
 Three helpers cover setup: `setup`, `x402_treazury-admin`, and
-`x402_treazury-setup`. The offline `setup` service uses the same pinned official
+`x402_treazury-setup`. The offline `setup` service uses the same derived pinned
 Hermes image as the agent, with component scripts mounted read-only. No custom
 setup image or combined Hermes/treasury image is built. It has a read-only root,
 no network, and only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, and `SETGID`.
@@ -242,3 +245,18 @@ deployment `.env`: it contains the MCP token and Hermes-owned credentials.
 the wallet. Those records are historical preparation evidence, not current
 spendability or perpetual cache freshness. Host operation locks remain under
 `config/x402_treazury/`. See [staged onboarding](x402_treazury.md).
+
+## External-content policy rollout
+
+`WEBAPP_EXTERNAL_CONTENT` accepts exactly `tor_proxied`, `ask`, `off`, or
+`browser_native`. An absent root setting defaults to `tor_proxied`; an explicitly
+empty or invalid value fails validation. The gateway rejects missing or invalid
+process settings. Native bootstrap captures the injected setting before profile
+dotenv loading; profile edits do not relax this deployment policy. `make up` renders ingress configuration and recreates Hermes
+and HAProxy; a proxy mode/configuration mismatch refuses startup. Editing `.env`
+alone does not change running processes. Reload open browser pages after applying
+policy changes.
+
+The derived-image/policy-input phase is an incomplete implementation checkpoint.
+Browser containment and private image loading are not yet implemented or qualified;
+see the retained [part 1 plan](plans/webapp-private-content.md).

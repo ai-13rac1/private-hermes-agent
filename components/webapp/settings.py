@@ -25,9 +25,13 @@ class Settings:
     funnel_host: str
     funnel_port: int
     node: str
+    external_content: str
 
     @classmethod
     def read(cls, values):
+        external_content = values['external_content']
+        if external_content not in ('tor_proxied', 'ask', 'off', 'browser_native'):
+            raise ValueError('WEBAPP_EXTERNAL_CONTENT must be tor_proxied, ask, off or browser_native')
         funnel = boolean(values['funnel_enabled'], 'TAILSCALE_FUNNEL_ENABLED')
         bind = values['webapp_bind']
         if not ipaddress.IPv4Address(bind).is_loopback:
@@ -49,7 +53,7 @@ class Settings:
         public_port = port(values['funnel_port'], 'TAILSCALE_FUNNEL_PORT')
         if public_port not in (443, 8443, 10000):
             raise ValueError('TAILSCALE_FUNNEL_PORT must be 443, 8443 or 10000')
-        return cls(funnel, bind, local_port, username, host, public_port, node)
+        return cls(funnel, bind, local_port, username, host, public_port, node, external_content)
 
 
 def authorities(host, port_number, default_port):
@@ -62,7 +66,7 @@ def authorities(host, port_number, default_port):
 def proxy_config(settings):
     local_hosts = sorted({authority for host in ('localhost', settings.bind)
                           for authority in authorities(host, settings.port, 80)})
-    text = '''global
+    text = f'# WEBAPP_EXTERNAL_CONTENT={settings.external_content}\n' + '''global
     log stdout format raw local0 notice
 
 defaults

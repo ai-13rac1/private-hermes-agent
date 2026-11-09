@@ -1,6 +1,7 @@
 """Install a fixed-backend firewall before dropping privilege and starting HAProxy."""
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 
@@ -14,6 +15,12 @@ def main():
     for binary in ('iptables', 'ip6tables'):
         for chain in ('INPUT', 'OUTPUT', 'FORWARD'):
             run(binary, '-P', chain, 'DROP')
+    policy = os.environ.get('WEBAPP_EXTERNAL_CONTENT')
+    if policy not in ('tor_proxied', 'ask', 'off', 'browser_native'):
+        raise ValueError('Invalid external-content policy')
+    config = Path('/usr/local/etc/haproxy/haproxy.cfg').read_text()
+    if config.splitlines()[0] != f'# WEBAPP_EXTERNAL_CONTENT={policy}':
+        raise ValueError('External-content policy mismatch: regenerate ingress and recreate services')
     port = int(os.environ['WEBAPP_PORT'])
     if not 1 <= port <= 65535:
         raise ValueError('Invalid webapp port')

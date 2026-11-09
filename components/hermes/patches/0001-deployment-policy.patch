@@ -1,0 +1,24 @@
+--- a/hermes_cli/web_server.py
++++ b/hermes_cli/web_server.py
+@@ -204,6 +204,9 @@
+ def _get_pty_active_session_files(app: FastAPI) -> dict[str, Path]:
+     return _app_state_default(app, "pty_active_session_files", dict)
+ 
++
++from hermes_cli.private_external_content import deployment_mode as _deployment_mode
++_external_content_mode = _deployment_mode()
+ 
+ app = FastAPI(title="Hermes Agent", version=get_version_info().base_version, lifespan=app_lifespan)
+ 
+--- a/hermes_bootstrap.py
++++ b/hermes_bootstrap.py
+@@ -23,6 +23,9 @@
+ import socket
+ import sys
+ import time
++
++# Capture the deployment input before native profile dotenv loading.
++PRIVATE_HERMES_EXTERNAL_CONTENT = os.environ.get("WEBAPP_EXTERNAL_CONTENT")
+ 
+ _IS_WINDOWS = sys.platform == "win32"
+ _bootstrap_applied = False

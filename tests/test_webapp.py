@@ -17,7 +17,7 @@ spec.loader.exec_module(funnel)
 
 
 def values(**changes):
-    defaults = dict(funnel_enabled='false', webapp_bind='127.0.0.1',
+    defaults = dict(external_content='tor_proxied', funnel_enabled='false', webapp_bind='127.0.0.1',
                     webapp_port='9120', webapp_username='admin', funnel_host='',
                     funnel_port='443', tailscale_hostname='private-hermes')
     return {**defaults, **changes}
@@ -26,13 +26,23 @@ def values(**changes):
 
 class WebappTests(unittest.TestCase):
     def test_invalid_or_inconsistent_settings_refuse_activation(self):
-        for change in ({'funnel_enabled': '1'},
+        for change in ({'external_content': ''}, {'external_content': 'invalid'}, {'funnel_enabled': '1'},
                        {'webapp_bind': '0.0.0.0'}, {'webapp_port': '9120;evil'},
                        {'funnel_enabled': 'true'}, {'funnel_host': '*.example.ts.net'},
                        {'funnel_host': 'example.ts.net\nattack'}, {'funnel_port': '80'},
                        {'webapp_username': 'admin\nuser'}):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 Settings.read(values(**change))
+
+    def test_external_content_is_required_and_all_modes_parse(self):
+        absent = values()
+        del absent['external_content']
+        with self.assertRaises(KeyError):
+            Settings.read(absent)
+        for mode in ('tor_proxied', 'ask', 'off', 'browser_native'):
+            selected = Settings.read(values(external_content=mode))
+            self.assertEqual(selected.external_content, mode)
+            self.assertTrue(proxy_config(selected).startswith(f'# WEBAPP_EXTERNAL_CONTENT={mode}\n'))
 
     def test_proxy_keeps_authorities_separate_and_removes_all_forwarded_headers(self):
         text = proxy_config(Settings.read(values()))
