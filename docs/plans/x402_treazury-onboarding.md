@@ -200,7 +200,7 @@ Acceptance checks must cover:
 
 - Fresh and repeated `make init`; no wallet/network operations or lost credentials.
 - Fresh `make up`; usable authenticated Hermes webapp without a treasury, deposit,
-  research RPC URL, or running x402_treazury process. Inference still requires
+  or running x402_treazury process. Inference still requires
   its independently configured backend.
 - New-wallet versus existing-wallet inspection; repeated init preserves identity;
   partial, corrupt, unreadable, or incompatible state never causes replacement.
@@ -234,8 +234,8 @@ a matching prepared treasury afterward.
 
 The coordinator validates native bootstrap summary schema 3, completed captured
 work, and a complete non-direct catalog-warm summary. The record fingerprints
-native config/build identity, coordinator contents and the supplied RPC setting;
-it stores the fingerprint rather than the RPC setting. Native cache files live
+native config/build identity and coordinator contents. Base RPC endpoints use
+the pinned native defaults through Tor, with no operator RPC preference. Native cache files live
 under the treasury's `http-cache/` directory. The serving entrypoint refuses
 unprepared or mismatched state, including command-line configuration overrides.
 

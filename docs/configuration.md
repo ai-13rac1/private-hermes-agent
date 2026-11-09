@@ -21,7 +21,6 @@ Compose explicitly selects each service's environment variables:
 | --- | --- |
 | Inference provider API keys | teep |
 | `TEEP_HOST_PORT` | Compose loopback port publication for teep |
-| `BASE_RPC_URL` | x402_treazury serving/administration containers |
 | `TS_AUTHKEY` | Optional Tailscale container |
 | Funnel enablement, local webapp port and hostname | Deployment workflow and selected ingress components |
 
@@ -32,7 +31,7 @@ Hermes state during bootstrap without exposing them to the executor.
 repeating it preserves the credentials.
 
 No service loads the entire root `.env`. Hermes and the SSH executor receive
-none of the provider, funding, or Tailscale credentials. Keep provider and funding credentials out of the
+none of the provider or Tailscale credentials. Keep provider credentials out of the
 Hermes workspace, skills, and profile. Add future deployment settings to the
 example and explicit Compose mappings together.
 
@@ -163,8 +162,8 @@ changes. Wallet initialization and funding remain explicit operator actions.
 ## Backup scope
 
 Back up the root `.env` and `config/` as private operator configuration. Protect
-these backups as secrets; `.env` may contain paid API keys or authenticated RPC
-URLs. Record the repository commit so the corresponding implementation and
+these backups as secrets; `.env` may contain paid API keys and Tailscale
+enrollment credentials. Record the repository commit so the corresponding implementation and
 image/source pins can be recovered.
 
 The backup scope is `.env`, `config/`, `data/`, and both application named volumes,

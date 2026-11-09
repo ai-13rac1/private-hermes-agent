@@ -21,6 +21,8 @@ def run_suite():
         print('Validating the production x402_treazury configuration offline...', flush=True)
         command = ['docker', 'run', '--rm', '--network', 'none', 'private-hermes-x402_treazury:local']
         production = json.loads(subprocess.check_output(command + ['config', 'show'], text=True))
+        assert production['base_rpc_policy']['primary_default']
+        assert production['base_rpc_policy']['fallback_defaults']
         assert {name: entry['listen'] for name, entry in production['servers'].items()} == {
             name: f'{ADDRESS}:{port}' for name, port in ENDPOINTS.items()}
         assert set(production['wallets']) == {'general', 'personal', 'health', 'financial'}

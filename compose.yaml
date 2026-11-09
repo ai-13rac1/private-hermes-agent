@@ -290,8 +290,6 @@ services:
         read_only: true
         bind: {create_host_path: false}
       - x402_treazury-data:/var/lib/x402
-    environment:
-      BASE_RPC_URL: ${BASE_RPC_URL:-}
     restart: unless-stopped
 
   x402_treazury-job:
@@ -309,8 +307,6 @@ services:
     security_opt: [no-new-privileges:true]
     read_only: true
     tmpfs: [/tmp:mode=1777]
-    environment:
-      BASE_RPC_URL: ${BASE_RPC_URL:-}
     volumes:
       - tor-x402_treazury:/run/tor-x402_treazury:ro
       - x402_treazury-data:/var/lib/x402
@@ -327,8 +323,6 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     read_only: true
-    environment:
-      BASE_RPC_URL: ${BASE_RPC_URL:-}
     volumes:
       - x402_treazury-data:/var/lib/x402
 

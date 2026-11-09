@@ -37,7 +37,7 @@ make up
 ```
 
 Log in at `http://127.0.0.1:9120` with the credentials described in
-[webapp setup](webapp.md). No research treasury, funding RPC URL, or MCP token is
+[webapp setup](webapp.md). No research treasury or MCP token is
 needed for this first startup. x402_treazury remains built into the main Compose
 file; the deployment workflow activates its profile after preparation. There is
 no additional overlay or enablement variable.
@@ -90,7 +90,8 @@ preparing. Deposit ZEC at a time of your choosing; Hermes remains usable.
 
 ## Prepare and connect research tools
 
-Set `BASE_RPC_URL` in the root `.env`, then run while Hermes is up:
+Run while Hermes is up. x402_treazury uses its built-in Base RPC endpoints
+through Tor; there is no operator RPC endpoint setting:
 
 ```sh
 make x402_treazury-prepare
@@ -127,8 +128,8 @@ Do not use an auto-restarting serving container for one-shot financial commands.
 
 Completion is recorded atomically under `/var/lib/x402/onboarding/` in the
 `x402_treazury-data` named volume, bound to the treasury identity, source/build identity,
-coordinator code and effective configuration, including a hash of the supplied
-RPC setting. The record contains no RPC secret or full deployment configuration.
+coordinator code and effective configuration. The record contains no full
+deployment configuration.
 Only successful bootstrap and complete Tor catalog warming authorize serving.
 The entrypoint checks this even when the serving profile is started manually.
 

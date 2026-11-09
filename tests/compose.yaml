@@ -87,8 +87,6 @@ services:
     # no treasury, no funding configuration, and only a free Tor-check API.
     depends_on:
       x402_treazury-config: {condition: service_completed_successfully}
-    environment:
-      BASE_RPC_URL: ""
     entrypoint: [python3, /opt/x402_treazury-fixture.py]
     working_dir: /tmp
     volumes:
@@ -126,14 +124,9 @@ services:
         source: ${TEST_DATA_DIR:?disposable test data required}/executor/workspace
         target: /workspace
         bind: {create_host_path: false}
-  x402_treazury-job:
-    environment:
-      BASE_RPC_URL: ""
   x402_treazury-admin:
     # Offline creation qualification needs the scratch filesystem used by the
     # production job. Production admin only performs offline inspection.
     tmpfs: [/tmp:mode=1777]
-    environment:
-      BASE_RPC_URL: ""
     volumes:
       - ./tests/fixtures/storage-check.py:/opt/storage-check.py:ro

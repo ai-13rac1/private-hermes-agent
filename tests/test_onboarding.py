@@ -137,11 +137,12 @@ class PreparationTests(unittest.TestCase):
         self.assertTrue(onboarding.inspect()['prepared'])
         self.assertEqual(self.calls.count(['wallet', 'init']), 2)
 
-    def test_rpc_change_invalidates_record_without_storing_credentials(self):
-        with patch.dict(os.environ, {'BASE_RPC_URL': 'private-test-rpc-credential'}):
-            onboarding.prepare()
-            self.assertTrue(onboarding.inspect()['prepared'])
-            self.assertNotIn('private-test-rpc-credential', onboarding.RECORD.read_text())
+    def test_funding_policy_change_invalidates_record_without_storing_config(self):
+        self.config['funding'] = {'near_api_key_env': 'TEST_PROVIDER_CREDENTIAL'}
+        onboarding.prepare()
+        self.assertTrue(onboarding.inspect()['prepared'])
+        self.assertNotIn('TEST_PROVIDER_CREDENTIAL', onboarding.RECORD.read_text())
+        self.config['funding']['near_api_key_env'] = 'OTHER_PROVIDER_CREDENTIAL'
         self.assertFalse(onboarding.inspect()['prepared'])
 
     def test_wallet_owner_and_host_operation_locks_refuse_competing_operations(self):
@@ -181,17 +182,17 @@ class PreparationTests(unittest.TestCase):
 
 
 class NativeExecutionTests(unittest.TestCase):
-    def test_failure_retains_native_exit_and_redacts_rpc_secret(self):
+    def test_failure_retains_native_exit_and_redacts_environment_secret(self):
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / 'native'
-            executable.write_text('#!' + sys.executable + '\nimport os,sys\nprint(os.environ["BASE_RPC_URL"],file=sys.stderr)\nsys.exit(19)\n')
+            executable.write_text('#!' + sys.executable + '\nimport os,sys\nprint(os.environ["TEST_API_KEY"],file=sys.stderr)\nsys.exit(19)\n')
             executable.chmod(0o700)
-            with patch.object(onboarding, 'BINARY', str(executable)), patch.dict(os.environ, {'BASE_RPC_URL': 'private-rpc-credential'}):
+            with patch.object(onboarding, 'BINARY', str(executable)), patch.dict(os.environ, {'TEST_API_KEY': 'private-test-credential'}):
                 with self.assertRaises(onboarding.PhaseError) as raised:
                     onboarding.native([], 'test failure', quiet=True)
             self.assertEqual(raised.exception.code, 19)
             self.assertIn('[redacted]', raised.exception.tail)
-            self.assertNotIn('private-rpc-credential', raised.exception.tail)
+            self.assertNotIn('private-test-credential', raised.exception.tail)
 
     def test_signal_is_forwarded_and_child_completes_cleanup_without_force_kill(self):
         with tempfile.TemporaryDirectory() as directory:

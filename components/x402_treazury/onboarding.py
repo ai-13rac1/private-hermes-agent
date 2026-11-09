@@ -26,7 +26,7 @@ class PhaseError(RuntimeError):
 
 def sanitize(value):
     for key, secret in os.environ.items():
-        if secret and (key == 'BASE_RPC_URL' or any(word in key for word in ('TOKEN', 'SECRET', 'KEY'))):
+        if secret and any(word in key for word in ('TOKEN', 'SECRET', 'KEY')):
             value = value.replace(secret, '[redacted]')
     return value
 
@@ -106,8 +106,8 @@ def context():
     if config.get('network', {}).get('mode') != 'tor' or config['network'].get('socks_endpoint') != 'unix:/run/tor-x402_treazury/socks':
         raise RuntimeError('Onboarding requires the configured private Tor Unix socket; direct transport is refused')
     # Config includes wallet assignments, funding/source policy and transport.
-    # Hash the supplied RPC setting too; never store its value or full config.
-    payload = {'config': config, 'build': identity, 'rpc': os.environ.get('BASE_RPC_URL', ''),
+    # Never store the full configuration in the preparation record.
+    payload = {'config': config, 'build': identity,
                'coordinator': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return config, identity, fingerprint

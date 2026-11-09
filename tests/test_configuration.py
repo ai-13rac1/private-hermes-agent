@@ -15,7 +15,7 @@ spec.loader.exec_module(init_config)
 
 class OperatorConfigurationTests(unittest.TestCase):
     def seed(self, root):
-        (root / '.env.example').write_text('VENICE_API_KEY=\nBASE_RPC_URL=\n')
+        (root / '.env.example').write_text('VENICE_API_KEY=\n')
         defaults = root / 'components/network'
         defaults.mkdir(parents=True)
         (defaults / 'mcp-allowlist.json').write_text('[]\n')
@@ -79,7 +79,7 @@ class OperatorConfigurationTests(unittest.TestCase):
         self.assertNotIn('TEEP_HOST_PORT', services['teep']['environment'])
         for name, service in services.items():
             supplied = service.get('environment', {})
-            expected = set(provider_keys) if name == 'teep' else {'BASE_RPC_URL'} if name in ('x402_treazury', 'x402_treazury-admin', 'x402_treazury-job') else {'TS_AUTHKEY'} if name == 'tailscale' else set()
+            expected = set(provider_keys) if name == 'teep' else {'TS_AUTHKEY'} if name == 'tailscale' else set()
             self.assertEqual(set(secrets) & set(supplied), expected, name)
             for key in expected:
                 self.assertEqual(supplied[key], secrets[key])

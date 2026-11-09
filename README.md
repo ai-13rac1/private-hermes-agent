@@ -52,9 +52,9 @@ networks. Local ingress uses `10.203.85.0/24`; optional Funnel adds `10.203.87.0
 make init
 ```
 
-Edit `.env` to add at least one inference provider key. The x402_treazury
-`BASE_RPC_URL` is needed later, when preparing research services. Compose supplies provider keys only to teep and the RPC URL
-only to x402_treazury. Tor control uses a private
+Edit `.env` to add at least one inference provider key. Compose supplies provider
+keys only to teep. x402_treazury uses its built-in Base RPC endpoints through Tor;
+no RPC endpoint setting is required. Tor control uses a private
 cookie-authenticated Unix socket in the Tor container.
 
 ```sh

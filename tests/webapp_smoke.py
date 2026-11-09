@@ -89,7 +89,7 @@ def run_suite():
             wait_ready()
             assert not smoke.compose('ps', '-q', 'x402_treazury').stdout.strip(), 'Unprepared research service must not start'
             smoke.python('hermes', "from hermes_cli.config import load_config,load_env; assert not any(k.startswith('x402_treazury_') for k in load_config().get('mcp_servers',{})); assert not load_env().get('X402_TREAZURY_MCP_TOKEN')")
-            print('PASS: fresh authenticated Hermes webapp starts without wallet, research RPC or research MCP registration', flush=True)
+            print('PASS: fresh authenticated Hermes webapp starts without wallet or research MCP registration', flush=True)
             smoke.compose('exec', '-T', '--user', '10005:10005', 'webapp-proxy', 'python3', '-c', """import pathlib,socket
 status=dict(line.split(':',1) for line in pathlib.Path('/proc/1/status').read_text().splitlines() if ':' in line)
 assert set(status['Uid'].split())=={'10005'}, status['Uid']
