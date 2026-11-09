@@ -177,10 +177,27 @@ TLS fixture on ports 19120 and 10000. No real Tailscale container starts and no
 inference or paid MCP calls are made. Stop normal deployments before testing
 because fixed subnets are shared.
 
-Local/browser qualification does not prove real Funnel enrollment or public
-reachability. Those require the operator's tailnet key, policy, assigned hostname,
-and an external test of login, streaming, WebSockets and disablement. Report
-that step separately; do not equate the TLS fixture with a live Funnel.
+## Pending live Funnel qualification
+
+Local ingress and optional Funnel support are implemented and locally qualified.
+No real Tailscale node has been enrolled or public Funnel path qualified. The
+local TLS fixture does not establish those results.
+
+When the operator is ready to enable public access, use the configuration and
+activation workflow above, then qualify:
+
+1. Enrollment with the operator's tailnet key and policy, and exact agreement
+   between the assigned hostname and configured Funnel hostname.
+2. Access from outside the tailnet: unauthenticated requests require Hermes
+   authentication, and successful login supports chat streaming and WebSockets.
+   Confirm localhost remains usable independently.
+3. Disable Funnel using the documented workflow and verify externally that public
+   access stops while localhost remains available. Check ordinary shutdown and
+   subsequent explicit re-enablement without deleting node or Hermes state.
+
+Record the tested revision and observed results separately from fixture evidence,
+without committing credentials or private node identifiers. This pending
+qualification does not itself authorize enrollment or public exposure.
 
 References: [Tailscale Docker parameters](https://tailscale.com/docs/features/containers/docker/docker-params),
 [Tailscale Funnel](https://tailscale.com/docs/features/tailscale-funnel), and

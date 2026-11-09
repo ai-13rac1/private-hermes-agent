@@ -109,8 +109,8 @@ This selected deployment-environment contract does not depend on the deferred
 [read-only configuration](readonly-configuration.md) or
 [capability reduction](capability-reduction.md) plans. Preserve native setup and
 upgrade behavior without importing those plans' broader work or adding prerelease
-migration machinery. The implemented [ingress plan](webapp-ingress.md) remains
-the authentication/network baseline; this plan explicitly adds browser privacy.
+migration machinery. The maintained [ingress guide](../webapp.md) describes the
+implemented authentication/network baseline; this plan adds browser privacy.
 
 Define how a mode change reaches both the gateway and generated ingress policy:
 document the required configuration render/recreation steps. Do not claim that
