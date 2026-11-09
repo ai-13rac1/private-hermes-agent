@@ -2,11 +2,17 @@
 import http.client
 import json
 import socket
+import sys
 import time
 from unittest.mock import patch
 from hermes_cli import private_public_images as images
 
 PUBLIC = '11.203.88.3'
+connections = []
+def socket_audit(event, args):
+    if event == 'socket.connect' and args[0].family in (socket.AF_INET, socket.AF_INET6):
+        connections.append(args[1])
+sys.addaudithook(socket_audit)
 lookups = []
 
 
@@ -185,3 +191,6 @@ print('PASS: native auth, forged/opaque consent denial, ask load-once/remember/r
 for event in events():
     assert not {'cookie', 'authorization', 'referer', 'proxy-authorization'} & {k.lower() for k in event['headers']}
 print('PASS: streaming size cap, redirect loop, TLS identity failure, failed dependency and explicit retry')
+
+assert connections and all(address[0] == PUBLIC for address in connections), 'A forbidden IP socket was attempted'
+print('PASS: CPython socket audit confirms all actual IP connect attempts stayed on the controlled public canary')

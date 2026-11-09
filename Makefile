@@ -41,6 +41,7 @@ webapp-credentials: init
 webapp-rotate: init
 	python3 scripts/webapp-credentials.py --rotate
 webapp-test: check
+	docker compose -f compose.yaml build hermes webapp-proxy
 	python3 scripts/preflight.py private-hermes-webapp-test --funnel
 	python3 -u tests/webapp_smoke.py
 
@@ -62,4 +63,9 @@ plugins-test: check
 
 .PHONY: images-test
 images-test: check
+	docker compose -f compose.yaml build hermes
 	python3 -u tests/images_smoke.py
+
+.PHONY: hermes-ui-test
+hermes-ui-test: check
+	python3 -u tests/hermes_ui.py

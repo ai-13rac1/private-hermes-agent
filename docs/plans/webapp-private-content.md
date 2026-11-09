@@ -1,6 +1,6 @@
 # Private webapp content: safe defaults and passive media
 
-Status: P1-1 passed P1-BUILD; P1-2 implemented and fixture-qualified; P1-FETCH review pending. Part 1 of the browser privacy work. Part 2 is
+Status: P1-1 passed P1-BUILD; P1-2 passed P1-FETCH; P1-3 implemented and source-reviewed; P1-4 integrated qualification in progress. Part 1 of the browser privacy work. Part 2 is
 [interactive content and media](webapp-interactive-content.md).
 Execution follows the [planning workflow](../planning-workflow.md) and
 [repository instructions](../../AGENTS.md).
@@ -38,7 +38,7 @@ Authentication and Funnel do not change that distinction. Fetching a unique URL
 through Tor can still reveal that someone viewed it; it protects the browser's
 address, not the fact of retrieval. The `ask` mode addresses that additional concern.
 
-## Current implementation and findings
+## Historical planning baseline and findings
 
 - We use the pinned official Hermes image without application source patches.
   HAProxy adds restrictions for fonts and styles alongside Hermes's own CSP.
@@ -261,6 +261,14 @@ Selected answers, subject to independent design review:
   timeouts, and a bounded redirect count. Validate raster signatures and decode
   before returning passive image bytes; reject SVG. No cross-request image cache
   is necessary; responses are authenticated and no-store. Errors omit URLs.
+- **Native cwd qualification finding:** the UI selects configured `/workspace`
+  after backend readiness, while native `gateway/session_policy.py` requires its
+  session cwd to exist in the agent. Chat then fails `invalid_params` because
+  that path existed only in the executor. Add an empty agent-side directory in
+  the derived image, without sharing any mount or executor files. A disposable
+  runtime probe with that directory passed real mock-provider chat streaming.
+  Agent-side browser-terminal files there are ephemeral; durable agent state
+  remains `/opt/data`. This does not change SSH execution or file API routing.
 - **Consent:** native SQLite in Hermes's existing named volume, a single table
   for remembered `(browser origin, external origin, tor-image)` permissions.
   One deployment administrator shares remembered approvals between authenticated
@@ -396,8 +404,18 @@ that any successful same-origin response must have used Tor.
 ## Evidence and completion status
 
 - Implementation: P1-1 derived image/policy input implemented; P1-BUILD passed at `4bd8e1b`.
-  P1-2 implemented and fixture-qualified; P1-FETCH pending. P1-3/P1-4 pending;
-  this checkpoint is not safe browser containment.
+  P1-2 implemented and fixture-qualified; P1-FETCH passed at `6330c33`. P1-3 implemented;
+  integrated qualification and P1-FINAL remain pending, so completion is not claimed.
+- P1-3 combined boundary review: a fresh read-only subagent inspected the complete
+  implementation snapshot over `6330c33`, including all new renderer, middleware,
+  patch and qualification files. No material defects found. An unrelated native
+  download-test block inadvertently removed with obsolete proxy tests was restored
+  and verified by the reviewer. Full renderer TypeScript and 68 focused tests
+  passed before that test-only restoration; its two restored tests will be rerun.
+  Browser matrix, stale consent and DNS observations passed on the earlier
+  candidate; the current integrated rerun and actual Tor-route evidence are pending.
+- P1-FETCH: fresh read-only review of `6330c33` passed with no material findings;
+  reviewer independently reran the complete isolated image/consent suite.
 - P1-2 evidence: clean derived backend build and `make check` (51 tests plus
   Compose/compilation) passed. `python3 tests/images_smoke.py` passed isolated
   real HTTP/TLS sockets, original Host/certificate identity, private/metadata/

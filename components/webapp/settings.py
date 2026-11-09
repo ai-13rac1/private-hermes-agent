@@ -93,6 +93,7 @@ frontend {name}
     http-request deny deny_status 421 unless allowed_host
     http-request del-header Forwarded
     http-request del-header x-forwarded- -m beg
+    http-request set-header X-Private-Hermes-Content-Mode {settings.external_content}
     http-request set-header X-Forwarded-Proto {scheme}
     http-request set-header X-Forwarded-For %[src]
     default_backend hermes

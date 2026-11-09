@@ -139,5 +139,29 @@ profile dotenv loads. The final image also copies that patched bootstrap. Its
 removal requires equivalent upstream deployment
 policy validation, not merely a UI preference.
 
-This build/policy checkpoint does not yet establish browser containment. Follow
-[part 1's phase and qualification status](plans/webapp-private-content.md).
+The private-content patches also remove the CDN-first proxy, mount the narrow
+public-raster/consent APIs, integrate shared renderer consumers, and cover main,
+preview/plugin and active-file responses. Private preview shells display source
+text; they never parse arbitrary HTML or run its scripts. Preserve main bootstrap
+hashes and exact-origin WebSockets when updating these patches. Remove patches
+only after equivalent upstream behavior passes the same backend/browser/network
+qualification, including dependency loss and stale permissions. No runtime bundle
+editing, fallback provider or compatibility reader is installed.
+
+The derived image also creates an empty agent-side `/workspace` for native
+session-cwd validation; this is separate from the executor mount. Qualify actual
+browser chat, rather than relying on login/terminal checks alone.
+
+Follow [part 1's phase and qualification status](plans/webapp-private-content.md)
+and [current webapp limits](webapp.md#external-content-policy).
+
+Run `make hermes-ui-test` for the patched renderer's full TypeScript check and
+focused native media/preview tests. It uses the disposable build stage, without
+runtime dependency installation or private mounts. The small upstream session
+fixture omitted from the official runtime image is copied verbatim under
+`tests/fixtures/` from the pinned source; refresh it when changing that source.
+The compiler needs a larger heap than Node's observed 2 GiB default on this target;
+that setting applies only to the qualification compiler, not runtime containers.
+`make webapp-test` rebuilds Hermes and the proxy before fixture startup, and
+`make images-test` rebuilds Hermes, preventing stale local tags from bypassing
+changed startup or fetch behavior.

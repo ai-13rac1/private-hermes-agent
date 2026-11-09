@@ -43,3 +43,22 @@ services:
       funnel-link:
         ipv4_address: 10.203.87.2
       webapp-publish: {}
+
+  teep:
+    # Browser/chat qualification uses deterministic local inference. Routing and
+    # actual Teep behavior remain covered separately by make test.
+    image: private-hermes-executor:local
+    build: !reset null
+    entrypoint: [python3, /opt/webapp-inference.py]
+    command: []
+    user: "10000:10000"
+    volumes:
+      - ./tests/fixtures/webapp-inference.py:/opt/webapp-inference.py:ro
+    networks: !override
+      inference:
+        ipv4_address: 10.203.83.3
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:8337/health]
+      interval: 1s
+      timeout: 2s
+      retries: 5

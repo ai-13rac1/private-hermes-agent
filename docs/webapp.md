@@ -203,32 +203,139 @@ References: [Tailscale Docker parameters](https://tailscale.com/docs/features/co
 [Tailscale Funnel](https://tailscale.com/docs/features/tailscale-funnel), and
 [HAProxy header rules](https://docs.haproxy.org/3.4/configuration.html).
 
-## Private-image backend checkpoint
+## External content policy
 
-The deployment policy and authenticated Tor-image backend are implemented; UI and
-all-document browser enforcement remain pending in
-[part 1](plans/webapp-private-content.md). This intermediate build does **not** yet
-provide private browser rendering. The old CDN proxy route has been removed.
+Part 1's browser implementation is undergoing integrated qualification; consult
+[the retained plan](plans/webapp-private-content.md) for current review gates and
+evidence. The earlier build/backend checkpoints alone did not provide containment.
 
-The backend accepts validated public IPv4 HTTP(S) raster images (PNG, JPEG, GIF,
-WebP, BMP and ICO), through the existing transparent Tor route. It pins a checked
-numeric destination while retaining TLS identity checks, revalidates redirects,
-strips browser credentials/referrers, rejects SVG/HTML and keeps the native 25 MiB
-image limit with streaming checks. IPv6-only and unsupported formats fail visibly;
-there is no direct browser retry. Socket operations allow 60 seconds for Tor
-latency. Failed retrieval may be retried explicitly.
+Set the root deployment `.env` value and apply it with `make up`:
 
-In `ask`, a same-origin authenticated image POST may approve exactly that load.
-Remembered permissions apply only to Tor-image loading for one external origin
-and one exact browser origin; localhost and Funnel do not share them. In `ask`,
-cross-origin redirects are rejected before next-hop DNS or network traffic;
-opening externally remains available. `off` denies retrieval despite old grants
-or load-once requests. Revocation denies future requests; delivered image bytes
-cannot be recalled.
+```dotenv
+WEBAPP_EXTERNAL_CONTENT=tor_proxied
+```
 
-Run `make images-test` for controlled HTTP/TLS raster, DNS-change, SSRF and native
-auth/consent qualification. It uses a separate disposable project, public-numbered
-canary addresses on isolated networks and no published ports or uplink. Stop other
-test/deployment stacks first because inference/MCP fixture subnets are shared.
-This establishes destination enforcement, not evidence that a canary fetch used
-Tor. Actual Tor route and browser traffic checks remain separate qualification.
+| Mode | In-app behavior |
+| --- | --- |
+| `tor_proxied` | Default. Supported external raster images/icons load through the authenticated gateway over Tor. Unsupported content has a non-loading fallback and external link. |
+| `ask` | No external image retrieval before load-once approval or a remembered Tor-image origin grant. Unsupported media/players/previews remain non-loading. |
+| `off` | No external in-app loading or proxy retrieval, including previously approved images. In-app controls cannot override this ceiling. |
+| `browser_native` | Explicit browser-native loading, using the browser connection. Native social preferences still apply. Existing authentication, main-script policy and preview sandboxes remain. |
+
+Invalid or explicitly empty settings fail validation. An absent root setting
+selects `tor_proxied`; missing/invalid gateway process settings refuse HTTP server
+assembly. Native bootstrap captures the injected policy before profile dotenv
+loading. Profile/model settings cannot relax it. The proxy checks its generated
+mode marker before listening and sends a mode header checked by the gateway;
+mismatch refuses access. `make up` renders configuration and recreates both
+processes. Editing `.env` alone does not change running services.
+
+Reload browser tabs after a mode change. New gateway policy applies to every new
+image retrieval, including requests from stale pages. Previously delivered bytes
+and browser document policies cannot be recalled. Close old `browser_native` tabs
+and previews when switching to a private mode: their already delivered network
+and script authority remains until they are closed/reloaded.
+
+### Image approval and limits
+
+The image placeholder names the destination origin and distinguishes **Load once
+through Tor / retry**, **Remember this origin for Tor images**, and **Open externally
+(uses your browser connection)**. Approval to retrieve a unique URL through Tor
+can still reveal that someone viewed it; Tor protects the browser address, not
+the fact of retrieval. Proxy failure displays its reason and never tries the
+browser URL automatically. SVG and other unsupported responses keep the fallback.
+
+Revoke remembered origins in **Settings → Appearance → Chat display → Image
+permissions**. This surface stays available after images have loaded. Grants are
+specific to Tor-image retrieval and exact browser/external origins. Localhost,
+`127.0.0.1`, and Funnel have separate scopes. One deployment administrator shares
+remembered grants between authenticated sessions on the same exact origin.
+Logout and restart preserve them until explicit revocation. Load once persists
+no grant or reusable credential. Revocation stops future retrieval, including
+cached/repeated endpoint requests; already delivered bytes cannot be recalled.
+
+The backend supports public IPv4 HTTP(S) PNG, JPEG, GIF, WebP, BMP and ICO, with
+matching raster contents and media type. It pins a validated numeric address,
+retains original Host and TLS identity, checks all redirect destinations and
+never forwards browser credentials, cookies or referrers. In `ask`, a cross-origin
+redirect is rejected before next-hop DNS/network activity, including load once.
+Unsupported/private/IPv6-only destinations fail without a weaker fallback.
+The native 25 MiB image limit is checked while streaming. Socket operations
+allow 60 seconds for Tor latency; redirects are bounded. Responses are no-store
+and there is no server image cache. The former CDN-only proxy route is removed.
+
+### Local content, previews and links
+
+Local/generated images and graphs keep authenticated native file paths. Local
+media retains authenticated playback. A generated file hosted on a public CDN
+is external even when the agent generated it. Shared Markdown, generated-result,
+gallery, thumbnail and connector image renderers select private retrieval before
+assigning a browser resource URL. Pet thumbnail rendering uses the same gate.
+Browser-hosted link-title fetching is disabled and native favicon discovery
+remains desktop-only.
+
+In private modes, external audio/video, source/poster/subtitle/manifest dependencies
+and social players do not load automatically. They have placeholders and ordinary
+external links. Existing saved social permissions cannot bypass deployment policy.
+Interactive media and in-app browser-native opt-in remain deferred to part 2.
+
+HTML/plugin previews show inert source in private modes. Untrusted HTML is never
+parsed or executed there, including nested frames, resource hints, workers,
+WebRTC/STUN or script navigation. This is a deliberate fallback: CSP alone does
+not confine arbitrary preview JavaScript. Locally rendered sanitized SVG and
+Mermaid diagrams remain; external SVG references are blocked. Active HTML/SVG
+file and plugin-asset responses are attachments with an inert sandbox policy,
+including direct navigation/new tabs. The served preview shells retain their
+native sandbox in `browser_native`; private shells only display source text.
+
+Ordinary deliberate external links remain browser navigation. Downloads remain
+available, but opening a downloaded document outside the webapp may contact
+external services. Browser-native content and external navigation bypass Docker's
+Tor gateway. The policy does not gate ordinary model inference or agent tool
+requests, and does not protect against trusted administrator actions, installed
+backend plugins with agent authority, host compromise or browser extensions.
+
+The main app retains native bootstrap script hashes and unrelated script
+restrictions. Private response policies restrict resource sources, allow only
+same-origin APIs and exact-origin WebSockets, suppress referrers and disable DNS
+prefetch. Every separately served active document is covered. These browser
+controls do not change agent/executor networks or grant extra internal access.
+
+The image has an empty agent-side `/workspace` to satisfy native browser session
+cwd validation. It shares no mount or files with the SSH executor. Browser-terminal
+files there are ephemeral across recreation; durable agent state belongs under
+`/opt/data`. Model terminal/code execution and workspace file APIs continue using
+the separate durable executor workspace.
+
+### Qualification
+
+`make images-test` uses public-numbered HTTP/TLS canaries on isolated Docker
+networks, with no uplink or published ports. It qualifies socket destinations,
+DNS changes, raster/size enforcement and native auth/consent. Stop other test or
+deployment stacks first because inference/MCP fixture subnets are shared.
+This destination fixture does not establish that its local fetches used Tor.
+
+`make webapp-test` uses the built image, disposable native message/tool history,
+SSH files, local media, controlled browser TCP/TLS canaries, and local/simulated
+Funnel ingress. Its inference endpoint is a deterministic local fixture with no
+uplink or provider calls; actual Teep routing is qualified separately by `make test`.
+Browser image-success fixtures control the same-origin image API response; real
+backend retrieval is independently exercised by `images-test` and the real Tor
+image check. Direct Chromium NetLog observes canary DNS/TCP/preconnect activity;
+a reserved `.invalid` positive-control lookup cannot select an HTTP endpoint.
+No production wallets, paid calls or real Tailscale enrollment are used.
+
+Install every browser used by this suite in the explicit test environment:
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=/tmp/private-hermes-content-browsers \
+  /tmp/private-hermes-browser-tests/bin/python -m playwright install chromium firefox webkit
+PLAYWRIGHT_BROWSERS_PATH=/tmp/private-hermes-content-browsers \
+  WEBAPP_BROWSER_PYTHON=/tmp/private-hermes-browser-tests/bin/python make webapp-test
+```
+
+Record tested browser versions and completed/missing coverage in the plan.
+Fixture HTTPS is not live Funnel qualification. Tor image retrieval has separate
+exit-control/transparent-route evidence; successful same-origin bytes alone
+are not proof of Tor routing. Provider attestation and funded settlement remain
+outside these browser checks.

@@ -257,9 +257,10 @@ and HAProxy; a proxy mode/configuration mismatch refuses startup. Editing `.env`
 alone does not change running processes. Reload open browser pages after applying
 policy changes.
 
-The derived-image/policy-input phase is an incomplete implementation checkpoint.
-Browser containment and private image loading are not yet implemented or qualified;
-see the retained [part 1 plan](plans/webapp-private-content.md).
+See [webapp operations](webapp.md#external-content-policy) for mode behavior,
+image approval, inert previews, browser scope and stale-page limits. Integrated
+qualification/review status is recorded in the retained
+[part 1 plan](plans/webapp-private-content.md).
 
 Tor-image remembered consent uses `webapp-image-consent.sqlite3` in `hermes-data`,
 with a native SQLite table and mode 0600. Its method is fixed to private image

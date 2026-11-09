@@ -141,6 +141,142 @@ for host,port in (('10.203.85.2',9120),('10.203.85.3',8080),('10.203.85.3',19120
  else: raise AssertionError('Executor reached private ingress')
 """)
             print('PASS: browser terminal executes in agent container; file API uses SSH; executor cannot reach private ingress or credentials', flush=True)
+            # Seed real native history and SSH files; no inference is invoked.
+            content_fixture = (ROOT / 'tests/fixtures/content-session.py').read_text()
+            smoke.python('hermes', content_fixture)
+            smoke.python('executor', """import base64,wave
+from pathlib import Path
+Path('/workspace/private-content-local.png').write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6sRsAAAAASUVORK5CYII='))
+with wave.open('/workspace/private-content-local.wav','wb') as f:
+ f.setnchannels(1); f.setsampwidth(2); f.setframerate(8000); f.writeframes(b'\\x00\\x00'*8000)
+""")
+            video = smoke.execute('hermes', '/opt/hermes/.venv/bin/python', '-c', """import base64,subprocess
+from pathlib import Path
+p=Path('/tmp/private-content-local.mp4')
+subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-f','lavfi','-i','color=black:s=16x16:d=1','-an','-c:v','libx264','-pix_fmt','yuv420p','-y',str(p)],check=True)
+print(base64.b64encode(p.read_bytes()).decode())
+""").stdout.strip()
+            smoke.python('executor', "from pathlib import Path; import base64; Path('/workspace/private-content-local.mp4').write_bytes(base64.b64decode(" + repr(video) + "))")
+            for content_mode in ('tor_proxied', 'ask', 'off', 'browser_native'):
+                os.environ['WEBAPP_EXTERNAL_CONTENT'] = content_mode
+                values['external_content'] = content_mode
+                (folder / 'proxy.cfg').write_text(proxy_config(Settings.read(values)))
+                smoke.compose('up', '-d', '--no-deps', '--force-recreate', 'hermes', 'webapp-proxy')
+                wait_ready()
+                subprocess.run([os.environ.get('WEBAPP_BROWSER_PYTHON', sys.executable),
+                                str(ROOT / 'tests/private_content_browser.py'), str(folder / 'password'),
+                                content_mode], check=True)
+            # One live ask document crosses gateway restart and a policy change.
+            os.environ['WEBAPP_EXTERNAL_CONTENT'] = 'ask'
+            values['external_content'] = 'ask'
+            (folder / 'proxy.cfg').write_text(proxy_config(Settings.read(values)))
+            smoke.compose('up', '-d', '--no-deps', '--force-recreate', 'hermes', 'webapp-proxy')
+            wait_ready()
+            child = subprocess.Popen([os.environ.get('WEBAPP_BROWSER_PYTHON', sys.executable),
+                                      str(ROOT / 'tests/content_stale_browser.py'), str(folder / 'password')],
+                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            try:
+                assert child.stdout.readline().strip() == 'READY_RESTART'
+                smoke.compose('restart', 'hermes')
+                wait_ready()
+                child.stdin.write('restart\n'); child.stdin.flush()
+                assert child.stdout.readline().strip() == 'READY_OFF'
+                os.environ['WEBAPP_EXTERNAL_CONTENT'] = 'off'
+                values['external_content'] = 'off'
+                (folder / 'proxy.cfg').write_text(proxy_config(Settings.read(values)))
+                smoke.compose('up', '-d', '--no-deps', '--force-recreate', 'hermes', 'webapp-proxy')
+                wait_ready()
+                child.stdin.write('off\n'); child.stdin.flush()
+                output, _ = child.communicate()
+                print(output, end='', flush=True)
+                assert child.returncode == 0
+            finally:
+                if child.poll() is None:
+                    child.terminate(); child.wait()
+            # Restore the default for the remaining integrated activation checks.
+            os.environ['WEBAPP_EXTERNAL_CONTENT'] = 'tor_proxied'
+            values['external_content'] = 'tor_proxied'
+            (folder / 'proxy.cfg').write_text(proxy_config(Settings.read(values)))
+            smoke.compose('up', '-d', '--no-deps', '--force-recreate', 'hermes', 'webapp-proxy')
+            wait_ready()
+            subprocess.run([os.environ.get('WEBAPP_BROWSER_PYTHON', sys.executable),
+                            str(ROOT / 'tests/content_dns_browser.py'), str(folder / 'password')], check=True)
+            # A mismatched ingress header is refused by the gateway; a stale
+            # generated mode marker prevents HAProxy from listening at all.
+            correct_proxy = proxy_config(Settings.read(values))
+            (folder / 'proxy.cfg').write_text(correct_proxy.replace(
+                'X-Private-Hermes-Content-Mode tor_proxied', 'X-Private-Hermes-Content-Mode off'))
+            smoke.compose('restart', 'webapp-proxy')
+            for attempt in range(120):
+                try:
+                    if http('/login')[0] == 503:
+                        break
+                except OSError:
+                    pass
+                time.sleep(1)
+            else:
+                raise RuntimeError('Gateway did not refuse mismatched ingress policy')
+            (folder / 'proxy.cfg').write_text(correct_proxy.replace(
+                'http-request set-header X-Private-Hermes-Content-Mode tor_proxied',
+                'http-request del-header X-Private-Hermes-Content-Mode'))
+            smoke.compose('restart','webapp-proxy')
+            for attempt in range(120):
+                try:
+                    if http('/login')[0] == 503:
+                        break
+                except OSError:
+                    pass
+                time.sleep(1)
+            else:
+                raise RuntimeError('Gateway did not refuse missing ingress policy')
+            (folder / 'proxy.cfg').write_text(correct_proxy.replace(
+                '# WEBAPP_EXTERNAL_CONTENT=tor_proxied', '# WEBAPP_EXTERNAL_CONTENT=off', 1))
+            smoke.compose('restart', 'webapp-proxy')
+            identifier = smoke.compose('ps','-q','--all','webapp-proxy').stdout.strip()
+            for attempt in range(120):
+                state = json.loads(subprocess.check_output(['docker','inspect','--format','{{json .State}}',identifier],text=True))
+                if state['ExitCode'] != 0:
+                    break
+                time.sleep(1)
+            else:
+                raise RuntimeError('Proxy did not visibly refuse stale generated policy')
+            assert 'External-content policy mismatch' in smoke.compose('logs','webapp-proxy').stdout
+            try:
+                http('/login')
+            except OSError:
+                pass
+            else:
+                raise AssertionError('Proxy exposed HTTP with mismatched generated policy')
+            (folder / 'proxy.cfg').write_text(correct_proxy)
+            smoke.compose('up','-d','--no-deps','--force-recreate','webapp-proxy')
+            wait_ready()
+            print('PASS: gateway/ingress mismatch and stale generated policy fail closed; corrected recreation restores access',flush=True)
+            # Separate real-route evidence: Tor exit control plus transparent
+            # redirect counters around an actual authenticated image retrieval.
+            smoke.python('hermes', "import json,urllib.request; assert json.load(urllib.request.urlopen('https://check.torproject.org/api/ip',timeout=60))['IsTor'] is True")
+            def tor_redirect_count():
+                table = smoke.compose('exec','-T','tor','iptables','-t','nat','-L','PREROUTING','-n','-v','-x').stdout
+                return sum(int(line.split()[0]) for line in table.splitlines()
+                           if 'REDIRECT' in line and '10.204.80.2' in line and 'tcp' in line)
+            before = tor_redirect_count()
+            child = subprocess.Popen([os.environ.get('WEBAPP_BROWSER_PYTHON', sys.executable),
+                                      str(ROOT / 'tests/content_tor_browser.py'), str(folder / 'password')],
+                                     stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
+            try:
+                assert child.stdout.readline().strip() == 'READY_TOR_DOWN'
+                assert tor_redirect_count() > before, 'No agent transparent Tor redirect activity during real image retrieval'
+                smoke.compose('stop','tor')
+                child.stdin.write('down\n'); child.stdin.flush()
+                assert child.stdout.readline().strip() == 'READY_TOR_RESTART'
+                smoke.compose('up','-d','--no-deps','--wait','--wait-timeout','600','tor')
+                child.stdin.write('restart\n'); child.stdin.flush()
+                output, _ = child.communicate()
+                print(output,end='',flush=True)
+                assert child.returncode == 0
+                print('PASS: real image retrieval has separate Tor exit and transparent-route counter evidence',flush=True)
+            finally:
+                if child.poll() is None:
+                    child.terminate(); child.wait()
             # Financial preparation is represented by a controlled result here;
             # serving is the real unfunded Rust fixture, with native Hermes RPC.
             sys.path.insert(0, str(ROOT / 'scripts'))
