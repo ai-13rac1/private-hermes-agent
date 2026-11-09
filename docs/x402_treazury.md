@@ -64,7 +64,7 @@ file; the deployment workflow activates its profile after preparation. There is
 no additional overlay or enablement variable.
 
 The image builds unmodified upstream commit
-`6f3e1e6fd6738c5fece86dc796c5ef0686653552` using its Rust 1.99.1 toolchain and
+`424f36a814711d542fbff27f139842c9d08d5b76` using its Rust 1.99.1 toolchain and
 locked dependencies. The renderer changes only the Tor SOCKS endpoint, persistent
 state path, and HTTP Host allowlists. Wallet groups, rotation, funding, payment
 caps, source selection, and tool selection retain upstream policy.
@@ -108,6 +108,21 @@ make x402_treazury-status
 Status runs without networking or exclusive wallet ownership. It reads saved
 observations, not live proof of spendability, and can run while serving or
 preparing. Deposit ZEC at a time of your choosing; Hermes remains usable.
+
+To compare the packaged deployment's wallet policy with initialized saved groups
+without changing them, use the native offline preview:
+
+```sh
+python3 scripts/stack.py compose run --rm --no-deps --entrypoint /usr/local/bin/x402_treazury x402_treazury-admin wallet preview --json
+```
+
+Preview reports saved metadata and requested policy differences, not live
+balances or cryptographic verification. The upstream `wallet rename` command is
+also available for deliberate offline administration; it requires exclusive store
+ownership and a backup first. This update does not rename groups automatically.
+See the [pinned upstream wallet CLI guide](https://github.com/mikeperry-tor/x402_treazury/blob/424f36a814711d542fbff27f139842c9d08d5b76/docs/wallet-cli.md)
+for its constraints. Deployment policy remains packaged in the image; renaming a
+saved group alone does not change the configured wallet references.
 
 ## Prepare and connect research tools
 

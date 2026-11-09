@@ -34,7 +34,7 @@ def run_suite():
         }.items():
             assert all(production['servers'][name]['wallet'] == wallet for name in names)
         identity = json.loads(subprocess.check_output(command + ['build-info'], text=True))
-        assert identity['source_revision'] == '6f3e1e6fd6738c5fece86dc796c5ef0686653552'
+        assert identity['source_revision'] == '424f36a814711d542fbff27f139842c9d08d5b76'
         assert identity['source_dirty'] is False
         gate = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'python3',
                                'private-hermes-x402_treazury:local', '-c',
@@ -61,6 +61,13 @@ def run_suite():
         identifier = initialized['state']['treasury_id']
         reopened = json.loads(smoke.compose(*wallet_command, 'status', '--json').stdout)
         assert reopened['treasury_id'] == identifier
+        preview = json.loads(smoke.compose(*wallet_command, 'preview', '--json').stdout)
+        assert preview['schema_version'] == 1
+        assert preview['saved']['treasury_id'] == identifier
+        assert set(preview['managed']) == {'general', 'personal', 'health', 'financial'}
+        assert not preview['startup_conflicts']
+        assert json.loads(smoke.compose(*wallet_command, 'status', '--json').stdout) == reopened
+        print('PASS: native offline preview resolves packaged groups without changing saved status', flush=True)
         assert smoke.compose(*wallet_command, 'init', '--birthday', '1', check=False).returncode != 0
         smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint', 'python3', 'x402_treazury-admin',
                       '-c', "import os,stat; from pathlib import Path; p=Path('/var/lib/x402/state/wallet.key'); assert p.stat().st_uid==10003; assert stat.S_IMODE(p.stat().st_mode)==0o600; assert p.stat().st_nlink==1")
