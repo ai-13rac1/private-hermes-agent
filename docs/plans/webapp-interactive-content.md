@@ -2,6 +2,12 @@
 
 Status: planned. Part 2, dependent on
 [safe defaults and passive media](webapp-private-content.md).
+Execution follows the [planning workflow](../planning-workflow.md) and
+[repository instructions](../../AGENTS.md).
+
+Planning baseline: branch `main`, commit `2d0ec55`. This revision is planning
+only. At execution, record the actual baseline and completed/reviewed part 1
+revision; do not assume today's official Hermes image is still the runtime.
 
 ## Objective and starting state
 
@@ -18,6 +24,18 @@ Keep the same `WEBAPP_EXTERNAL_CONTENT=tor_proxied|ask|off|browser_native` setti
 policy authority, consent vocabulary and permission storage. Do not introduce a
 second conflicting switch or a compatibility/migration layer.
 
+Part 1's P1-FINAL gate is a prerequisite. Before substantive implementation,
+verify its documented guarantees and supported-browser evidence against the
+selected derived image. Record any changes to the shared contract in both plans
+and maintained guides. Fix a broken prerequisite before restoring functionality;
+do not silently treat a part 1 leak as a harmless deferred feature.
+
+Update [webapp operations](../webapp.md) with supported formats/providers,
+consent and revocation, [configuration](../configuration.md) for any changed
+permission persistence, and [updates/plugins](../updates-and-plugins.md) for
+patch/build changes. Do not create a second set of policy docs or a new generic
+permission framework. This plan does not change inference or agent-tool egress.
+
 ## Streaming external media through Tor
 
 - Add authenticated streaming for validated public audio/video destinations,
@@ -26,6 +44,11 @@ second conflicting switch or a compatibility/migration layer.
 - Cover dependent resources: posters, subtitles, playlists, manifests, segments,
   redirects and encryption-key URLs where applicable. A privately loaded initial
   manifest must not direct subsequent browser requests to external servers.
+- Begin with ordinary self-contained media files. Select and document initial
+  formats during design; support segmented streaming only if concrete usage
+  warrants it and its dependency handling can be bounded. The requirement above
+  applies to any format advertised as supported, not an obligation to implement
+  every playlist protocol, encryption system or player.
 - Only claim support for formats whose dependencies can be safely handled. Keep
   unsupported players/DRM/login-dependent media as placeholders or external links.
   Do not build a general rewriting proxy for arbitrary websites.
@@ -89,19 +112,96 @@ The permission is to load a particular class of external content, not to access
 host/LAN services. Define and test local-destination handling; do not implicitly
 turn public embed consent into permission to probe the user's private network.
 
-## Implementation sequence and packaging
+Explicitly qualify how origin allowlists interact with DNS changes, nested
+third-party documents and browser private-network protections. A parent CSP
+does not confine the network access of every remotely served descendant. If a
+player requires broader browser authority than can be enforced or accurately
+consented to, preserve the external-link fallback. Do not claim host/LAN denial
+from a hostname allowlist alone.
 
-1. Requalify part 1's enforcement against the current pinned derived image.
-2. Add streaming support for narrowly defined media formats, keeping all
-   unsupported formats on the existing safe fallback.
-3. Add the consent issuance/frame policy mechanism and a small set of qualified
-   social providers. Expand provider support only with dependency coverage.
-4. Add interactive generated previews where enforceable; retain safe fallbacks
-   for unknown or overly broad requirements.
-5. Extend the explicit Hermes patches and reproducible webapp build from part 1.
-   Fail on upstream patch mismatches and update operator documentation and
-   update inventory as needed. No topology changes are assumed; justify any
-   necessary additions against the existing isolation boundaries.
+## Open decisions and design gate P2-DESIGN
+
+Record answers from read-only inspection and controlled experiments before
+substantive implementation:
+
+- Which exact part 1 source/base/patch revision is selected, and which existing
+  image proxy, consent, preview and CSP interfaces can be extended directly?
+- Which initial media formats and social provider are worth supporting? Identify
+  dependencies and use deterministic fixtures. There is no universal provider
+  compatibility requirement and no permission to contact real user accounts.
+- How will per-grant frame policies coexist with HAProxy and native CSP without
+  an unrestricted route, forged approval or blanket removal of a source policy?
+- What enforceable authority can a provider/preview receive in supported browsers,
+  including descendant frames, WebRTC, navigation and local-network access?
+  State when the fallback is required rather than adding a general browser proxy.
+- What state is actually needed for single-load, session and remembered grants,
+  and what changes to part 1 are required? Prefer its existing mechanism. Define
+  expiry, replay resistance, logout/restart and active-frame revocation precisely.
+
+Gate P2-DESIGN is a fresh read-only subagent review with no inherited turns. Give
+the reviewer this plan, the completed part 1 contract and evidence, exact reviewed
+revisions/snapshot, chosen initial support and relevant guides. Review policy
+authority, media SSRF, frame isolation and scope/complexity. Resolve material
+findings before implementing the affected design.
+
+## Commit phases and review gates
+
+Use focused development/correction commits within these stable phases, with
+tests and guide updates alongside behavior. Independently review meaningful
+phase SHAs. A phase review may cover its named gate and accumulated work in one
+fresh review brief; do not add duplicate reviews just to satisfy labels.
+
+### P2-1: privately streamed media
+
+- Extend the existing proxy for the selected formats, Range/seek, cancellation
+  and approved dependent resources. Keep authentication, public-only destination
+  enforcement and policy checks on every retrieval, including subsequent ranges.
+- Wire the player to same-origin routes before browser loading begins. Retain
+  unsupported-format and error placeholders with no direct fallback.
+- Test success, partial/error responses, redirects, cache/grant behavior, Tor
+  loss, private targets, metadata/preloads and policy revocation during playback.
+  Update media support and diagnosis in `docs/webapp.md`.
+- Gate P2-MEDIA reviews exact commits and the shared proxy call chain. Exit
+  requires no unapproved browser requests and no expanded internal fetch access.
+
+### P2-2: consent-scoped provider frames
+
+- Extend the existing consent UI/store and issue narrowly scoped sandboxed
+  wrapper responses for the selected provider. Keep strict main-app policies
+  and authenticated/CSRF-protected grant mutations.
+- Add load-once/session/remembered controls and revocation in the unified settings
+  surface. Audit logout, restart, local/Funnel scope and stale frames. Do not
+  assume removing a wrapper instantly recalls all previously delivered content.
+- Test forged/replayed grants, content-origin messages, nested dependencies,
+  unauthorized hosts, parent credential/DOM isolation, and exact effective CSP
+  on main/wrapper/guest documents. Qualify the actual browser authority granted,
+  including any descendant behavior that cannot be narrowed.
+- Update operator docs. Gate P2-FRAMES independently reviews the phase and
+  accumulated media/permission boundary before in-app direct loading is declared
+  supported. Keep external links for providers failing qualification.
+
+### P2-3: bounded generated previews and completion
+
+- Reuse the frame/permission path for generated previews only where dependency
+  scope and sandbox behavior are enforceable. Unknown dependencies or unsupported
+  browser behavior retain inert/download/external fallbacks. No arbitrary-site
+  rewriting proxy, generic dependency loader or second permission framework.
+- Test malicious dependencies, nested documents, script navigation and relevant
+  WebRTC behavior, plus retained local/offline functionality. An inability to
+  safely support a preview is a documented feature limitation, not authority to
+  weaken part 1. Update the shared docs and both plans accordingly.
+- Gate P2-FINAL reviews the whole accumulated implementation, corrections,
+  shared part 1 invariants and acceptance evidence below. It also serves as
+  the P2-3 phase review. Resolve material findings and record exactly which
+  formats/providers/browsers passed; do not claim universal compatibility.
+- Commit completion/docs and retain this plan with accurate status and remaining
+  limitations. A bounded fallback is acceptable; an unresolved required security
+  condition cannot be relabeled as completed work.
+
+All phases extend the explicit Hermes patches and reproducible asset build from
+part 1, with patch mismatch failures and update-inventory changes as needed.
+No topology change or new service is assumed. Justify any necessary addition
+against an actual boundary rather than hypothetical future provider support.
 
 ## Qualification and acceptance
 
@@ -126,3 +226,27 @@ turn public embed consent into permission to probe the user's private network.
 
 Completion means added functionality works within explicit permissions. It does
 not require universal compatibility with arbitrary websites or executable HTML.
+
+Use `make check`, focused proxy/player/grant tests, and extended
+`make webapp-test` browser qualification against the built image. Run routing or
+plugin suites when their contracts change; reuse valid part 1 evidence for
+unchanged behavior. Serialize fixed-network fixtures. Simulated providers and
+HTTPS do not constitute live provider/Funnel qualification; report unsupported
+or untested cases rather than requiring production accounts to finish the suite.
+
+## Evidence and completion status
+
+- Prerequisite: part 1 is planned, not implemented or qualified.
+- Implementation: not started; P2-1 through P2-3 pending.
+- Design/phase/final gates: not yet passed. This plan does not supply evidence of
+  future permission enforcement or runtime functionality.
+- Initial formats/provider/browser coverage: selection pending P2-DESIGN.
+- Planning-only review: a fresh read-only subagent reviewed `2d0ec55` plus both
+  revised plan files, with no blocking findings. This does not pass P2-DESIGN or
+  establish that part 1's implementation prerequisite has been met.
+- Authority: local commits and disposable qualification within task scope; no
+  live Funnel enrollment, production financial secrets or funded calls.
+
+Maintain reviewed SHAs, material finding dispositions and focused results here as
+work lands. Report missing review/validation explicitly without generating a
+separate evidence-management subsystem.
