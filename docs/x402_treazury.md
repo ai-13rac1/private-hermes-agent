@@ -1,5 +1,26 @@
 # x402_treazury MCP integration
 
+x402_treazury provides paid information APIs as research tools, reducing reliance
+on browsing websites that challenge or ban Tor traffic. It funds rotating Base
+USDC payment wallets from a shielded Zcash treasury and ties Tor circuit
+isolation to each payer identity. Changing wallets changes the Tor isolation
+identity, reducing wallet and network linkability across API usage. The configured
+wallet groups below separate categories of research under upstream policy.
+
+For catalog and metadata downloads, the default policy makes one origin attempt
+and two retries on fresh Tor circuit isolation identities, then falls back to
+up to two paid relay downloads for GET requests. Source discovery and provider
+metadata relay fallback are enabled; relay fallback for actual API requests is
+disabled by default.
+
+Funding swaps use Zcash on isolated Tor circuits with a unique shielded refund
+address for each swap. The main remaining funding linkability is correlation of
+swap timing and amounts against the overall volume of ZEC-to-Base USDC swaps.
+The risk is highest during the coordinated consecutive initial funding swaps at
+startup and decreases as subsequent swaps occur independently with wallet
+rotation. Wallet keys stay with x402_treazury; Hermes receives tool access rather
+than those keys.
+
 The main `compose.yaml` includes one x402_treazury serving process in
 its own container, sharing `agent-net`'s network namespace with Hermes. Its twelve
 HTTP MCP listeners stay on `127.0.0.1:3010–3021`; no ports are published and no

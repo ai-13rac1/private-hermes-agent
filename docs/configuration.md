@@ -72,6 +72,14 @@ gateway starts. The managed workflow explicitly starts runtime services with
 `--no-deps` afterward, preventing another setup run; Compose dependencies still
 guard direct first-run startup. Treasury activation
 reconnects MCP only after authenticated readiness succeeds.
+
+SSH client and host keys live in separate persistent directories; setup pins the
+executor host key and initializes its workspace/home. It copies
+`components/hermes/config.example.yaml` only if Hermes configuration is absent.
+Existing compatible configuration and keys are preserved. Incompatible Hermes
+configuration blocks agent startup. Setup also installs the generated SSH
+file-browser settings.
+
 `make gateway` uses the same startup workflow. After `make up`, `make chat` uses
 the existing runtime namespaces without starting setup again. The optional
 Tailscale service is also started without rerunning its completed dependencies.
@@ -104,6 +112,19 @@ The recommended provider is NearAI via teep's `neardirect` backend. Set
 `neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated`. Other supported
 providers remain available; use `setup config set model.default` and `make up`
 to select a different model.
+
+List models and select the documented alternative with:
+
+```sh
+python3 scripts/stack.py compose exec teep curl -fsS http://127.0.0.1:8337/v1/models
+python3 scripts/stack.py compose run --rm --no-deps setup config set model.default 'neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated'
+make up
+```
+
+The default Hermes command runs a messaging gateway. To configure messaging
+platform credentials and allowlists, run
+`python3 scripts/stack.py compose run --rm --no-deps hermes setup`, then
+`make gateway`. Preserve the custom inference endpoint and SSH backend.
 
 Teep publishes container port 8337 directly on `127.0.0.1:${TEEP_HOST_PORT:-8337}`.
 Host OpenAI-compatible clients use `http://127.0.0.1:8337/v1` by default. The bind
@@ -271,3 +292,33 @@ explicit revocation removes them. Backing up/restoring Hermes's named volume
 includes this state. Load once creates no persistent grant or reusable bearer
 credential. Policy and retrieval responses are no-store, with no server image
 cache that could bypass a changed policy or revoked grant.
+
+## Adding other selected HTTP MCP servers
+
+The base allowlist is deliberately empty. A server should join only the
+`mcp-access` internal network and receive a fixed unused address such as
+`10.203.84.10`. Grant exactly its streaming HTTP port in
+`config/network/mcp-allowlist.json`, for example:
+
+```json
+[{"ip": "10.203.84.10", "port": 8000}]
+```
+
+Then add its URL under Hermes's persisted `mcp_servers`:
+
+```yaml
+mcp_servers:
+  selected_tools:
+    url: http://10.203.84.10:8000/mcp
+```
+
+Recreate the agent namespace and Hermes together after firewall edits
+(`make down`, then `make up`). Other ports on that MCP container remain blocked;
+executor access is not granted. HTTP streaming and SSE require no forwarding
+service or HTTP buffering proxy. The integration fixture demonstrates both.
+
+Do not give an MCP server an uplink, host mounts, or engine access unless its
+role requires that authority. Servers needing public access can be given a
+separately reviewed Tor route; they do not inherit the agent's egress. Powerful
+MCP tools remain explicitly granted capabilities available through Hermes.
+The twelve x402_treazury MCP servers activate after preparation; this allowlist is for additional servers.

@@ -7,7 +7,14 @@ optional Tailscale Funnel. Do not add framework selection or unrelated services.
 
 ## Read the project before changing it
 
-- Read [README.md](README.md) for topology, operator commands and qualification.
+- Keep [README.md](README.md) user-facing only: explain the stack, its components,
+  the problems they solve, setup, everyday operation and practical limitations.
+  Put implementation details, development procedures and qualification evidence in
+  appropriate documents under `docs/`, and link to them instead of expanding the
+  README with maintainer material.
+- Read [README.md](README.md) for the user-facing overview and operator commands.
+  Read [architecture and isolation](docs/architecture.md) and
+  [development and qualification](docs/development.md) for implementation and checks.
   Consult the relevant maintained guides:
   [configuration and backups](docs/configuration.md),
   [webapp](docs/webapp.md), [x402_treazury](docs/x402_treazury.md), and
