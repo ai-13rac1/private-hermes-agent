@@ -1,6 +1,7 @@
 # Private webapp content: safe defaults and passive media
 
-Status: P1-1 through P1-4 implemented and qualified; P1-FINAL pending.
+Status: complete. P1-1 through P1-4 implemented, qualified and independently reviewed;
+P1-FINAL passed at `3db5812`.
 Part 1 of the browser privacy work. Part 2 is
 [interactive content and media](webapp-interactive-content.md).
 Execution follows the [planning workflow](../planning-workflow.md) and
@@ -408,7 +409,13 @@ that any successful same-origin response must have used Tor.
 - Implementation: P1-1 derived image/policy input implemented; P1-BUILD passed at `4bd8e1b`.
   P1-2 implemented and fixture-qualified; P1-FETCH passed at `6330c33`. P1-3 implemented;
   P1-3 combined source review passed at the snapshot committed as `dd66226`.
-  P1-4 integrated qualification passed; P1-FINAL remains pending.
+  P1-4 integrated qualification and P1-FINAL passed at `3db5812`.
+- P1-FINAL/P1-4: fresh read-only review of
+  `3db58120e78f003d5b3402d34a4541e9fa39a6a7` against `078e0eb` passed with no
+  material findings. The reviewer traced the combined implementation, consumers,
+  failure paths, maintained guides and acceptance evidence, including the external
+  fixture failure and focused remainder. This final status record changes only
+  documentation. Safe defaults are complete with part 2 entirely absent.
 - P1-3 combined boundary review: a fresh read-only subagent inspected the complete
   implementation snapshot committed as `dd66226` over `6330c33`, including all new renderer, middleware,
   patch and qualification files. No material defects found. An unrelated native
@@ -486,8 +493,8 @@ that any successful same-origin response must have used Tor.
   Diff-check evidence excludes unified-patch context blank lines, which Git
   diagnoses as whitespace in newly added patch files.
   Review explicitly requires plugin HTML/SVG, preview blobs, file tickets/direct
-  navigation and old-proxy closure coverage, now exercised at P1-3. Final review
-  remains pending.
+  navigation and old-proxy closure coverage, now exercised at P1-3 and included in
+  the passed final combined review.
 - Existing evidence: source inspection and the preliminary intercepted Chromium
   policy experiment described above; no full feature or cross-browser guarantee.
 - Planning-only review: a fresh read-only subagent reviewed `2d0ec55` plus these

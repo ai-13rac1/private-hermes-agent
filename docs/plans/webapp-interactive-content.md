@@ -247,8 +247,9 @@ or untested cases rather than requiring production accounts to finish the suite.
 
 ## Evidence and completion status
 
-- Prerequisite: part 1 is implemented and qualified; its final independent gate
-  is being recorded in its retained evidence. Verify that gate before starting here.
+- Prerequisite: part 1 is implemented, qualified and independently reviewed;
+  P1-FINAL passed at `3db58120e78f003d5b3402d34a4541e9fa39a6a7`. Consult its
+  retained evidence and requalify any changed prerequisite before starting here.
 - Implementation: not started; P2-1 through P2-3 pending.
 - Design/phase/final gates: not yet passed. This plan does not supply evidence of
   future permission enforcement or runtime functionality.
