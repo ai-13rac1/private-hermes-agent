@@ -31,7 +31,7 @@ payment policies, not separate MCP access-control identities.
 
 ```sh
 make init
-# Edit .env to configure an inference provider.
+# Set NEARAI_API_KEY in .env for the recommended default inference model.
 make build
 make up
 ```

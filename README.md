@@ -52,8 +52,8 @@ networks. Local ingress uses `10.203.85.0/24`; optional Funnel adds `10.203.87.0
 make init
 ```
 
-Edit `.env` to add at least one inference provider key. Compose supplies provider
-keys only to teep. x402_treazury uses its built-in Base RPC endpoints through Tor;
+Set `NEARAI_API_KEY` in `.env` for the recommended NearAI `neardirect` provider
+through teep. Compose supplies provider keys only to teep. x402_treazury uses its built-in Base RPC endpoints through Tor;
 no RPC endpoint setting is required. Tor control uses a private
 cookie-authenticated Unix socket in the Tor container.
 
@@ -82,13 +82,18 @@ are preserved. Setup also installs the webapp authentication and SSH
 file-browser settings generated during initialization. Incompatible existing
 configuration blocks agent startup. Tor bootstrapping can take several minutes.
 
-Before inference, edit the model to an ID returned by teep:
+The default model is `neardirect:z-ai/glm-5.3-flash-long`. The other recommended
+model is `neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated`.
+With `NEARAI_API_KEY` configured, the default needs no model-selection step.
+To list available models or select the recommended alternative:
 
 ```sh
 python3 scripts/stack.py compose exec teep curl -fsS http://127.0.0.1:8337/v1/models
-python3 scripts/stack.py compose run --rm --no-deps setup config set model.default 'provider:model'
-make chat
+python3 scripts/stack.py compose run --rm --no-deps setup config set model.default 'neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated'
+make up
 ```
+
+`make chat` opens the terminal client after startup.
 
 Host applications can use Teep at `http://127.0.0.1:8337/v1`. Set `TEEP_HOST_PORT`
 in `.env` to select another host port. This endpoint is available to local host

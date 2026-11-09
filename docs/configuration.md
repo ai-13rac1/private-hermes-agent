@@ -76,7 +76,7 @@ Tailscale service is also started without rerunning its completed dependencies.
 Explicit maintenance commands use the same offline service:
 
 ```sh
-python3 scripts/stack.py compose run --rm --no-deps setup config set model.default 'provider:model'
+python3 scripts/stack.py compose run --rm --no-deps setup config set model.default 'neardirect:z-ai/glm-5.3-flash-long'
 python3 scripts/stack.py compose run --rm --no-deps setup storage
 ```
 
@@ -91,6 +91,13 @@ inspection stays in the networkless native treasury image, and financial jobs
 stay in its separate Tor-connected, non-restarting service.
 
 ## Host inference access
+
+The recommended provider is NearAI via teep's `neardirect` backend. Set
+`NEARAI_API_KEY` in `.env`. Hermes defaults to
+`neardirect:z-ai/glm-5.3-flash-long`; the other recommended model is
+`neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated`. Other supported
+providers remain available; use `setup config set model.default` and `make up`
+to select a different model.
 
 Teep publishes container port 8337 directly on `127.0.0.1:${TEEP_HOST_PORT:-8337}`.
 Host OpenAI-compatible clients use `http://127.0.0.1:8337/v1` by default. The bind
