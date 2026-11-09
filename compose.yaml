@@ -192,6 +192,7 @@ services:
 
   teep:
     image: private-hermes-teep:local
+    command: "serve ${TEEP_SERVE_ARGS:-}"
     build:
       context: .
       dockerfile: components/teep/Dockerfile

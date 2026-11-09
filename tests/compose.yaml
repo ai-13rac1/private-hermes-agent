@@ -30,6 +30,7 @@ services:
         read_only: true
         bind: {create_host_path: false}
   teep:
+    command: [serve]
     # Publish only on loopback, using a disposable port rather than the
     # operator's configured inference port.
     ports: !override

@@ -24,6 +24,7 @@ Compose explicitly selects each service's environment variables:
 | Inference provider API keys | teep |
 | `HERMES_DEFAULT_MODEL` | Offline setup, which saves the preferred Hermes default |
 | `TEEP_HOST_PORT` | Compose loopback port publication for teep |
+| `TEEP_SERVE_ARGS` | Compose command arguments for `teep serve` |
 | `TS_AUTHKEY` | Optional Tailscale container |
 | `WEBAPP_EXTERNAL_CONTENT` | Deployment validation, Hermes, offline setup and ingress proxy |
 | Funnel enablement, local webapp port and hostname | Deployment workflow and selected ingress components |
@@ -154,6 +155,25 @@ The default Hermes command runs a messaging gateway. To configure messaging
 platform credentials and allowlists, run
 `python3 scripts/stack.py compose run --rm --no-deps hermes setup`, then
 `make gateway`. Preserve the custom inference endpoint and SSH backend.
+
+Extra Teep server arguments can be set in the root `.env`:
+
+```dotenv
+TEEP_SERVE_ARGS=--log-level debug
+```
+
+Run `make up` to recreate Teep with the new arguments; no `make init` or image
+rebuild is needed. Blank or absent means plain `teep serve`. Compose splits
+the value into command arguments, honoring quoted argument values. No shell runs
+the command, so pipes and command substitutions are not executed. Compose's
+normal `.env` interpolation rules still apply.
+Supply only arguments after `serve`, not another command. Malformed quoting
+fails Compose validation; unknown arguments fail in Teep. Inspect the packaged
+options with `python3 scripts/stack.py compose run --rm --no-deps teep serve --help`.
+The listen address remains `0.0.0.0:8337` inside Teep's container and host
+publication remains loopback-only. No verification flags are supplied by default.
+Teep's `--offline` skips external verification and falls outside the stack's
+qualified verification behavior; preserve verification for normal operation.
 
 Teep publishes container port 8337 directly on `127.0.0.1:${TEEP_HOST_PORT:-8337}`.
 Host OpenAI-compatible clients use `http://127.0.0.1:8337/v1` by default. The bind

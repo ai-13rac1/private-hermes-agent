@@ -67,11 +67,14 @@ class OperatorConfigurationTests(unittest.TestCase):
                          'TINFOIL_API_KEY', 'NANOGPT_API_KEY', 'PHALA_API_KEY')
         secrets = {key: 'test-only-' + key for key in (*provider_keys, 'BASE_RPC_URL', 'TS_AUTHKEY')}
         environment = dict(os.environ, **secrets, TEEP_HOST_PORT='18337',
-                           HERMES_DEFAULT_MODEL='neardirect:qualification/custom-model')
+                           HERMES_DEFAULT_MODEL='neardirect:qualification/custom-model',
+                           TEEP_SERVE_ARGS="--log-level 'debug'")
         result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', '-f', 'compose.funnel.yaml', '--profile', '*', 'config', '--format', 'json'],
                                 cwd=ROOT, env=environment, text=True,
                                 capture_output=True, check=True)
         services = json.loads(result.stdout)['services']
+        self.assertEqual(services['teep']['command'], ['serve', '--log-level', 'debug'])
+        self.assertEqual(services['teep']['environment']['TEEP_LISTEN_ADDR'], '0.0.0.0:8337')
         self.assertEqual(services['setup']['environment']['HERMES_DEFAULT_MODEL'],
                          environment['HERMES_DEFAULT_MODEL'])
         for name, service in services.items():
