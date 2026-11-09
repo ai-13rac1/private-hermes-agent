@@ -1,6 +1,6 @@
 # Private webapp content: safe defaults and passive media
 
-Status: planned. Part 1 of the browser privacy work. Part 2 is
+Status: design inspection in progress; implementation not started. Part 1 of the browser privacy work. Part 2 is
 [interactive content and media](webapp-interactive-content.md).
 Execution follows the [planning workflow](../planning-workflow.md) and
 [repository instructions](../../AGENTS.md).
@@ -223,6 +223,73 @@ source evidence, proposed answers and relevant guides. Review scope includes
 SSRF, browser egress, packaging, functionality and unnecessary complexity.
 Resolve material findings before relying on the affected design. The earlier
 Chromium experiment is preliminary evidence, not this gate or final acceptance.
+
+## Execution baseline and selected design (P1-DESIGN submission)
+
+Execution branch: `webapp-private-content`, starting at
+`078e0eb9dcf3e2b65fff3de43534b46c2f73251a` (also `main`). The initial working
+tree contained unrelated untracked `TODO` and `.TODO.swp`; preserve both.
+Baseline `make check`: 50 unit tests, both Compose models and Python compilation
+passed on 2026-11-09. No runtime feature has landed.
+
+Selected answers, subject to independent design review:
+
+- **Source/build:** the pinned image's `install-stamp.json` identifies full commit
+  `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, clean CI Docker distribution.
+  Its packaged `scripts/build/freshness.mjs:sourceHash` recomputes Webapp input
+  hash `1faeb5281c0b84c0d235e64dcebf8709a497e48dcb573181b46b2e959f27b0ca`,
+  exactly matching `apps/desktop/dist-webapp/hermes-build.json`. This establishes
+  correspondence for the actual browser-hosted Desktop, distinct from the older
+  dashboard in `hermes_cli/web_dist` (`product: web`). Derive from the same digest,
+  verify stamp and pristine input hash before applying exact source patches, then
+  use its native Webapp build recipe and locked npm dependencies in a disposable
+  build stage. Copy only patched Python/source and rebuilt assets to the final
+  same-base image; preserve native dispatch, setup, UID and plugin behavior.
+  Select the rebuilt artifact explicitly with `HERMES_WEBAPP_DIST`. Update every
+  shared-image consumer and extract the official update pin from the Dockerfile.
+- **Public fetching:** no new service or network grant. Use a narrow stdlib HTTP(S)
+  fetcher which resolves IPv4 addresses through the existing Tor DNS, rejects any
+  non-global answer, and connects only to a validated numeric address. Retain
+  original Host and TLS SNI/certificate validation. Repeat validation for each
+  redirect, never re-resolve the hostname during connection, reject credentials,
+  controls, ambiguous URL syntax and unsupported address families. This closes
+  the privileged-route exception even for DNS changes. Use fresh connections,
+  no environment proxies/cookies/browser headers, streaming byte limits, socket
+  timeouts, and a bounded redirect count. Validate raster signatures and decode
+  before returning passive image bytes; reject SVG. No cross-request image cache
+  is necessary; responses are authenticated and no-store. Errors omit URLs.
+- **Consent:** native SQLite in Hermes's existing named volume, a single table
+  for remembered `(browser origin, external origin, tor-image)` permissions.
+  One deployment administrator shares remembered approvals between authenticated
+  sessions on the same exact browser origin; localhost and Funnel do not share
+  them. Remembered permissions survive logout/restart until explicitly revoked.
+  Load once is an authenticated same-origin JSON POST fetching exactly that image,
+  not a reusable bearer token or remembered permission. Require exact Origin and
+  same-origin fetch context for fetch/consent mutations; opaque previews have no
+  approval authority. Every fetch checks the current deployment mode and grant;
+  no cache bypass. Revocation stops future retrieval, cannot recall delivered bytes.
+- **Browser boundary:** private modes restrict main-page resource sources to self,
+  passive data/blob images/media, and exact-origin WebSockets; preserve native
+  inline script hashes. All separately served documents receive restrictions.
+  Do not execute untrusted preview/plugin HTML in private modes: use an inert
+  text/source or download fallback, avoiding reliance on CSP for WebRTC or script
+  navigation. Keep deliberate external links. Review all file/HTML/SVG routes,
+  direct/new-tab responses, redirects, workers, nested data/blob documents and
+  resource hints; force active file content to inert/download responses rather
+  than exempting authenticated routes. Browser-native keeps native script/auth
+  and sandbox rules. Private rendering never assigns external URLs to loading
+  attributes, and failures never retry directly. Qualify actual browser traffic
+  and DNS/preconnect canaries; document only browser versions actually tested.
+- **Policy propagation:** strict shared host parser, selected Compose environment,
+  process-level gateway mode, generated HAProxy policy with a mode marker checked
+  at proxy startup. Fail closed on missing/invalid/mismatched policy. Applying a
+  mode requires configuration rendering and gateway/proxy recreation via `make up`.
+  Existing documents cannot be recalled; the new backend denies newly forbidden
+  proxy retrieval, and operators reload pages after mode changes.
+
+Explicit deferrals remain part 2, prerelease migration, general permission or
+sandbox frameworks, arbitrary remote HTML/media proxying and live public/financial
+qualification. A design recommendation is not an automatic scope addition.
 
 ## Commit phases and review gates
 
