@@ -92,6 +92,9 @@ stay in its separate Tor-connected, non-restarting service.
 
 ## Host inference access
 
+See [updates and plugins](updates-and-plugins.md) for the version-check/update
+workflow, persistent user plugins, and privacy defaults independent of notifications.
+
 The recommended provider is NearAI via teep's `neardirect` backend. Set
 `NEARAI_API_KEY` in `.env`. Hermes defaults to
 `neardirect:z-ai/glm-5.3-flash-long`; the other recommended model is
@@ -155,7 +158,7 @@ qualifies a particular host. `make storage-test` checks the current native-volum
 layout and verifies files and SQLite data survive ordinary Compose `down` and
 container recreation, using only a disposable test project and no network access.
 
-After rebuilding the provisioning image following an engine update, test the
+After updating Docker Desktop or the engine's file-sharing backend, test the
 host-backed `data/` filesystem directly with:
 
 ```sh

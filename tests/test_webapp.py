@@ -45,6 +45,9 @@ class WebappTests(unittest.TestCase):
         self.assertIn('test.example.ts.net:443 test.example.ts.net', text)
         self.assertIn('X-Forwarded-Proto https', text)
         self.assertIn('server agent 10.203.85.2:9120', text)
+        self.assertIn('http-response add-header Content-Security-Policy', text)
+        self.assertIn("font-src 'self' data:; style-src 'self' 'unsafe-inline'", text)
+        self.assertNotIn('http-response set-header Content-Security-Policy', text)
 
     def test_generated_native_hash_format_and_signing_secret_are_validated(self):
         credentials = {'password_hash': hash_password('disposable test password'), 'secret': 's' * 64}

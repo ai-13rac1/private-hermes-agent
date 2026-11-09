@@ -25,3 +25,23 @@ terminal:
   env_passthrough: []
 # Staged x402_treazury activation adds its twelve MCP endpoints after preparation.
 mcp_servers: {}
+# Usage uploads are independent of update notifications.
+telemetry:
+  shared_metrics:
+    enabled: false
+    send: false
+    offer_version: 2
+updates:
+  check: true
+plugins:
+  enabled: []
+  auto_update_check_hours: 24
+  auto_apply: false
+monitoring:
+  gateway_health_export:
+    enabled: false
+  export:
+    otlp:
+      enabled: false
+computer_use:
+  cua_telemetry: false

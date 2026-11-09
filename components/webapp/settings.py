@@ -73,6 +73,9 @@ defaults
     timeout tunnel 0
 
 backend hermes
+    # Add a second policy: browsers intersect it with Hermes's own CSP, so its
+    # script/connect restrictions remain intact while third-party fonts stop.
+    http-response add-header Content-Security-Policy "font-src 'self' data:; style-src 'self' 'unsafe-inline'"
     server agent 10.203.85.2:9120
 '''
     def frontend(name, listen, hosts, scheme, peer=None):

@@ -155,6 +155,9 @@ services:
     cap_add: [SETUID, SETGID, SYS_CHROOT]
     security_opt: [no-new-privileges:true]
     read_only: true
+    environment:
+      ANONYMIZED_TELEMETRY: "false"
+      CUA_DRIVER_RS_TELEMETRY_ENABLED: "0"
     tmpfs: [/tmp:mode=1777, /run:mode=0755]
     volumes:
       - type: bind
@@ -299,6 +302,8 @@ services:
       HERMES_UID: "10000"
       HERMES_GID: "10000"
       HERMES_DASHBOARD: "0"
+      ANONYMIZED_TELEMETRY: "false"
+      CUA_DRIVER_RS_TELEMETRY_ENABLED: "0"
       OPENAI_BASE_URL: http://10.203.83.3:8337/v1
       OPENAI_API_KEY: unused
       TERMINAL_SSH_HOST: 10.203.82.3

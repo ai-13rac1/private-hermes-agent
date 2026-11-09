@@ -48,3 +48,14 @@ webapp-test: check
 chat:
 	python3 scripts/stack.py compose run --rm --no-deps hermes chat
 gateway: up
+
+.PHONY: check-updates plugins
+check-updates:
+	python3 scripts/check-updates.py
+plugins:
+	python3 scripts/plugins.py
+
+.PHONY: plugins-test
+plugins-test: check
+	python3 scripts/preflight.py private-hermes-plugins-test
+	python3 -u tests/plugins_smoke.py

@@ -107,6 +107,9 @@ if desired, then start it with `make gateway`. Keep the custom
 inference endpoint and SSH backend. The base stack publishes the authenticated
 webapp and Teep on host loopback. SSH, Tor, and Hermes control ports remain private.
 
+See [updates, plugins, and privacy defaults](docs/updates-and-plugins.md) for
+`make check-updates`, native persistent plugin management, and telemetry controls.
+
 ## Authenticated webapp and optional Funnel
 
 See [webapp setup](docs/webapp.md) for native password authentication on host

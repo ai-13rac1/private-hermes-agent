@@ -68,6 +68,18 @@ with sync_playwright() as playwright:
             # Load actual SPA scripts, not just a login redirect.
             page.wait_for_load_state('domcontentloaded')
             assert page.locator('input[name=password]').count() == 0
+            blocked = page.evaluate('''async () => {
+              const result = new Promise(resolve => {
+                document.addEventListener('securitypolicyviolation', e => {
+                  if(e.blockedURI.includes('fonts.googleapis.com')) resolve(true);
+                });
+                setTimeout(()=>resolve(false),3000);
+              });
+              const link=document.createElement('link'); link.rel='stylesheet';
+              link.href='https://fonts.googleapis.com/css2?family=Inter&display=swap&privacy-check=1';
+              document.head.appendChild(link); return await result;
+            }''')
+            assert blocked, 'External font stylesheet was not blocked by CSP'
             cookies = context.cookies()
             sessions = [cookie for cookie in cookies if 'hermes_session_at' in cookie['name']]
             assert sessions and all(c['httpOnly'] and c['sameSite']=='Lax' and c['path']=='/' for c in sessions)
