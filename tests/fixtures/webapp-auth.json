@@ -1,0 +1,4 @@
+{
+  "password_hash": "scrypt$16384$8$1$83J2by/6eo8pYJ7JDwvzBA==$08VSUQw/zY5tVvUmtbxL6Q6v2OzySMXyS2B4HorX4l4=",
+  "secret": "test-only-signing-key-never-use-for-real-webapp-login-12345"
+}

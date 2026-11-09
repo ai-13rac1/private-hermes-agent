@@ -3,6 +3,9 @@
 from pathlib import Path
 import os
 import shutil
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'components/webapp'))
+from auth import initialize_credentials
 
 
 def initialize(root):
@@ -22,8 +25,12 @@ def initialize(root):
     if not target.is_file():
         raise SystemExit('config/network/mcp-allowlist.json must be a file')
     (root / 'data').mkdir(exist_ok=True)
+    initialize_credentials(root)
 
 
 if __name__ == '__main__':
     initialize(Path(__file__).resolve().parents[1])
-    print('Initialized .env and local config; existing settings and application volumes preserved.')
+    from deployment import render, settings
+    render(settings())
+    print('Initialized local configuration; existing settings and application volumes preserved.')
+    print('Webapp password: config/webapp/password (0600); credentials were not printed.')

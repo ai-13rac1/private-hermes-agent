@@ -19,7 +19,7 @@ from settings import Settings, proxy_config
 
 PROJECT = 'private-hermes-webapp-test'
 smoke.COMPOSE = ['docker', 'compose', '-p', PROJECT, '-f', 'compose.yaml',
-                 '-f', 'compose.webapp.yaml', '-f', 'compose.funnel.yaml',
+                 '-f', 'compose.funnel.yaml',
                  '-f', 'tests/compose.yaml', '-f', 'tests/webapp-compose.yaml']
 
 
@@ -65,7 +65,7 @@ def main():
         auth = {'password_hash': hash_password(password), 'secret': secrets.token_urlsafe(48)}
         (folder / 'auth.json').write_text(json.dumps(auth))
         (folder / 'password').write_text(password)
-        values = dict(webapp_enabled='true', funnel_enabled='true', webapp_bind='127.0.0.1',
+        values = dict(funnel_enabled='true', webapp_bind='127.0.0.1',
                       webapp_port='19120', webapp_username='admin', funnel_host='webapp-test.example.ts.net',
                       funnel_port='10000', tailscale_hostname='private-hermes')
         (folder / 'proxy.cfg').write_text(proxy_config(Settings.read(values)))
@@ -76,7 +76,7 @@ def main():
                         '-subj', '/CN=webapp-test.example.ts.net', '-addext',
                         'subjectAltName=DNS:webapp-test.example.ts.net'], check=True, capture_output=True)
         (tls / 'key.pem').chmod(0o644)  # disposable fixture key; readable by unprivileged TLS server
-        os.environ.update(WEBAPP_ENABLED='true', WEBAPP_PORT='19120', WEBAPP_USERNAME='admin',
+        os.environ.update(WEBAPP_PORT='19120', WEBAPP_USERNAME='admin',
                           TAILSCALE_FUNNEL_ENABLED='true', TAILSCALE_FUNNEL_HOST='webapp-test.example.ts.net',
                           TAILSCALE_FUNNEL_PORT='10000', TS_AUTHKEY='',
                           WEBAPP_TEST_AUTH=str(folder / 'auth.json'), WEBAPP_TEST_PROXY=str(folder / 'proxy.cfg'),
@@ -87,6 +87,27 @@ def main():
             smoke.compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '600')
             assert not smoke.compose('ps', '-q', 'tailscale').stdout.strip(), 'Real Tailscale must never start in tests'
             wait_ready()
+            smoke.compose('exec', '-T', '--user', '10005:10005', 'webapp-proxy', 'python3', '-c', """import pathlib,socket
+status=dict(line.split(':',1) for line in pathlib.Path('/proc/1/status').read_text().splitlines() if ':' in line)
+assert set(status['Uid'].split())=={'10005'}, status['Uid']
+for key in ('CapInh','CapPrm','CapEff','CapBnd','CapAmb'):
+ assert int(status[key].strip(),16)==0, (key,status[key])
+with socket.create_connection(('10.203.85.2',9120),timeout=2): pass
+for host,port in (('10.203.85.2',22),('10.203.87.2',10000),('10.203.83.3',8337),('10.203.82.3',2222),('1.1.1.1',443),('192.168.1.1',80),('169.254.169.254',80)):
+ try: socket.create_connection((host,port),timeout=.4)
+ except OSError: pass
+ else: raise AssertionError(('Proxy escaped fixed backend',host,port))
+""")
+            # Probe from the Funnel side: only its HTTPS-semantics listener is reachable.
+            smoke.python('tls-fixture', """import socket
+with socket.create_connection(('10.203.87.3',8443),timeout=2): pass
+try: socket.create_connection(('10.203.87.3',19120),timeout=.4)
+except OSError: pass
+else: raise AssertionError('Funnel reached localhost frontend')
+""")
+            smoke.compose('restart', 'webapp-proxy')
+            wait_ready()
+            print('PASS: consolidated proxy drops all capabilities; fixed-backend egress and separate local/Funnel listeners survive restart', flush=True)
             for path in ('/api/config', '/api/fs/list?path=/workspace', '/api/fs/read-text?path=/workspace/test.txt',
                          '/api/fs/download?path=/workspace/test.txt', '/api/webapp/socket-ticket?socket=host-terminal'):
                 code, _ = http(path)
@@ -102,7 +123,7 @@ def main():
             auth = {'password_hash': hash_password(password), 'secret': secrets.token_urlsafe(48)}
             (folder / 'auth.json').write_text(json.dumps(auth))
             (folder / 'password').write_text(password)
-            smoke.compose('run', '--rm', 'webapp-setup')
+            smoke.compose('run', '--rm', 'bootstrap')
             smoke.compose('restart', 'hermes')
             wait_ready()
             browser_checks(folder / 'password', 'rotation')
@@ -111,7 +132,7 @@ def main():
             smoke.python('executor', """import pathlib,socket
 for path in ('/run/webapp/auth.json','/opt/data/config.yaml','/run/tailscale/tailscaled.sock'):
  assert not pathlib.Path(path).exists(),path
-for host,port in (('10.203.85.2',9120),('10.203.85.3',8080),('10.203.86.3',19120),('10.203.87.3',8080)):
+for host,port in (('10.203.85.2',9120),('10.203.85.3',8080),('10.203.85.3',19120),('10.203.87.3',8443)):
  try: socket.create_connection((host,port),timeout=.5)
  except OSError: pass
  else: raise AssertionError('Executor reached private ingress')
@@ -125,21 +146,24 @@ try: _configure_auth_gate('0.0.0.0',False,None,None)
 except SystemExit: pass
 else: raise AssertionError('Missing authentication provider did not refuse startup')
 """)
-            smoke.compose('run','--rm','-e','PRIVATE_HERMES_WEBAPP_ENABLED=false','bootstrap')
-            smoke.python('hermes', "from hermes_cli.config import load_config; assert load_config()['webapp']['enabled'] is False")
-            smoke.compose('stop','webapp-publisher','webapp-proxy','funnel-ingress')
+            # Invalid credentials must never replace the authenticated profile.
+            (folder / 'auth.json').write_text('{}')
+            result = smoke.compose('run', '--rm', 'bootstrap', check=False)
+            assert result.returncode != 0, 'Invalid credentials were accepted'
+            smoke.python('hermes', "from hermes_cli.config import load_config; assert load_config()['webapp']['enabled'] is True")
+            smoke.compose('stop','webapp-proxy')
             try:
                 http('/login')
             except OSError:
                 pass
             else:
                 raise AssertionError('Stopped ingress remained reachable')
-            print('PASS: disabling clears the native webapp setting and closes local ingress; no real Tailscale node was enrolled', flush=True)
+            print('PASS: invalid credentials refuse provisioning; stopping ingress closes local access; no real Tailscale node was enrolled', flush=True)
             failed = False
         except subprocess.CalledProcessError as error:
             # Logs may include gateway metadata, but test credentials are never printed.
             print((error.stdout or '')[-4000:], (error.stderr or '')[-4000:], flush=True)
-            print(smoke.compose('logs','--tail','12','hermes','webapp-proxy','webapp-setup','tls-fixture',check=False).stdout, flush=True)
+            print(smoke.compose('logs','--tail','12','hermes','webapp-proxy','bootstrap','tls-fixture',check=False).stdout, flush=True)
             raise
         finally:
             if failed and os.getenv('KEEP_FAILED_TEST_STACK') == '1':

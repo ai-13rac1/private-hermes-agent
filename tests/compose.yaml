@@ -1,4 +1,13 @@
 services:
+  bootstrap:
+    volumes:
+      - type: bind
+        source: ./tests/fixtures/webapp-auth.json
+        target: /run/webapp/auth.json
+        read_only: true
+        bind: {create_host_path: false}
+  webapp-proxy:
+    profiles: [browser-test]
   hermes:
     user: "10000:10000"
     init: true

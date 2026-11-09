@@ -44,7 +44,7 @@ See [configuration and backups](docs/configuration.md) for ownership and backup 
 Requires Docker Engine 28+ with Linux containers and Compose 2.36+. The isolated
 bridge gateway mode is required, not an optional optimization. The fixed
 `10.203.80.0/24` through `10.203.84.0/24` base address plan must not overlap existing
-networks. Optional ingress uses `10.203.85.0/24` through `10.203.87.0/24`.
+networks. Local ingress uses `10.203.85.0/24`; optional Funnel adds `10.203.87.0/24`.
 `scripts/preflight.py` checks engine features and selected pool conflicts.
 
 ```sh
@@ -63,14 +63,18 @@ make x402_treazury-setup
 
 Before the first `make up`, follow the [x402_treazury setup guide](docs/x402_treazury.md)
 to configure `BASE_RPC_URL` and explicitly initialize or restore the treasury.
-Then `make up` starts routing, inference, executor, and x402_treazury MCP services. Hermes runs
-interactively with the command below, or as a gateway after messaging setup.
+Then `make up` starts routing, inference, executor, x402_treazury MCP services,
+and the Hermes gateway with its authenticated local webapp. Open
+`http://127.0.0.1:9120` using username `admin` and the password saved by
+`make init` in `config/webapp/password`. The CLI remains available below.
 
 `bootstrap` runs without networking. It generates separate SSH client and host
 keys in separate named volumes, pins the executor host key, initializes the
 executor's workspace/home, and copies `components/hermes/config.example.yaml` only if the
 Hermes configuration does not already exist. Existing compatible configuration and keys
-are preserved. Incompatible existing configuration blocks agent startup. Tor bootstrapping can take several minutes.
+are preserved. Bootstrap also installs the webapp authentication and SSH
+file-browser settings generated during initialization. Incompatible existing
+configuration blocks agent startup. Tor bootstrapping can take several minutes.
 
 Before inference, edit the model to an ID returned by teep:
 
@@ -85,13 +89,13 @@ platform/allowlist credentials using `python3 scripts/stack.py compose run --rm 
 if desired, then start it with `make gateway`. Keep the custom
 inference endpoint and SSH backend. No dashboard,
 API, SSH, Tor, or inference ports are published by the base stack.
-The optional authenticated webapp publishes only its selected loopback endpoint.
+The authenticated webapp publishes only its selected loopback endpoint.
 
 ## Authenticated webapp and optional Funnel
 
 See [webapp setup](docs/webapp.md) for native password authentication on host
-loopback and optional public HTTPS through Tailscale Funnel. Both features are
-explicitly enabled in the unified `.env`. Image builds and tests never enroll
+loopback and optional public HTTPS through Tailscale Funnel. Local access is
+included by default; Funnel requires explicit activation in the unified `.env`. Image builds and tests never enroll
 a Tailscale node. An authenticated browser user has administrative access to
 the agent container; its browser terminal is separate from the SSH code executor.
 

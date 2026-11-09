@@ -22,7 +22,6 @@ def version(value):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('project', nargs='?', default='private-hermes')
-    parser.add_argument('--ingress', action='store_true')
     parser.add_argument('--funnel', action='store_true')
     arguments = parser.parse_args()
     project = arguments.project
@@ -31,8 +30,6 @@ def main():
     if version(output('docker', 'compose', 'version', '--short')) < (2, 36, 0):
         raise SystemExit('Docker Compose 2.36+ is required for this deployment.')
     command = ['docker', 'compose', '-p', project, '-f', 'compose.yaml']
-    if arguments.ingress or arguments.funnel:
-        command += ['-f', 'compose.webapp.yaml']
     if arguments.funnel:
         command += ['-f', 'compose.funnel.yaml']
     config = json.loads(output(*command, 'config', '--format', 'json'))

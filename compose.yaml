@@ -4,7 +4,6 @@ name: private-hermes
 x-hermes-image: &hermes-image nousresearch/hermes-agent@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002
 
 x-deployment:
-  webapp_enabled: "${WEBAPP_ENABLED:-false}"
   funnel_enabled: "${TAILSCALE_FUNNEL_ENABLED:-false}"
   webapp_bind: "${WEBAPP_BIND:-127.0.0.1}"
   webapp_port: "${WEBAPP_PORT:-9120}"
@@ -47,7 +46,7 @@ services:
     network_mode: none
     entrypoint: [python3, /opt/bootstrap.py]
     environment:
-      PRIVATE_HERMES_WEBAPP_ENABLED: ${WEBAPP_ENABLED:-false}
+      WEBAPP_USERNAME: ${WEBAPP_USERNAME:-admin}
     volumes:
       - agent-ssh:/agent-ssh
       - executor-auth:/executor-auth
@@ -55,6 +54,11 @@ services:
       - executor-home:/executor-home
       - executor-work:/executor-work
       - ./components/hermes/config.example.yaml:/opt/hermes-config.yaml:ro
+      - type: bind
+        source: ./config/webapp/auth.json
+        target: /run/webapp/auth.json
+        read_only: true
+        bind: {create_host_path: false}
 
   configure:
     profiles: [maintenance]
@@ -116,6 +120,8 @@ services:
         ipv4_address: 10.203.83.2
       mcp-access:
         ipv4_address: 10.203.84.2
+      webapp-backend:
+        ipv4_address: 10.203.85.2
 
   executor-net:
     <<: *network
@@ -258,6 +264,38 @@ services:
     command: [gateway, run]
     restart: unless-stopped
 
+  webapp-proxy:
+    image: private-hermes-webapp-proxy:local
+    build:
+      context: .
+      dockerfile: components/webapp/proxy.Dockerfile
+    # Startup installs a default-deny firewall, then irreversibly drops all
+    # capabilities and switches to UID 10005 before executing HAProxy.
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN, SETUID, SETGID, SETPCAP]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/run:mode=0755]
+    environment:
+      WEBAPP_PORT: ${WEBAPP_PORT:-9120}
+      TAILSCALE_FUNNEL_ENABLED: ${TAILSCALE_FUNNEL_ENABLED:-false}
+    depends_on:
+      agent-net: {condition: service_healthy}
+    volumes:
+      - type: bind
+        source: ./config/webapp/proxy.cfg
+        target: /usr/local/etc/haproxy/haproxy.cfg
+        read_only: true
+        bind: {create_host_path: false}
+    ports:
+      - "${WEBAPP_BIND:-127.0.0.1}:${WEBAPP_PORT:-9120}:${WEBAPP_PORT:-9120}"
+    networks:
+      webapp-backend:
+        ipv4_address: 10.203.85.3
+      webapp-publish: {}
+    restart: unless-stopped
+
 networks:
   tor-uplink: {}
   teep-uplink: {}
@@ -281,6 +319,14 @@ networks:
     <<: *isolated
     ipam:
       config: [{subnet: 10.203.84.0/24}]
+
+  webapp-backend:
+    <<: *isolated
+    ipam:
+      config: [{subnet: 10.203.85.0/24}]
+  webapp-publish:
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
 
 volumes:
   hermes-data: {}

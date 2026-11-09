@@ -17,7 +17,7 @@ spec.loader.exec_module(funnel)
 
 
 def values(**changes):
-    defaults = dict(webapp_enabled='true', funnel_enabled='false', webapp_bind='127.0.0.1',
+    defaults = dict(funnel_enabled='false', webapp_bind='127.0.0.1',
                     webapp_port='9120', webapp_username='admin', funnel_host='',
                     funnel_port='443', tailscale_hostname='private-hermes')
     return {**defaults, **changes}
@@ -26,8 +26,7 @@ def values(**changes):
 
 class WebappTests(unittest.TestCase):
     def test_invalid_or_inconsistent_settings_refuse_activation(self):
-        for change in ({'webapp_enabled': 'yes'}, {'funnel_enabled': '1'},
-                       {'webapp_enabled': 'false', 'funnel_enabled': 'true'},
+        for change in ({'funnel_enabled': '1'},
                        {'webapp_bind': '0.0.0.0'}, {'webapp_port': '9120;evil'},
                        {'funnel_enabled': 'true'}, {'funnel_host': '*.example.ts.net'},
                        {'funnel_host': 'example.ts.net\nattack'}, {'funnel_port': '80'},
@@ -38,7 +37,7 @@ class WebappTests(unittest.TestCase):
     def test_proxy_keeps_authorities_separate_and_removes_all_forwarded_headers(self):
         text = proxy_config(Settings.read(values()))
         self.assertIn('127.0.0.1:9120', text)
-        self.assertNotIn('bind 0.0.0.0:8443', text)
+        self.assertNotIn('bind 10.203.87.3:8443', text)
         self.assertIn('http-request del-header x-forwarded- -m beg', text)
         self.assertIn('http-request del-header Forwarded', text)
         self.assertNotIn('option forwardfor', text)
@@ -89,15 +88,14 @@ class ShutdownTests(unittest.TestCase):
         import stack
         import os
         def selected():
-            self.assertEqual(os.environ['WEBAPP_ENABLED'], 'false')
             self.assertEqual(os.environ['TAILSCALE_FUNNEL_ENABLED'], 'false')
-            return Settings.read(values(webapp_enabled='false'))
-        with patch.dict(os.environ, {'WEBAPP_ENABLED':'bad','TAILSCALE_FUNNEL_ENABLED':'true'}), patch.object(sys,'argv',['stack.py','down']), patch.object(stack,'settings',side_effect=selected), patch.object(stack,'stop_funnel',side_effect=RuntimeError('test reset failure')), patch.object(stack,'run') as run:
+            return Settings.read(values())
+        with patch.dict(os.environ, {'TAILSCALE_FUNNEL_ENABLED':'bad'}), patch.object(sys,'argv',['stack.py','down']), patch.object(stack,'settings',side_effect=selected), patch.object(stack,'stop_funnel',side_effect=RuntimeError('test reset failure')), patch.object(stack,'run') as run:
             with self.assertRaises(RuntimeError):
                 stack.main()
             self.assertEqual(run.call_args.args[0][-1], 'down')
 
-    def test_enabling_ingress_recreates_namespace_consumers_and_reloads_auth_without_starting_funnel(self):
+    def test_startup_reprovisions_auth_before_gateway_without_starting_funnel(self):
         sys.path.insert(0, str(ROOT / 'scripts'))
         import stack
         import tempfile
@@ -107,14 +105,13 @@ class ShutdownTests(unittest.TestCase):
             auth_path.parent.mkdir(parents=True)
             credentials = {'password_hash':hash_password('test-only-password'),'secret':'s'*64}
             auth_path.write_text(json.dumps(credentials))
-            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render'), patch.object(stack,'stop_funnel') as disable, patch.object(stack,'capture',side_effect=['old-owner','running-gateway','[]']), patch.object(stack,'run') as run:
+            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render'), patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run:
                 stack.main()
                 commands = [call.args[0] for call in run.call_args_list]
-                owner_stop = next(i for i,c in enumerate(commands) if 'stop' in c and 'agent-net' in c)
-                first_up = next(i for i,c in enumerate(commands) if 'up' in c)
-                self.assertLess(owner_stop,first_up)
+                bootstrap = next(i for i,c in enumerate(commands) if '--force-recreate' in c and c[-1]=='bootstrap')
+                gateway = next(i for i,c in enumerate(commands) if '--force-recreate' in c and c[-1]=='hermes')
+                self.assertLess(bootstrap,gateway)
                 self.assertTrue(any('--force-recreate' in c and 'webapp-proxy' in c for c in commands))
-                self.assertTrue(any('--force-recreate' in c and '--no-deps' in c and c[-1]=='hermes' for c in commands))
                 self.assertFalse(any('up' in c and 'tailscale' in c for c in commands))
                 self.assertNotIn(credentials['secret'],json.dumps(commands))
                 disable.assert_called_once()

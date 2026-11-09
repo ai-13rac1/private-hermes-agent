@@ -22,11 +22,13 @@ Compose explicitly selects each service's environment variables:
 | Inference provider API keys | teep |
 | `BASE_RPC_URL` | x402_treazury |
 | `TS_AUTHKEY` | Optional Tailscale container |
-| Webapp/Funnel enablement, local port and hostname | Deployment workflow and selected ingress components |
+| Funnel enablement, local webapp port and hostname | Deployment workflow and selected ingress components |
 
 Generated webapp credentials are kept separately under `config/webapp/`; see
-[webapp setup](webapp.md). The networkless setup copies native auth settings into
-Hermes state without exposing them to the executor.
+[webapp setup](webapp.md). The existing networkless bootstrap copies native auth settings into
+Hermes state during bootstrap without exposing them to the executor.
+`make init` creates missing webapp credentials and renders proxy configuration;
+repeating it preserves the credentials.
 
 No service loads the entire root `.env`. Hermes and the SSH executor receive
 none of the provider, funding, or Tailscale credentials. Keep provider and funding credentials out of the

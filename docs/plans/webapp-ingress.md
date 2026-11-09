@@ -6,7 +6,7 @@ See `docs/webapp.md` for the implementation workflow.
 
 ## Objective and scope
 
-Expose the Hermes webapp to the operator on host loopback and, when explicitly
+Expose the Hermes webapp by default to the operator on host loopback and, when explicitly
 enabled, through Tailscale Funnel. Preserve the existing SSH executor, host/VM
 isolation, transparent Tor egress, direct teep inference, and selected MCP grants.
 
@@ -38,23 +38,24 @@ hiding a button does not establish a backend security boundary.
 ## Intended topology
 
 ```text
-host 127.0.0.1 -> fixed publisher ------------------+
+host 127.0.0.1 -----------------------------------+
                                                    v
-public HTTPS -> optional Funnel -> fixed ingress -> webapp proxy -> Hermes :9120
+public HTTPS -> optional Funnel -----------------> webapp proxy -> Hermes :9120
 ```
 
 - Add an isolated internal webapp backend network to `agent-net`. Permit new
   inbound connections only from the proxy's exact IP to TCP 9120. Keep the
   executor off every ingress network and deny its access to the webapp.
-- Give the proxy no direct uplink. Its configuration has one fixed upstream:
+- Give the proxy no general outbound network access. Its configuration has one fixed upstream:
   Hermes's webapp address and port. It must not become a general forward proxy.
-- Follow PrivateOnyxApp's fixed publisher pattern for host port publication,
-  accounting for Docker Desktop's limitations on internal-only published ports.
-  Bind the host endpoint to `127.0.0.1`, never all interfaces by default. Do not
-  attach the agent to a non-internal network to make publication work.
+- Publish the proxy directly on host loopback and give it a default-deny
+  firewall. Its only permitted new outbound connection is to the Hermes backend;
+  local and Funnel ingress use separate interfaces/listeners. Install the rules
+  before serving, then switch to an unprivileged UID and irreversibly drop all
+  process capabilities. Keep the agent off the host-publication network.
 - Run the optional Tailscale component with userspace networking, its own
   direct uplink, persistent node state, and no engine socket or host networking.
-  It reaches only the fixed web ingress path. Keep its credentials out of the
+  Its proxy target is the exact isolated HAProxy address and port. Keep its credentials out of the
   agent and executor, and keep the agent off its uplink.
 - Publish neither the underlying gateway API nor the separate dashboard. Keep
   Tor egress and teep routing unchanged.
@@ -62,7 +63,7 @@ public HTTPS -> optional Funnel -> fixed ingress -> webapp proxy -> Hermes :9120
 ## Configuration and activation
 
 1. Introduce strictly parsed, documented settings in the root `.env` and
-   `.env.example` for webapp enablement, localhost binding/port, Funnel
+   `.env.example` for localhost binding/port, Funnel
    enablement, and Tailscale node identity. Keep image pins in `compose.yaml`
    and component Dockerfiles. Pass each service only its selected settings.
 2. Integrate optional Compose service activation with the Make workflow. Invalid
@@ -154,28 +155,30 @@ Do not disable authentication or origin protections to force compatibility.
   remains available and the existing stack continues to operate.
 
 Run `make check`, `make test`, and the focused ingress/browser checks. Preserve
-state volumes during rollback; remove ingress layers and restore prior config
+state volumes during rollback; restore the prior repository revision and config
 without changing executor privileges or deleting credentials, workspaces,
 conversations, or Tor state.
 
 ## Implementation and local qualification record
 
-The implementation uses optional `compose.webapp.yaml` and `compose.funnel.yaml`
-layers selected from `.env` by `scripts/stack.py`. Operator instructions and the
+Local ingress lives in the main `compose.yaml`; only `compose.funnel.yaml` is
+optional and selected from `.env` by `scripts/stack.py`. `make init` creates
+missing credentials and renders HAProxy configuration. The existing networkless
+bootstrap installs native webapp settings, replacing the separate setup service. Operator instructions and the
 remaining live-Funnel qualification are in `docs/webapp.md`.
 
 The pinned Hermes image supports the two origins without a fixed public URL.
 Its browser terminal executes in the agent container. Its workspace file API
 uses the SSH backend when the canonical `terminal.ssh_*` configuration fields are
 set; process environment alone does not configure that API. The template and
-webapp setup now write those fields explicitly.
+bootstrap now write those fields explicitly.
 
 The disposable ingress suite passed real browser login/logout on HTTP and HTTPS,
 cookie flags, native throttling, forbidden origins and hosts, forwarding-header
 spoofing, authenticated and unauthenticated WebSockets, terminal streaming,
 SSH workspace file access, staged upload/download, session persistence across
-restart, password/signing-secret rotation, executor isolation, and webapp
-disablement. No real Tailscale service was started or enrolled. Unit checks also
+restart, password/signing-secret rotation, executor isolation, and ingress
+shutdown. No real Tailscale service was started or enrolled. Unit checks also
 exercise disabled Funnel startup, DNS-name mismatch, reset/shutdown failures,
 and deployment reconfiguration. The pinned Tailscale binary and containerboot
 entrypoint were checked offline.
@@ -188,3 +191,16 @@ outage regressions. `make webapp-test` passed the browser qualification above.
 Live enrollment, public login/streaming/WebSockets, and external verification
 that disabling Funnel stops access remain pending operator configuration. The
 TLS fixture does not establish those results.
+
+The ingress topology was subsequently consolidated: HAProxy now performs host
+publication and accepts Funnel directly, replacing both TCP forwarding services.
+Its startup firewall denies all new outbound connections except the fixed Hermes
+backend, then the process drops UID and all capabilities before serving. The
+qualification suite checks those process credentials and network restrictions,
+including listener separation and a proxy restart.
+
+Local access is now always part of the base Compose deployment, with no separate
+enable flag. Initialization preserves existing credentials, and bootstrap refuses
+invalid authentication input before replacing the native profile configuration.
+Funnel enrollment remains explicit; no wallet initialization or funding occurs
+in `make init` or bootstrap.

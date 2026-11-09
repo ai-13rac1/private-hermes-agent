@@ -5,7 +5,7 @@ init:
 check:
 	python3 -m unittest discover -s tests -p 'test_*.py'
 	python3 scripts/stack.py config
-	docker compose -f compose.yaml -f compose.webapp.yaml -f compose.funnel.yaml config --quiet
+	docker compose -f compose.yaml -f compose.funnel.yaml config --quiet
 	python3 -m compileall -q components scripts tests
 build: init check
 	python3 scripts/stack.py build
@@ -30,11 +30,10 @@ x402_treazury-test: check
 
 .PHONY: webapp-credentials webapp-rotate webapp-test
 webapp-credentials: init
-	python3 scripts/webapp-credentials.py
 webapp-rotate: init
 	python3 scripts/webapp-credentials.py --rotate
 webapp-test: check
-	python3 scripts/preflight.py private-hermes-webapp-test --ingress --funnel
+	python3 scripts/preflight.py private-hermes-webapp-test --funnel
 	python3 -u tests/webapp_smoke.py
 
 .PHONY: chat gateway

@@ -1,0 +1,56 @@
+"""Install a fixed-backend firewall before dropping privilege and starting HAProxy."""
+import json
+import os
+import subprocess
+import sys
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, text=True, **kwargs)
+
+
+def main():
+    # Fail closed on any error, including restarts with existing interfaces.
+    for binary in ('iptables', 'ip6tables'):
+        for chain in ('INPUT', 'OUTPUT', 'FORWARD'):
+            run(binary, '-P', chain, 'DROP')
+    port = int(os.environ['WEBAPP_PORT'])
+    if not 1 <= port <= 65535:
+        raise ValueError('Invalid webapp port')
+    enabled = os.environ.get('TAILSCALE_FUNNEL_ENABLED', 'false')
+    if enabled not in ('true', 'false'):
+        raise ValueError('Invalid Funnel enablement')
+    addresses = json.loads(run('ip', '-j', '-4', 'addr', capture_output=True).stdout)
+    edge = [entry['ifname'] for entry in addresses if entry['ifname'] != 'lo'
+            and any(info['scope'] == 'global' for info in entry['addr_info'])
+            and not any(info['local'] in ('10.203.85.3', '10.203.87.3')
+                        for info in entry['addr_info'])]
+    if len(edge) != 1:
+        raise ValueError('Expected exactly one host publication interface')
+    edge_ip = next(info['local'] for entry in addresses if entry['ifname'] == edge[0]
+                   for info in entry['addr_info'] if info['scope'] == 'global')
+    os.environ['PRIVATE_HERMES_EDGE_IP'] = edge_ip
+    rules = [f'-A INPUT -i {edge[0]} -d {edge_ip}/32 -p tcp --dport {port} -m conntrack --ctstate NEW -j ACCEPT']
+    if enabled == 'true':
+        rules += ['-A INPUT -s 10.203.87.2/32 -d 10.203.87.3/32 -p tcp --dport 8443 -m conntrack --ctstate NEW -j ACCEPT']
+    run('iptables-restore', input='\n'.join([
+        '*filter', ':INPUT DROP [0:0]', ':OUTPUT DROP [0:0]', ':FORWARD DROP [0:0]',
+        '-A INPUT -m conntrack --ctstate ESTABLISHED -j ACCEPT',
+        '-A OUTPUT -m conntrack --ctstate ESTABLISHED -j ACCEPT',
+        *rules,
+        '-A OUTPUT -d 10.203.85.2/32 -p tcp --dport 9120 -m conntrack --ctstate NEW -j ACCEPT',
+        'COMMIT', '',
+    ]))
+    run('ip6tables-restore', input='\n'.join([
+        '*filter', ':INPUT DROP [0:0]', ':OUTPUT DROP [0:0]', ':FORWARD DROP [0:0]',
+        'COMMIT', '',
+    ]))
+    # Capability bounding-set removal is irreversible for HAProxy and children.
+    # Docker exec remains an operator-controlled privileged debugging interface.
+    os.execvp('setpriv', ['setpriv', '--reuid=10005', '--regid=10005', '--clear-groups',
+                         '--bounding-set=-all', '--inh-caps=-all', '--ambient-caps=-all',
+                         '--no-new-privs', 'haproxy', *sys.argv[1:]])
+
+
+if __name__ == '__main__':
+    main()

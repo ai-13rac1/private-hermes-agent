@@ -5,7 +5,7 @@ services:
     entrypoint: !reset null
     command: [gateway, run]
     cap_drop: !override [NET_ADMIN, NET_RAW]
-  webapp-setup:
+  bootstrap:
     volumes:
       - type: bind
         source: ${WEBAPP_TEST_AUTH:?test auth required}
@@ -13,6 +13,7 @@ services:
         read_only: true
         bind: {create_host_path: false}
   webapp-proxy:
+    profiles: !reset []
     volumes:
       - type: bind
         source: ${WEBAPP_TEST_PROXY:?test proxy required}
@@ -31,7 +32,6 @@ services:
     command: [python3, /opt/webapp-tls.py]
     volumes:
       - ./tests/fixtures/webapp-tls.py:/opt/webapp-tls.py:ro
-      - ./components/webapp/publisher.py:/opt/publisher.py:ro
       - ${WEBAPP_TEST_TLS:?test TLS required}:/run/test-tls:ro
     ports: ["127.0.0.1:10000:10000"]
     networks:

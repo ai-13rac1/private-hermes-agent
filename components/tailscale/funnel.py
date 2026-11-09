@@ -14,7 +14,7 @@ CONFIG = Path('/tmp/serve/config.json')
 def serve_config(host, port):
     authority = f'{host}:{port}'
     return {'TCP': {str(port): {'HTTPS': True}},
-            'Web': {authority: {'Handlers': {'/': {'Proxy': 'http://10.203.87.3:8080'}}}},
+            'Web': {authority: {'Handlers': {'/': {'Proxy': 'http://10.203.87.3:8443'}}}},
             'AllowFunnel': {authority: True}}
 
 

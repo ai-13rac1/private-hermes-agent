@@ -17,8 +17,6 @@ def settings():
 
 def compose(config, all_ingress=False):
     command = ['docker', 'compose', '-f', 'compose.yaml']
-    if config.enabled or all_ingress:
-        command += ['-f', 'compose.webapp.yaml']
     if config.funnel or all_ingress:
         command += ['-f', 'compose.funnel.yaml']
     return command

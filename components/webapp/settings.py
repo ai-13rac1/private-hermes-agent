@@ -18,7 +18,6 @@ def port(value, name):
 
 @dataclass(frozen=True)
 class Settings:
-    enabled: bool
     funnel: bool
     bind: str
     port: int
@@ -29,10 +28,7 @@ class Settings:
 
     @classmethod
     def read(cls, values):
-        enabled = boolean(values['webapp_enabled'], 'WEBAPP_ENABLED')
         funnel = boolean(values['funnel_enabled'], 'TAILSCALE_FUNNEL_ENABLED')
-        if funnel and not enabled:
-            raise ValueError('TAILSCALE_FUNNEL_ENABLED requires WEBAPP_ENABLED=true')
         bind = values['webapp_bind']
         if not ipaddress.IPv4Address(bind).is_loopback:
             raise ValueError('WEBAPP_BIND must be an IPv4 loopback address')
@@ -53,7 +49,7 @@ class Settings:
         public_port = port(values['funnel_port'], 'TAILSCALE_FUNNEL_PORT')
         if public_port not in (443, 8443, 10000):
             raise ValueError('TAILSCALE_FUNNEL_PORT must be 443, 8443 or 10000')
-        return cls(enabled, funnel, bind, local_port, username, host, public_port, node)
+        return cls(funnel, bind, local_port, username, host, public_port, node)
 
 
 def authorities(host, port_number, default_port):
@@ -79,11 +75,12 @@ defaults
 backend hermes
     server agent 10.203.85.2:9120
 '''
-    def frontend(name, listen, peer, hosts, scheme):
+    def frontend(name, listen, hosts, scheme, peer=None):
+        source_rule = f"    http-request deny deny_status 403 unless {{ src {peer} }}\n" if peer else ""
         return f'''
 frontend {name}
-    bind 0.0.0.0:{listen}
-    http-request deny deny_status 403 unless {{ src {peer} }}
+    bind {listen}
+{source_rule}
     http-request deny deny_status 400 unless {{ req.hdr_cnt(host) eq 1 }}
     acl allowed_host req.hdr(host),lower -m str {' '.join(hosts)}
     http-request deny deny_status 421 unless allowed_host
@@ -93,8 +90,8 @@ frontend {name}
     http-request set-header X-Forwarded-For %[src]
     default_backend hermes
 '''
-    text += frontend('localhost', 8080, '10.203.86.3', local_hosts, 'http')
+    text += frontend('localhost', f'${{PRIVATE_HERMES_EDGE_IP}}:{settings.port}', local_hosts, 'http')
     if settings.funnel:
-        text += frontend('funnel', 8443, '10.203.86.4',
-                         authorities(settings.funnel_host, settings.funnel_port, 443), 'https')
+        text += frontend('funnel', '10.203.87.3:8443',
+                         authorities(settings.funnel_host, settings.funnel_port, 443), 'https', '10.203.87.2')
     return text
