@@ -215,6 +215,8 @@ services:
     build:
       context: .
       dockerfile: components/teep/Dockerfile
+    ports:
+      - "127.0.0.1:${TEEP_HOST_PORT:-8337}:8337"
     environment:
       TEEP_LISTEN_ADDR: 0.0.0.0:8337
       VENICE_API_KEY: ${VENICE_API_KEY:-}

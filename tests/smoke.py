@@ -14,6 +14,7 @@ import secrets
 import shutil
 import sys
 import tempfile
+import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'components/provisioning'))
 from storage import initialize as initialize_storage
@@ -108,6 +109,22 @@ def run_suite():
             assert response['IsTor'] is True
         assert json.loads(curl('teep', 'https://check.torproject.org/api/ip').stdout)['IsTor'] is False
         assert json.loads(curl('hermes', 'http://10.203.83.3:8337/health').stdout)['status'] == 'ok'
+        published = compose('port', 'teep', '8337').stdout.strip()
+        assert published.startswith('127.0.0.1:'), published
+        host_port = int(published.rsplit(':', 1)[1])
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(f'http://{published}/health', timeout=5) as response:
+            assert json.load(response)['status'] == 'ok'
+        # Publishing must not create a new host/VM route for either isolated
+        # namespace, or make the executor able to use inference indirectly.
+        for service in ('hermes', 'executor'):
+            python(service, f"""import socket
+for host in ('172.17.0.1','192.168.65.1','192.168.65.2','192.168.65.254'):
+ try: socket.create_connection((host,{host_port}),timeout=.3).close()
+ except OSError: pass
+ else: raise AssertionError(('Published inference reached through host',host))
+""")
+        print('PASS: host loopback reaches teep; isolated agent/executor cannot reach its published host port', flush=True)
         print('PASS: agent and executor use Tor; single-service teep uses direct egress', flush=True)
 
         # Prove the forbidden peer exists and listens: failure cannot be mistaken

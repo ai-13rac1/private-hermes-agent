@@ -20,6 +20,7 @@ Compose explicitly selects each service's environment variables:
 | Settings | Recipient |
 | --- | --- |
 | Inference provider API keys | teep |
+| `TEEP_HOST_PORT` | Compose loopback port publication for teep |
 | `BASE_RPC_URL` | x402_treazury serving/administration containers |
 | `TS_AUTHKEY` | Optional Tailscale container |
 | Funnel enablement, local webapp port and hostname | Deployment workflow and selected ingress components |
@@ -48,6 +49,28 @@ initial Hermes configuration template, remain implementation-owned defaults.
 They live beside their owning components. Their existing delivery through image
 COPY instructions or read-only bind mounts is preserved. Moving these files
 does not implement the separate read-only Hermes configuration plan.
+
+## Host inference access
+
+Teep publishes container port 8337 directly on `127.0.0.1:${TEEP_HOST_PORT:-8337}`.
+Host OpenAI-compatible clients use `http://127.0.0.1:8337/v1` by default. The bind
+address is fixed to IPv4 loopback; changing `TEEP_HOST_PORT` changes only the host
+port. Recreate Teep after changing it. This uses Docker's port publication on
+Teep's existing direct uplink, with no additional bridge service, network,
+capabilities, or changes to the isolated namespace firewall rules.
+
+Hermes continues to use `10.203.83.3:8337` internally. The executor cannot reach
+Teep, and neither isolated namespace gains access to host/VM addresses through
+this mapping. Local host processes can use the inference API and its configured
+provider accounts; this endpoint has no added client authentication and does
+not use the Hermes webapp login. It is not published through Funnel.
+
+Docker documents loopback-only publication in
+[port publishing](https://docs.docker.com/engine/network/port-publishing/).
+The stack already requires Docker Engine 28+, avoiding the older localhost
+publication behavior described there. Tests publish a disposable loopback port,
+verify host access to `/health`, and check agent/executor host-address blocks
+alongside the existing executor-to-inference denial and Tor routing checks.
 
 ## Persistent data layout
 

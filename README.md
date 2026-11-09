@@ -89,12 +89,17 @@ python3 scripts/stack.py compose run --rm hermes config set model.default 'provi
 make chat
 ```
 
+Host applications can use Teep at `http://127.0.0.1:8337/v1`. Set `TEEP_HOST_PORT`
+in `.env` to select another host port. This endpoint is available to local host
+processes using the configured providers; Hermes webapp authentication does not
+apply to it. Publication is fixed to IPv4 loopback. See
+[inference access](docs/configuration.md#host-inference-access).
+
 The default `hermes` service command runs a messaging gateway. Configure its
 platform/allowlist credentials using `python3 scripts/stack.py compose run --rm hermes setup`
 if desired, then start it with `make gateway`. Keep the custom
-inference endpoint and SSH backend. No dashboard,
-API, SSH, Tor, or inference ports are published by the base stack.
-The authenticated webapp publishes only its selected loopback endpoint.
+inference endpoint and SSH backend. The base stack publishes the authenticated
+webapp and Teep on host loopback. SSH, Tor, and Hermes control ports remain private.
 
 ## Authenticated webapp and optional Funnel
 

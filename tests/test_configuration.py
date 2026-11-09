@@ -66,11 +66,17 @@ class OperatorConfigurationTests(unittest.TestCase):
         provider_keys = ('VENICE_API_KEY', 'NEARAI_API_KEY', 'CHUTES_API_KEY',
                          'TINFOIL_API_KEY', 'NANOGPT_API_KEY', 'PHALA_API_KEY')
         secrets = {key: 'test-only-' + key for key in (*provider_keys, 'BASE_RPC_URL', 'TS_AUTHKEY')}
-        environment = dict(os.environ, **secrets)
+        environment = dict(os.environ, **secrets, TEEP_HOST_PORT='18337')
         result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', '-f', 'compose.funnel.yaml', '--profile', '*', 'config', '--format', 'json'],
                                 cwd=ROOT, env=environment, text=True,
                                 capture_output=True, check=True)
         services = json.loads(result.stdout)['services']
+        publication = services['teep']['ports']
+        self.assertEqual(len(publication), 1)
+        self.assertEqual(publication[0]['host_ip'], '127.0.0.1')
+        self.assertEqual(publication[0]['target'], 8337)
+        self.assertEqual(publication[0]['published'], '18337')
+        self.assertNotIn('TEEP_HOST_PORT', services['teep']['environment'])
         for name, service in services.items():
             supplied = service.get('environment', {})
             expected = set(provider_keys) if name == 'teep' else {'BASE_RPC_URL'} if name in ('x402_treazury', 'x402_treazury-admin', 'x402_treazury-job') else {'TS_AUTHKEY'} if name == 'tailscale' else set()
