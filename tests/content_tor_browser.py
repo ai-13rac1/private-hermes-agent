@@ -16,7 +16,7 @@ with sync_playwright() as p:
         def image():
             return page.evaluate('''async () => {
               const response=await fetch('/api/private-content/image',{method:'POST',headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({url:'https://httpbin.org/image/png'})});
+                body:JSON.stringify({url:'https://www.python.org/static/img/python-logo.png'})});
               const data=await response.json();
               return {status:response.status,raster:typeof data.data_url==='string' && data.data_url.startsWith('data:image/png;base64,'),reason:data.detail};
             }''')

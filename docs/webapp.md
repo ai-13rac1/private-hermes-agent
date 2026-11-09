@@ -205,9 +205,9 @@ References: [Tailscale Docker parameters](https://tailscale.com/docs/features/co
 
 ## External content policy
 
-Part 1's browser implementation is undergoing integrated qualification; consult
-[the retained plan](plans/webapp-private-content.md) for current review gates and
-evidence. The earlier build/backend checkpoints alone did not provide containment.
+Part 1 provides the safe default independently of the deferred streaming and
+interactive work. See [the retained plan](plans/webapp-private-content.md) for
+review gates, tested versions and acceptance evidence.
 
 Set the root deployment `.env` value and apply it with `make up`:
 
@@ -334,7 +334,10 @@ PLAYWRIGHT_BROWSERS_PATH=/tmp/private-hermes-content-browsers \
   WEBAPP_BROWSER_PYTHON=/tmp/private-hermes-browser-tests/bin/python make webapp-test
 ```
 
-Record tested browser versions and completed/missing coverage in the plan.
+The qualified desktop engines are Chromium 156.0.8078.4, Firefox 157.0 and WebKit
+27.2 on the tested arm64 target, with all four modes and both fixture ingress
+paths. TCP/TLS canaries cover all three; direct DNS/preconnect NetLog observation
+is Chromium-only. Other browsers/platforms are unqualified.
 Fixture HTTPS is not live Funnel qualification. Tor image retrieval has separate
 exit-control/transparent-route evidence; successful same-origin bytes alone
 are not proof of Tor routing. Provider attestation and funded settlement remain

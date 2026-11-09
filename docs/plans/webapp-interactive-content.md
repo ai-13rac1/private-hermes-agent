@@ -15,14 +15,25 @@ Restore additional media and interactive functionality without weakening the
 safe default established by part 1. This plan is not required to close known
 automatic browser leaks. It must be possible to defer it indefinitely.
 
-At the end of part 1, private image/icon loading and local content work. External
-audio/video and social players have placeholders and external links. Previews
+Part 1's implemented contract provides private raster image/icon loading and
+local content. External audio/video and social players have placeholders and
+external links. Previews
 operate without external networking where enforceable, or use inert/download
 fallbacks. Unsupported private loading never silently switches to the browser.
 
 Keep the same `WEBAPP_EXTERNAL_CONTENT=tor_proxied|ask|off|browser_native` setting,
 policy authority, consent vocabulary and permission storage. Do not introduce a
 second conflicting switch or a compatibility/migration layer.
+
+The derived image retains official v0.23.0 source
+`2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`. Part 1 owns
+`/api/private-content/{policy,consent,image}`, exact browser/external-origin
+Tor-image grants in the native Hermes volume, early deployment-mode capture,
+shared resource renderers and additive response enforcement. Private HTML
+previews display source text without parsing it; unknown active HTML/SVG file
+and plugin assets are attachments in every mode. Reuse these concrete boundaries;
+do not restore the removed CDN proxy or bypass the inert preview with executable
+content. Current acceptance evidence and final review status remain in part 1.
 
 Part 1's P1-FINAL gate is a prerequisite. Before substantive implementation,
 verify its documented guarantees and supported-browser evidence against the
@@ -236,7 +247,8 @@ or untested cases rather than requiring production accounts to finish the suite.
 
 ## Evidence and completion status
 
-- Prerequisite: part 1 is planned, not implemented or qualified.
+- Prerequisite: part 1 is implemented and qualified; its final independent gate
+  is being recorded in its retained evidence. Verify that gate before starting here.
 - Implementation: not started; P2-1 through P2-3 pending.
 - Design/phase/final gates: not yet passed. This plan does not supply evidence of
   future permission enforcement or runtime functionality.

@@ -1,6 +1,7 @@
 # Private webapp content: safe defaults and passive media
 
-Status: P1-1 passed P1-BUILD; P1-2 passed P1-FETCH; P1-3 implemented and source-reviewed; P1-4 integrated qualification in progress. Part 1 of the browser privacy work. Part 2 is
+Status: P1-1 through P1-4 implemented and qualified; P1-FINAL pending.
+Part 1 of the browser privacy work. Part 2 is
 [interactive content and media](webapp-interactive-content.md).
 Execution follows the [planning workflow](../planning-workflow.md) and
 [repository instructions](../../AGENTS.md).
@@ -194,9 +195,9 @@ HTML containing external references still requires the external-content policy.
   origin validation, main-app script restrictions or preview sandboxing. Clearly
   document that browser-native traffic bypasses the stack's Tor gateway.
 
-## Open decisions and design gate P1-DESIGN
+## Design questions resolved at P1-DESIGN
 
-Resolve these through read-only inspection and focused disposable experiments
+These questions were resolved through read-only inspection and focused disposable experiments
 before substantive implementation. Record selected answers and supporting
 revisions here, not a generic research framework:
 
@@ -224,15 +225,16 @@ SSRF, browser egress, packaging, functionality and unnecessary complexity.
 Resolve material findings before relying on the affected design. The earlier
 Chromium experiment is preliminary evidence, not this gate or final acceptance.
 
-## Execution baseline and selected design (P1-DESIGN submission)
+## Execution baseline and selected design (P1-DESIGN)
 
 Execution branch: `webapp-private-content`, starting at
 `078e0eb9dcf3e2b65fff3de43534b46c2f73251a` (also `main`). The initial working
 tree contained unrelated untracked `TODO` and `.TODO.swp`; preserve both.
 Baseline `make check`: 50 unit tests, both Compose models and Python compilation
-passed on 2026-11-09. No runtime feature has landed.
+passed on 2026-11-09 before implementation began.
 
-Selected answers, subject to independent design review:
+Selected answers accepted at independent design review, with the later native
+cwd qualification finding recorded alongside them:
 
 - **Source/build:** the pinned image's `install-stamp.json` identifies full commit
   `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, clean CI Docker distribution.
@@ -405,15 +407,51 @@ that any successful same-origin response must have used Tor.
 
 - Implementation: P1-1 derived image/policy input implemented; P1-BUILD passed at `4bd8e1b`.
   P1-2 implemented and fixture-qualified; P1-FETCH passed at `6330c33`. P1-3 implemented;
-  integrated qualification and P1-FINAL remain pending, so completion is not claimed.
+  P1-3 combined source review passed at the snapshot committed as `dd66226`.
+  P1-4 integrated qualification passed; P1-FINAL remains pending.
 - P1-3 combined boundary review: a fresh read-only subagent inspected the complete
-  implementation snapshot over `6330c33`, including all new renderer, middleware,
+  implementation snapshot committed as `dd66226` over `6330c33`, including all new renderer, middleware,
   patch and qualification files. No material defects found. An unrelated native
   download-test block inadvertently removed with obsolete proxy tests was restored
-  and verified by the reviewer. Full renderer TypeScript and 68 focused tests
-  passed before that test-only restoration; its two restored tests will be rerun.
-  Browser matrix, stale consent and DNS observations passed on the earlier
-  candidate; the current integrated rerun and actual Tor-route evidence are pending.
+  and verified by the reviewer. Full renderer TypeScript and all 70 focused tests
+  passed after restoration (`make hermes-ui-test`, isolated build stage).
+  The current candidate passes all 24 browser cases: Chromium 156.0.8078.4,
+  Firefox 157.0 and WebKit 27.2, four modes, local HTTP and simulated Funnel HTTPS.
+  Actual native model/tool history, streamed fixture chat over exact-origin
+  WebSockets, local/generated images, local audio/video, native auth, external
+  links and active plugin asset downloads passed. Private modes show no automatic
+  controlled-canary TCP/TLS connections; native mode and deliberate links provide
+  positive controls. Direct DNS/preconnect NetLog observation is Chromium-only.
+  Current stale consent/logout/restart/revoke and stricter-Off stale-page tests
+  passed. Chromium NetLog on both ingress paths observed no model/preview canary
+  resolver/TCP/preconnect activity, with a deliberate `.invalid` lookup positive
+  control. Wrong/missing ingress mode and stale generated configuration fail
+  closed; corrected recreation restores access.
+- Actual Tor evidence: authenticated Python.org PNG retrieval passed, then Tor
+  stop produced refusal without browser fallback, and explicit retry after Tor
+  recovery passed. Separate agent Tor exit control (`IsTor`) and transparent
+  PREROUTING redirect counters establish the route. The all-in-one webapp command
+  originally stopped at the public httpbin fixture's HTTP 429; switching this
+  test-only input to Python.org and running the remaining original checks against
+  retained disposable state passed. Passed browser cases were not repeated.
+  Remaining native checks passed detached absent-wallet preparation refusal,
+  twelve fixture MCP endpoints with native reload/disconnect, invalid-auth
+  provisioning refusal and closed access after ingress stop. No wallet was
+  created and the disposable project was removed. `make images-test` rerun passed
+  all HTTP/TLS/auth/consent/SSRF checks plus a CPython socket audit: every actual
+  IP connect attempt stayed on the controlled public canary. `make test` passed
+  actual Teep/host-loopback routing, agent/executor Tor exits, host/VM/private/
+  IPv6/UDP denial, actual Hermes SSH terminal and code execution without agent
+  credentials, selected MCP access and Tor-outage fail-closed behavior. The
+  disposable routing project was removed.
+- P1-4 limitations: qualification used the built arm64 image and the desktop
+  browser versions above; other platforms/browsers are unqualified. Browser
+  image-success cases use controlled same-origin API responses; real fetcher
+  sockets and actual Tor retrieval are separate checks. Fixture HTTPS does not
+  prove live Funnel, public provider playback, provider attestation or funded
+  settlement. None was performed. Old delivered bytes/documents cannot be
+  recalled; close/reload browser-native tabs when tightening the policy.
+  Part 2 remains unimplemented and is not required for this boundary.
 - P1-FETCH: fresh read-only review of `6330c33` passed with no material findings;
   reviewer independently reran the complete isolated image/consent suite.
 - P1-2 evidence: clean derived backend build and `make check` (51 tests plus
@@ -448,7 +486,8 @@ that any successful same-origin response must have used Tor.
   Diff-check evidence excludes unified-patch context blank lines, which Git
   diagnoses as whitespace in newly added patch files.
   Review explicitly requires plugin HTML/SVG, preview blobs, file tickets/direct
-  navigation and old-proxy closure coverage. Phase/final reviews remain pending.
+  navigation and old-proxy closure coverage, now exercised at P1-3. Final review
+  remains pending.
 - Existing evidence: source inspection and the preliminary intercepted Chromium
   policy experiment described above; no full feature or cross-browser guarantee.
 - Planning-only review: a fresh read-only subagent reviewed `2d0ec55` plus these

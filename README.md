@@ -118,6 +118,12 @@ included by default; Funnel requires explicit activation in the unified `.env`. 
 a Tailscale node. An authenticated browser user has administrative access to
 the agent container; its browser terminal is separate from the SSH code executor.
 
+The default `WEBAPP_EXTERNAL_CONTENT=tor_proxied` loads supported external raster
+images through the authenticated gateway over Tor. External players and active
+previews have non-loading fallbacks; deliberate external links use your browser
+connection. See [content policy and image permissions](docs/webapp.md#external-content-policy)
+for `ask`, `off`, explicit `browser_native`, supported formats and limitations.
+
 ## Network and execution boundaries
 
 - Internal networks use `gateway_mode: isolated` for IPv4 and IPv6, so their

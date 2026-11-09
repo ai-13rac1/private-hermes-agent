@@ -92,8 +92,10 @@ delete private state as a shortcut to simplifying implementation or tests.
   Document that distinction instead of claiming all browser actions are confined
   to the executor.
 - Browser-originated remote requests do not pass through Docker's Tor gateway.
-  The browser privacy plans are future work, not current guarantees. Preserve
-  deliberate external link clicks when implementing those plans.
+  Preserve the deployment external-content ceiling, authenticated public-raster
+  retrieval, origin-scoped image consent and inert private previews. Browser-native
+  interactive opt-in and streaming remain deferred to part 2. Preserve deliberate
+  external link clicks and qualify browser containment separately from Tor egress.
 - Never solve a failure by adding host networking, privileged application
   containers, Docker socket mounts, broad private-network grants or direct egress.
   Dependency failure must not silently select a weaker transport or policy.
