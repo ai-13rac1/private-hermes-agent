@@ -9,6 +9,7 @@ import sys
 from deployment import ROOT, compose, render, settings
 from auth import validate
 from x402_treazury import Controller, operation_lock
+from provisioning import initialize_setup
 
 
 def run(command, **kwargs):
@@ -70,17 +71,15 @@ def main_unlocked():
             stop_funnel(all_command)
         # A changed bind-mounted credential file does not itself recreate a
         # completed container. Always apply current settings before startup.
-        run(command + ['run', '--rm', '-T', '--no-deps', 'storage-init'])
-        run(command + ['up', '-d', '--wait', '--no-deps', '--force-recreate', 'bootstrap'])
+        initialize_setup(command)
         infrastructure = ['tor', 'agent-net', 'executor-net', 'executor', 'teep']
-        run(command + ['up', '-d', '--wait', *infrastructure])
+        run(command + ['up', '-d', '--wait', '--no-deps', *infrastructure])
         controller = Controller(command, ROOT)
-        # This gateway is about to be recreated and reads the disconnected
-        # configuration at boot; do not wait on an old gateway's control RPC.
-        controller.configure('disconnect')
+        # Setup already removed research registrations. The recreated gateway
+        # reads that configuration without needing an old gateway's control RPC.
         run(command + ['up', '-d', '--no-deps', '--force-recreate', 'webapp-proxy', 'hermes'])
         if config.funnel:
-            run(command + ['up', '-d', 'tailscale'])
+            run(command + ['up', '-d', '--no-deps', 'tailscale'])
         controller.startup()
 
 

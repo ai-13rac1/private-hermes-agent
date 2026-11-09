@@ -1,5 +1,5 @@
 services:
-  bootstrap:
+  setup:
     volumes:
       - type: bind
         source: ./tests/fixtures/webapp-auth.json
@@ -7,20 +7,8 @@ services:
         read_only: true
         bind: {create_host_path: false}
       - type: bind
-        source: ${TEST_DATA_DIR:?disposable test data required}/ssh/agent
-        target: /agent-ssh
-        bind: {create_host_path: false}
-      - type: bind
-        source: ${TEST_DATA_DIR:?disposable test data required}/ssh/executor
-        target: /executor-auth
-        bind: {create_host_path: false}
-      - type: bind
-        source: ${TEST_DATA_DIR:?disposable test data required}/executor/home
-        target: /executor-home
-        bind: {create_host_path: false}
-      - type: bind
-        source: ${TEST_DATA_DIR:?disposable test data required}/executor/workspace
-        target: /executor-work
+        source: ${TEST_DATA_DIR:?disposable test data required}
+        target: /persistent-data
         bind: {create_host_path: false}
   webapp-proxy:
     profiles: [browser-test]
@@ -73,20 +61,12 @@ services:
         ipv4_address: 10.203.84.10
       agent-route:
         ipv4_address: 10.203.80.10
-  x402_treazury-config:
-    profiles: !reset []
-    command: [connect]
-    volumes:
-      - type: bind
-        source: ${TEST_DATA_DIR:?disposable test data required}/x402_treazury-auth
-        target: /x402_treazury-auth
-        bind: {create_host_path: false}
   x402_treazury:
     profiles: !reset []
     # Real Rust server; test config has local catalogs, an ephemeral static key,
     # no treasury, no funding configuration, and only a free Tor-check API.
     depends_on:
-      x402_treazury-config: {condition: service_completed_successfully}
+      setup: {condition: service_completed_successfully}
     entrypoint: [python3, /opt/x402_treazury-fixture.py]
     working_dir: /tmp
     volumes:
@@ -96,12 +76,6 @@ services:
         source: ${TEST_DATA_DIR:?disposable test data required}/x402_treazury-auth
         target: /run/x402_treazury-auth
         read_only: true
-        bind: {create_host_path: false}
-  storage-init:
-    volumes:
-      - type: bind
-        source: ${TEST_DATA_DIR:?disposable test data required}
-        target: /persistent-data
         bind: {create_host_path: false}
   tor:
     volumes:

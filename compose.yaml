@@ -38,78 +38,48 @@ x-network: &network
     start_period: 20s
 
 services:
-  storage-init:
-    image: private-hermes-executor:local
+  setup:
+    image: *hermes-image
+    user: "0:0"
+    init: true
     network_mode: none
-    entrypoint: [python3, /opt/storage.py, /persistent-data, /persistent-hermes, /persistent-x402]
+    working_dir: /opt/hermes
+    entrypoint: [/opt/hermes/.venv/bin/python, /opt/private-hermes/provisioning/setup.py]
+    command: [init]
     cap_drop: [ALL]
-    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
     security_opt: [no-new-privileges:true]
     read_only: true
+    tmpfs: [/tmp:mode=1777]
+    environment:
+      WEBAPP_USERNAME: ${WEBAPP_USERNAME:-admin}
+      HERMES_HOME: /opt/data
+      # Root provisioning must never execute tools from the writable profile.
+      PATH: /opt/hermes/bin:/opt/hermes/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
-      - hermes-data:/persistent-hermes
-      - x402_treazury-data:/persistent-x402
-      # Only this trusted, networkless metadata initializer sees the parent.
+      - hermes-data:/opt/data
+      - x402_treazury-data:/var/lib/x402
+      # Only the trusted, networkless setup service sees the parent.
       - type: bind
         source: ./data
         target: /persistent-data
         bind: {create_host_path: false}
-
-  bootstrap:
-    image: private-hermes-executor:local
-    build:
-      context: .
-      dockerfile: components/executor/Dockerfile
-    network_mode: none
-    entrypoint: [python3, /opt/bootstrap.py]
-    depends_on:
-      storage-init: {condition: service_completed_successfully}
-    environment:
-      WEBAPP_USERNAME: ${WEBAPP_USERNAME:-admin}
-    volumes:
       - type: bind
-        source: ./data/ssh/agent
-        target: /agent-ssh
+        source: ./components
+        target: /opt/private-hermes
+        read_only: true
         bind: {create_host_path: false}
-      - type: bind
-        source: ./data/ssh/executor
-        target: /executor-auth
-        bind: {create_host_path: false}
-      - hermes-data:/agent-data
-      - type: bind
-        source: ./data/executor/home
-        target: /executor-home
-        bind: {create_host_path: false}
-      - type: bind
-        source: ./data/executor/workspace
-        target: /executor-work
-        bind: {create_host_path: false}
-      - ./components/hermes/config.example.yaml:/opt/hermes-config.yaml:ro
       - type: bind
         source: ./config/webapp/auth.json
         target: /run/webapp/auth.json
         read_only: true
         bind: {create_host_path: false}
 
-  configure:
-    profiles: [maintenance]
-    image: *hermes-image
-    network_mode: none
-    user: "10000:10000"
-    init: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    entrypoint: [/opt/hermes/.venv/bin/hermes, config]
-    depends_on:
-      storage-init: {condition: service_completed_successfully}
-    volumes:
-      - hermes-data:/opt/data
-
   tor:
     <<: *network
     command: [router]
     depends_on:
-      storage-init: {condition: service_completed_successfully}
+      setup: {condition: service_completed_successfully}
     environment:
       PRIVATE_HERMES_X402_TREAZURY_SOCKS: "1"
     cap_add: [NET_ADMIN, SETUID, SETGID, CHOWN, FOWNER, DAC_OVERRIDE]
@@ -179,7 +149,7 @@ services:
       dockerfile: components/executor/Dockerfile
     network_mode: service:executor-net
     depends_on:
-      bootstrap: {condition: service_completed_successfully}
+      setup: {condition: service_completed_successfully}
       executor-net: {condition: service_healthy}
     cap_drop: [ALL]
     cap_add: [SETUID, SETGID, SYS_CHROOT]
@@ -244,26 +214,6 @@ services:
     tmpfs: [/tmp:mode=1777]
     restart: unless-stopped
 
-  x402_treazury-config:
-    profiles: [maintenance]
-    image: private-hermes-executor:local
-    network_mode: none
-    entrypoint: [python3, /opt/x402_treazury-setup.py]
-    command: [disconnect]
-    cap_drop: [ALL]
-    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
-    security_opt: [no-new-privileges:true]
-    depends_on:
-      bootstrap: {condition: service_completed_successfully}
-    volumes:
-      - ./components/x402_treazury/setup.py:/opt/x402_treazury-setup.py:ro
-      - ./components/x402_treazury/endpoints.py:/opt/endpoints.py:ro
-      - type: bind
-        source: ./data/x402_treazury-auth
-        target: /x402_treazury-auth
-        bind: {create_host_path: false}
-      - hermes-data:/agent-data
-
   x402_treazury:
     profiles: [x402_treazury]
     stop_grace_period: -1s
@@ -292,7 +242,7 @@ services:
       - x402_treazury-data:/var/lib/x402
     restart: unless-stopped
 
-  x402_treazury-job:
+  x402_treazury-setup:
     profiles: [maintenance]
     image: *x402-image
     init: true
@@ -319,7 +269,7 @@ services:
     entrypoint: [python3, /opt/onboarding.py]
     command: [status]
     depends_on:
-      storage-init: {condition: service_completed_successfully}
+      setup: {condition: service_completed_successfully}
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     read_only: true
@@ -330,7 +280,7 @@ services:
     image: *hermes-image
     network_mode: service:agent-net
     depends_on:
-      bootstrap: {condition: service_completed_successfully}
+      setup: {condition: service_completed_successfully}
       agent-net: {condition: service_healthy}
       executor: {condition: service_healthy}
       teep: {condition: service_healthy}

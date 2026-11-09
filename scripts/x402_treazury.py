@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 from deployment import ROOT, compose, settings
+from provisioning import ensure_storage
 
 
 @contextmanager
@@ -44,7 +45,7 @@ class Controller:
         return self.call('ps', '-q', '--status', 'running', service, capture_output=True).stdout.strip()
 
     def configure(self, mode):
-        result = self.call('run', '--rm', '-T', '--no-deps', 'x402_treazury-config', mode,
+        result = self.call('run', '--rm', '-T', '--no-deps', 'setup', 'mcp', mode,
                            capture_output=True)
         return json.loads(result.stdout)['changed']
 
@@ -85,7 +86,7 @@ class Controller:
             # never remove or overwrite it implicitly.
             previous = {sig: signal.signal(sig, cancel) for sig in (signal.SIGINT, signal.SIGTERM)}
             self.call('run', '-d', '-T', '--no-deps', '--name', name, '--entrypoint', 'python3',
-                      'x402_treazury-job', '/opt/onboarding.py', action, capture_output=True)
+                      'x402_treazury-setup', '/opt/onboarding.py', action, capture_output=True)
             started = True
             if interrupted:
                 cancel(interrupted[0], None)
@@ -113,7 +114,7 @@ class Controller:
         state = self.inspect()
         if not state['wallet_absent'] and not state['wallet_valid']:
             raise RuntimeError(state['reason'])
-        self.call('up', '-d', '--wait', 'tor', 'agent-net')
+        self.call('up', '-d', '--wait', '--no-deps', 'tor', 'agent-net')
         self.wallet_command('init')
 
     def prepare(self):
@@ -183,7 +184,7 @@ def main():
     parser.add_argument('action', choices=('init', 'status', 'prepare'))
     args = parser.parse_args()
     controller = Controller(compose(settings()))
-    controller.call('run', '--rm', '-T', '--no-deps', 'storage-init')
+    ensure_storage(controller.command)
     if args.action == 'status':
         controller.admin('status')
     else:

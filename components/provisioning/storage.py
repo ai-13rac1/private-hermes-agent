@@ -82,11 +82,15 @@ def initialize_volume(root, uid, gid, mode):
     root.chmod(mode)
 
 
+def prepare(root, hermes, wallet):
+    initialize(root, ownership=True)
+    initialize_volume(hermes, 10000, 10000, 0o755)
+    initialize_volume(wallet, 10003, 10003, 0o700)
+    print('Persistent bind directories and database volumes prepared; existing files were not changed.')
+
+
 if __name__ == '__main__':
-    if sys.argv[1] == '--check-filesystem':
-        verify_filesystem(sys.argv[2])
-        print('PASS: fresh-file flock and SQLite WAL writer exclusion enforced.')
-    elif sys.argv[1] == '--lock-probe':
+    if sys.argv[1] == '--lock-probe':
         with open(sys.argv[2], 'a') as stream:
             try:
                 fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -101,7 +105,4 @@ if __name__ == '__main__':
                     sys.exit(9)
                 raise
     else:
-        initialize(sys.argv[1], ownership=True)
-        initialize_volume(sys.argv[2], 10000, 10000, 0o755)
-        initialize_volume(sys.argv[3], 10003, 10003, 0o700)
-        print('Persistent bind directories and database volumes prepared; existing files were not changed.')
+        raise SystemExit('Unknown internal lock probe')

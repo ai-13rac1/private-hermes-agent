@@ -39,7 +39,7 @@ services:
         gw_priority: 1
     depends_on:
       webapp-proxy: {condition: service_started}
-      storage-init: {condition: service_completed_successfully}
+      setup: {condition: service_completed_successfully}
     restart: unless-stopped
 
 networks:

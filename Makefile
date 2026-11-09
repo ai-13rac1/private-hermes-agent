@@ -46,6 +46,5 @@ webapp-test: check
 
 .PHONY: chat gateway
 chat:
-	python3 scripts/stack.py compose run --rm hermes chat
-gateway:
-	python3 scripts/stack.py compose up -d hermes
+	python3 scripts/stack.py compose run --rm --no-deps hermes chat
+gateway: up

@@ -73,11 +73,12 @@ depositing ZEC, `make x402_treazury-prepare` bootstraps funding, warms catalogs,
 and connects research tools without restarting Hermes. Preparation may wait for
 funds while the webapp remains available.
 
-`bootstrap` runs without networking. It generates separate SSH client and host
+`setup init` runs in the stock pinned Hermes image without networking. It generates
+separate SSH client and host
 keys in separate persistent directories, pins the executor host key, initializes the
 executor's workspace/home, and copies `components/hermes/config.example.yaml` only if the
 Hermes configuration does not already exist. Existing compatible configuration and keys
-are preserved. Bootstrap also installs the webapp authentication and SSH
+are preserved. Setup also installs the webapp authentication and SSH
 file-browser settings generated during initialization. Incompatible existing
 configuration blocks agent startup. Tor bootstrapping can take several minutes.
 
@@ -85,7 +86,7 @@ Before inference, edit the model to an ID returned by teep:
 
 ```sh
 python3 scripts/stack.py compose exec teep curl -fsS http://127.0.0.1:8337/v1/models
-python3 scripts/stack.py compose run --rm hermes config set model.default 'provider:model'
+python3 scripts/stack.py compose run --rm --no-deps setup config set model.default 'provider:model'
 make chat
 ```
 
@@ -96,7 +97,7 @@ apply to it. Publication is fixed to IPv4 loopback. See
 [inference access](docs/configuration.md#host-inference-access).
 
 The default `hermes` service command runs a messaging gateway. Configure its
-platform/allowlist credentials using `python3 scripts/stack.py compose run --rm hermes setup`
+platform/allowlist credentials using `python3 scripts/stack.py compose run --rm --no-deps hermes setup`
 if desired, then start it with `make gateway`. Keep the custom
 inference endpoint and SSH backend. The base stack publishes the authenticated
 webapp and Teep on host loopback. SSH, Tor, and Hermes control ports remain private.

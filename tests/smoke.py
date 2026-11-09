@@ -19,6 +19,9 @@ import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'components/provisioning'))
 from storage import initialize as initialize_storage
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from provisioning import initialize_setup
+
 COMPOSE = ['docker', 'compose', '-p', 'private-hermes-test', '-f', 'compose.yaml', '-f', 'tests/compose.yaml']
 
 
@@ -59,7 +62,7 @@ for base,dirs,files in os.walk(root):
   if not stat.S_ISLNK(meta.st_mode): path.chmod(stat.S_IMODE(meta.st_mode)|(0o700 if stat.S_ISDIR(meta.st_mode) else 0o600))
 '''
                     compose('run', '--rm', '-T', '--no-deps', '--entrypoint', 'python3',
-                            'storage-init', '-c', script, marker, str(os.getuid()), str(os.getgid()))
+                            'setup', '-c', script, marker, str(os.getuid()), str(os.getgid()))
                     shutil.rmtree(root)
         finally:
             if previous is None:
@@ -99,11 +102,24 @@ def eventually(operation, attempts=4):
             time.sleep(2)
 
 
+def start_stack(setup=True):
+    if setup:
+        initialize_setup(COMPOSE)
+    identifier = compose('ps', '-a', '-q', 'setup').stdout.strip()
+    started = subprocess.check_output(['docker', 'inspect', identifier, '--format', '{{.State.StartedAt}}'], text=True)
+    # The unfunded test fixture intentionally connects its MCP inventory before
+    # startup. Production only connects after authenticated endpoint readiness.
+    compose('run', '--rm', '-T', '--no-deps', 'setup', 'mcp', 'connect')
+    compose('up', '-d', '--no-build', '--wait', '--no-deps', '--wait-timeout', '600',
+            'tor', 'agent-net', 'executor-net', 'executor', 'teep', 'fixture', 'x402_treazury', 'hermes')
+    assert subprocess.check_output(['docker', 'inspect', identifier, '--format', '{{.State.StartedAt}}'], text=True) == started
+
+
 def run_suite():
     failed = True
     try:
         print('Starting isolated test stack...', flush=True)
-        compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '600')
+        start_stack()
         for service in ('hermes', 'executor'):
             response = eventually(lambda: json.loads(curl(service, 'https://check.torproject.org/api/ip').stdout))
             assert response['IsTor'] is True

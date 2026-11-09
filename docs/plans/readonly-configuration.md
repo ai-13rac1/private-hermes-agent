@@ -15,13 +15,13 @@ to the SSH execution boundary are outside scope.
 
 ## Current baseline
 
-- `bootstrap` copies `components/hermes/config.example.yaml` into the `hermes-data` volume
+- `setup init` copies `components/hermes/config.example.yaml` into the `hermes-data` volume
   only when `/opt/data/config.yaml` is absent.
-- For an existing config, bootstrap checks the SSH backend and custom teep
+- For an existing config, setup checks the SSH backend and custom teep
   endpoint before permitting agent startup.
 - Hermes owns its writable state under `/opt/data`, including configuration,
   sessions, skills, and memories.
-- The networkless `configure` service currently edits that same data volume
+- The networkless `setup config` command currently edits that same data volume
   as UID 10000. Setup and configuration commands can also write configuration.
 - Hermes configuration code uses atomic replacement. A read-only file mount
   can prevent both intended writes and automatic migration; even a writable
@@ -72,9 +72,9 @@ If a complete read-only configuration file is the appropriate design:
    explicit export/import step; do not replace it with the example template.
 2. Mount the selected configuration read-only into the runtime. Avoid mounting
    its parent directory writable through the data volume or another alias.
-3. Adapt bootstrap to validate the mounted configuration and its ownership
+3. Adapt `setup init` to validate the mounted configuration and its ownership
    contract without trying to copy, chown, chmod, or migrate that mount.
-4. Adapt `configure` into a networkless maintenance workflow. It should edit a
+4. Adapt `setup config` for the operator-owned configuration source. It should edit a
    writable staging directory that supports atomic file replacement, validate
    the candidate, and publish it through an operator-controlled action.
 5. Define the application step. Recreating runtime containers after publication

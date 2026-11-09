@@ -153,12 +153,13 @@ directory in the same persistent directory. It never uses `--direct`. Cached ent
 remain subject to native freshness, provenance, and revalidation rules; warming
 is not a promise that future help, dynamic discovery or API calls are offline.
 
-`x402_treazury-config` is the networkless token/registration helper. It mounts
-Hermes configuration and `data/x402_treazury-auth/`, never wallet state. Only activation
+`setup mcp` provides networkless token/registration operations in the stock
+Hermes setup service. The setup service also prepares storage and has wallet-volume
+access for ownership/lock checks, but does not run native wallet commands. Only activation
 copies the serving token into Hermes and installs its twelve MCP entries.
 Disconnecting removes only managed entries and that token from the profile, preserving unrelated
 configuration. `x402_treazury-admin` runs offline inspection and record updates;
-networked init/preparation uses `x402_treazury-job` one-shot containers in the
+networked init/preparation uses `x402_treazury-setup` one-shot containers in the
 agent namespace. Jobs have no automatic restart policy, so a failed financial
 command cannot be repeated by Docker; retries are explicit operator actions.
 

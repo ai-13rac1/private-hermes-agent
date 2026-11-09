@@ -163,15 +163,16 @@ conversations, or Tor state.
 
 Local ingress lives in the main `compose.yaml`; only `compose.funnel.yaml` is
 optional and selected from `.env` by `scripts/stack.py`. `make init` creates
-missing credentials and renders HAProxy configuration. The existing networkless
-bootstrap installs native webapp settings, replacing the separate setup service. Operator instructions and the
+missing credentials and renders HAProxy configuration. The unified networkless
+`setup init` command installs native webapp settings; there is no dedicated
+webapp setup service. Operator instructions and the
 remaining live-Funnel qualification are in `docs/webapp.md`.
 
 The pinned Hermes image supports the two origins without a fixed public URL.
 Its browser terminal executes in the agent container. Its workspace file API
 uses the SSH backend when the canonical `terminal.ssh_*` configuration fields are
 set; process environment alone does not configure that API. The template and
-bootstrap now write those fields explicitly.
+`setup init` now write those fields explicitly.
 
 The disposable ingress suite passed real browser login/logout on HTTP and HTTPS,
 cookie flags, native throttling, forbidden origins and hosts, forwarding-header
@@ -200,7 +201,7 @@ qualification suite checks those process credentials and network restrictions,
 including listener separation and a proxy restart.
 
 Local access is now always part of the base Compose deployment, with no separate
-enable flag. Initialization preserves existing credentials, and bootstrap refuses
+enable flag. Initialization preserves existing credentials, and `setup init` refuses
 invalid authentication input before replacing the native profile configuration.
 Funnel enrollment remains explicit; no wallet initialization or funding occurs
-in `make init` or bootstrap.
+in `make init` or `setup init`.

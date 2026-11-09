@@ -97,7 +97,7 @@ class ShutdownTests(unittest.TestCase):
             self.assertNotIn('--volumes', run.call_args.args[0])
             self.assertNotIn('-v', run.call_args.args[0])
 
-    def test_startup_reprovisions_auth_before_gateway_without_starting_funnel(self):
+    def test_startup_runs_setup_once_before_gateway_without_starting_funnel(self):
         sys.path.insert(0, str(ROOT / 'scripts'))
         import stack
         import tempfile
@@ -107,13 +107,41 @@ class ShutdownTests(unittest.TestCase):
             auth_path.parent.mkdir(parents=True)
             credentials = {'password_hash':hash_password('test-only-password'),'secret':'s'*64}
             auth_path.write_text(json.dumps(credentials))
-            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render'), patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run, patch.object(stack,'Controller'):
+            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render'), patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run, patch.object(stack,'Controller'), patch.object(stack,'initialize_setup') as provision:
+                events = []
+                run.side_effect = lambda command: events.append(command)
+                provision.side_effect = lambda command: events.append(['offline-setup'])
                 stack.main()
                 commands = [call.args[0] for call in run.call_args_list]
-                bootstrap = next(i for i,c in enumerate(commands) if '--force-recreate' in c and c[-1]=='bootstrap')
+                provision.assert_called_once()
                 gateway = next(i for i,c in enumerate(commands) if '--force-recreate' in c and c[-1]=='hermes')
-                self.assertLess(bootstrap,gateway)
+                self.assertLess(events.index(['offline-setup']), events.index(commands[gateway]))
                 self.assertTrue(any('--force-recreate' in c and 'webapp-proxy' in c for c in commands))
                 self.assertFalse(any('up' in c and 'tailscale' in c for c in commands))
                 self.assertNotIn(credentials['secret'],json.dumps(commands))
                 disable.assert_called_once()
+                run.reset_mock()
+                provision.side_effect = RuntimeError('test setup failure')
+                with self.assertRaisesRegex(RuntimeError, 'test setup failure'):
+                    stack.main()
+                self.assertFalse(any('up' in call.args[0] for call in run.call_args_list))
+
+    def test_funnel_startup_does_not_restart_setup_dependencies(self):
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        import stack
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            auth = root / 'config/webapp/auth.json'
+            auth.parent.mkdir(parents=True)
+            auth.write_text(json.dumps({'password_hash': hash_password('test-password'), 'secret': 's'*64}))
+            selected = Settings.read(values(funnel_enabled='true', funnel_host='node.example.ts.net'))
+            with patch.object(sys, 'argv', ['stack.py', 'up']), patch.object(stack, 'ROOT', root), \
+                    patch.object(stack, 'settings', return_value=selected), patch.object(stack, 'render'), \
+                    patch.object(stack, 'initialize_setup') as setup, patch.object(stack, 'Controller'), \
+                    patch.object(stack, 'run') as run:
+                stack.main()
+                setup.assert_called_once()
+                startups = [call.args[0] for call in run.call_args_list if 'up' in call.args[0]]
+                self.assertTrue(any(command[-1] == 'tailscale' for command in startups))
+                self.assertTrue(all('--no-deps' in command for command in startups))

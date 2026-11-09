@@ -1,6 +1,7 @@
 # Capability reduction
 
-Status: proposed; no runtime changes made.
+Status: proposed for the main Hermes runtime. Consolidated offline setup already
+uses an explicit capability set; its current baseline is recorded below.
 
 ## Objective
 
@@ -19,8 +20,7 @@ The source of truth is `compose.yaml`, including its inherited service fields.
 | Service | Current capability configuration | Role |
 | --- | --- | --- |
 | `hermes` | Docker defaults minus `NET_ADMIN` and `NET_RAW` | Official root initialization, then unprivileged agent services |
-| `bootstrap` | Docker defaults | Networkless key provisioning and volume ownership setup |
-| `configure` | All dropped | Networkless, unprivileged configuration helper |
+| `setup` | All dropped; `CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, `SETGID` added | Networkless ownership, SSH/auth/MCP provisioning; native config command drops to UID/GID 10000 |
 | `executor` | All dropped; `SETUID`, `SETGID`, `SYS_CHROOT` added | SSH daemon privilege separation; commands run as UID 10000 |
 | `agent-net`, `executor-net` | All dropped; `NET_ADMIN` added | Firewall, GRE, and route setup; stable namespace ownership |
 | `tor` | All dropped; `NET_ADMIN`, `SETUID`, `SETGID`, `CHOWN`, `FOWNER`, `DAC_OVERRIDE` added | Network and volume setup, followed by unprivileged Tor |
@@ -59,9 +59,10 @@ or exercise every long-running service and shutdown path.
    `SETUID`, `SETGID`, and `DAC_OVERRIDE` as candidates, not an established
    answer. Investigate `FOWNER`, `KILL`, and other operations where required;
    add nothing without an identified use and a reproducing check.
-4. Audit `bootstrap` separately. It creates keys and adjusts ownership and
-   permissions, including on reused volumes. Give it an explicit justified
-   set if the reduction preserves these operations.
+4. Review the explicit `setup` set separately. Ownership/provisioning uses
+   `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`; the native configuration command uses
+   `SETUID`/`SETGID` to execute as UID/GID 10000 with supplementary groups cleared.
+   Preserve fresh and repeated setup, configuration repair, and MCP updates.
 5. Review the already explicit executor, network, and Tor sets independently.
    Remove a capability only when the relevant lifecycle checks support doing
    so. Verify that executed code and Tor retain no effective capabilities.

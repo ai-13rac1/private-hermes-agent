@@ -48,7 +48,7 @@ def run_suite():
         assert partial.returncode != 0 and 'initialization refused' in partial.stderr
         print('PASS: native production serving gate and partial-state initialization refusal validated offline', flush=True)
         print('PASS: pinned release identity and production x402_treazury config validated without wallet/catalog I/O', flush=True)
-        smoke.compose('run', '--rm', '-T', '--no-deps', 'storage-init')
+        smoke.initialize_setup(smoke.COMPOSE)
         proof = smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint', 'python3',
                               'x402_treazury-admin', '/opt/storage-check.py')
         print(proof.stdout.strip(), flush=True)
@@ -65,7 +65,7 @@ def run_suite():
         smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint', 'python3', 'x402_treazury-admin',
                       '-c', "import os,stat; from pathlib import Path; p=Path('/var/lib/x402/state/wallet.key'); assert p.stat().st_uid==10003; assert stat.S_IMODE(p.stat().st_mode)==0o600; assert p.stat().st_nlink==1")
         print('PASS: native offline test wallet initializes and reopens across containers sharing the native volume with private key permissions intact', flush=True)
-        smoke.compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '600')
+        smoke.start_stack(setup=False)
         # No new readiness policy in production: just allow test listeners to
         # finish startup, reporting server failure rather than making paid probes.
         for attempt in range(30):
@@ -182,7 +182,7 @@ assert summary['sources'][0]['catalog_cache']=='fresh',summary
     except Exception as error:
         if isinstance(error, subprocess.CalledProcessError):
             print(error.stdout, error.stderr, flush=True)
-        print(smoke.compose('logs','--tail','25','x402_treazury','x402_treazury-config','tor',check=False).stdout, flush=True)
+        print(smoke.compose('logs','--tail','25','x402_treazury','setup','tor',check=False).stdout, flush=True)
         raise
     finally:
         if failed and os.getenv('KEEP_FAILED_TEST_STACK') == '1':

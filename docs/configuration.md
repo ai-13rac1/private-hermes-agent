@@ -25,8 +25,8 @@ Compose explicitly selects each service's environment variables:
 | Funnel enablement, local webapp port and hostname | Deployment workflow and selected ingress components |
 
 Generated webapp credentials are kept separately under `config/webapp/`; see
-[webapp setup](webapp.md). The existing networkless bootstrap copies native auth settings into
-Hermes state during bootstrap without exposing them to the executor.
+[webapp setup](webapp.md). The networkless `setup init` command copies native auth settings into
+Hermes state without exposing them to the executor.
 `make init` creates missing webapp credentials and renders proxy configuration;
 repeating it preserves the credentials.
 
@@ -48,6 +48,47 @@ initial Hermes configuration template, remain implementation-owned defaults.
 They live beside their owning components. Their existing delivery through image
 COPY instructions or read-only bind mounts is preserved. Moving these files
 does not implement the separate read-only Hermes configuration plan.
+
+## Offline setup and maintenance
+
+Three helpers cover setup: `setup`, `x402_treazury-admin`, and
+`x402_treazury-setup`. The offline `setup` service uses the same pinned official
+Hermes image as the agent, with component scripts mounted read-only. No custom
+setup image or combined Hermes/treasury image is built. It has a read-only root,
+no network, and only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, and `SETGID`.
+It is trusted with the persistent directories, Hermes state, and wallet volume
+for ownership/lock checks; it does not contain or invoke the wallet CLI.
+Its tool search path excludes the writable Hermes profile, and SSH provisioning
+uses `/usr/bin/ssh-keygen`, so profile-installed tools cannot run as setup's root.
+
+`make up` recreates the canonical `setup` container once, checks its exit code,
+and starts applications only after it succeeds. Initialization prepares storage,
+creates missing SSH identities, validates/preserves Hermes configuration, installs
+webapp authentication, and removes managed research registrations before the new
+gateway starts. The managed workflow explicitly starts runtime services with
+`--no-deps` afterward, preventing another setup run; Compose dependencies still
+guard direct first-run startup. Treasury activation
+reconnects MCP only after authenticated readiness succeeds.
+`make gateway` uses the same startup workflow. After `make up`, `make chat` uses
+the existing runtime namespaces without starting setup again. The optional
+Tailscale service is also started without rerunning its completed dependencies.
+
+Explicit maintenance commands use the same offline service:
+
+```sh
+python3 scripts/stack.py compose run --rm --no-deps setup config set model.default 'provider:model'
+python3 scripts/stack.py compose run --rm --no-deps setup storage
+```
+
+`setup config` executes the native Hermes configuration CLI as UID/GID 10000,
+without rerunning bootstrap validation, so it can repair an incompatible setting.
+`setup storage` only prepares directory metadata and checks native-volume locks.
+The controller uses `setup mcp token|connect|disconnect` for registration changes;
+these subcommands do not rerun SSH/auth initialization. Wallet maintenance reuses
+successful setup; before initial startup or after failed setup, it runs only
+storage preparation and does not require valid Hermes configuration. Wallet
+inspection stays in the networkless native treasury image, and financial jobs
+stay in its separate Tor-connected, non-restarting service.
 
 ## Host inference access
 
@@ -77,7 +118,7 @@ Hermes profile/database state and x402_treazury wallet/database state use native
 Docker named volumes (`hermes-data` and `x402_treazury-data`). Other persistent
 files use the bind directories below. This keeps lock-sensitive state off the
 host-backed filesystem that failed qualification on this Docker Desktop host.
-`storage-init` checks locking on the native volumes before applications start.
+`setup init` checks locking on the native volumes before applications start.
 No existing volume contents are copied or deleted by this change.
 
 PrivateOnyxApp's PostgreSQL/OpenSearch initialization was checked as a possible
@@ -111,7 +152,7 @@ After rebuilding the provisioning image following an engine update, test the
 host-backed `data/` filesystem directly with:
 
 ```sh
-docker compose run --rm --no-deps --entrypoint python3 storage-init /opt/storage.py --check-filesystem /persistent-data
+docker compose run --rm --no-deps setup check-filesystem /persistent-data
 ```
 
 This creates and removes temporary probe files without changing application data
@@ -132,7 +173,7 @@ not by itself change the deployment or replace full application qualification.
 | `data/tailscale/` | Optional Funnel node enrollment and identity |
 
 `make init` creates missing directories without replacing data. A trusted,
-networkless `storage-init` process checks native-volume filesystem locking and sets the declared
+networkless `setup` service checks native-volume filesystem locking and sets the declared
 leaf-directory UIDs, GIDs and modes before applications start. It does not
 recursively chown/chmod existing files. Restore backups with their ownership and
 permissions intact rather than relying on initialization to repair file metadata.
@@ -142,7 +183,7 @@ wallet and SSH private-file permissions remain restrictive. On Linux, service-ow
 private directories may require privileged access or a container backup helper
 for backup. Do not loosen wallet permissions to make them readable to host tools.
 
-Only the trusted metadata initializer mounts the whole `data/` parent. Hermes,
+Only the trusted setup service mounts the whole `data/` parent. Hermes,
 the executor, financial services, Tor and Tailscale each receive their own leaf
 mounts. The executor never receives Hermes state, wallet files, or the MCP token.
 The shared Tor Unix-socket directory remains a Docker volume: it is runtime IPC,

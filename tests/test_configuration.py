@@ -87,12 +87,17 @@ class OperatorConfigurationTests(unittest.TestCase):
         auth_recipients = [name for name, service in services.items()
                            if any(mount.get('target') == '/run/webapp/auth.json'
                                   for mount in service.get('volumes', []))]
-        self.assertEqual(auth_recipients, ['bootstrap'])
+        self.assertEqual(auth_recipients, ['setup'])
+        self.assertTrue({'storage-init', 'bootstrap', 'configure', 'x402_treazury-config'}.isdisjoint(services))
+        self.assertNotIn('build', services['setup'])
+        self.assertEqual(services['setup']['network_mode'], 'none')
+        self.assertTrue(services['setup']['read_only'])
+        self.assertNotIn('/opt/data', services['setup']['environment']['PATH'])
         self.assertNotIn('webapp-setup', services)
         self.assertIn('webapp-proxy', services)
-        self.assertEqual(services['x402_treazury-job']['restart'], 'no')
-        self.assertEqual(services['x402_treazury-job']['stop_grace_period'], '-1s')
-        self.assertEqual(services['hermes']['image'], services['configure']['image'])
+        self.assertEqual(services['x402_treazury-setup']['restart'], 'no')
+        self.assertEqual(services['x402_treazury-setup']['stop_grace_period'], '-1s')
+        self.assertEqual(services['hermes']['image'], services['setup']['image'])
         self.assertTrue(services['hermes']['image'].startswith('nousresearch/hermes-agent@sha256:'))
 
 

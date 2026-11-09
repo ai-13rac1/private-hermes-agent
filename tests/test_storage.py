@@ -84,7 +84,7 @@ class PersistentStorageTests(unittest.TestCase):
                     continue
                 source = Path(mount['source'])
                 if source == root:
-                    self.assertEqual(name, 'storage-init')
+                    self.assertEqual(name, 'setup')
                     self.assertEqual(service['network_mode'], 'none')
                 elif source.is_relative_to(root):
                     self.assertFalse(mount['bind']['create_host_path'])
@@ -93,7 +93,7 @@ class PersistentStorageTests(unittest.TestCase):
                                       ('ssh/executor', 'executor/home', 'executor/workspace'))
                     if name == 'hermes':
                         self.assertEqual(source.relative_to(root).as_posix(), 'ssh/agent')
-        self.assertEqual(wallet_readers, {'storage-init', 'x402_treazury', 'x402_treazury-job', 'x402_treazury-admin'})
+        self.assertEqual(wallet_readers, {'setup', 'x402_treazury', 'x402_treazury-setup', 'x402_treazury-admin'})
 
 
 if __name__ == '__main__':

@@ -36,8 +36,7 @@ their exact behavior against the pinned image during implementation.
 | `make x402_treazury-status` | Display saved wallet status/address and the deployment's preparation phase, including any recorded failure. Do not sync, fund, or warm catalogs. |
 | `make x402_treazury-prepare` | Run `wallet bootstrap`, then `catalog warm`, then start `serve` and connect Hermes after successful readiness checks. Stop at the first failed phase. |
 
-The networkless `x402_treazury-config` helper replaces the previous setup target.
-There is no alias or migration path for the old workflow.
+The networkless `setup mcp` subcommand manages tokens and Hermes registrations.
 `make x402_treazury-prepare` is also the retry command. A matching successful
 preparation record retries activation without repeating bootstrap or catalog
 warming. Incomplete or invalidated preparation resumes through the native
@@ -226,8 +225,8 @@ funding/catalog qualification separately from locally verified orchestration.
 ## Implementation notes and qualification
 
 The main Compose file now defines the serving service, a non-restarting networked
-job service, an offline administration service, and the networkless MCP
-configuration helper. Profiles select lifecycle roles internally; no separate
+job service, an offline administration service, and the networkless `setup`
+service. Profiles select treasury lifecycle roles internally; no separate
 onboarding overlay or operator enable flag was introduced. Core startup removes
 managed research registrations before starting Hermes and conditionally activates
 a matching prepared treasury afterward.
@@ -235,7 +234,8 @@ a matching prepared treasury afterward.
 The coordinator validates native bootstrap summary schema 3, completed captured
 work, and a complete non-direct catalog-warm summary. The record fingerprints
 native config/build identity and coordinator contents. Base RPC endpoints use
-the pinned native defaults through Tor, with no operator RPC preference. Native cache files live
+the pinned native defaults through Tor, with no operator RPC preference.
+Native cache files live
 under the treasury's `http-cache/` directory. The serving entrypoint refuses
 unprepared or mismatched state, including command-line configuration overrides.
 

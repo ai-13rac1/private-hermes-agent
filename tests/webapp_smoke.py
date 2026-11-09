@@ -126,7 +126,7 @@ else: raise AssertionError('Funnel reached localhost frontend')
             auth = {'password_hash': hash_password(password), 'secret': secrets.token_urlsafe(48)}
             (folder / 'auth.json').write_text(json.dumps(auth))
             (folder / 'password').write_text(password)
-            smoke.compose('run', '--rm', 'bootstrap')
+            smoke.compose('run', '--rm', 'setup')
             smoke.compose('restart', 'hermes')
             wait_ready()
             browser_checks(folder / 'password', 'rotation')
@@ -157,9 +157,9 @@ for host,port in (('10.203.85.2',9120),('10.203.85.3',8080),('10.203.85.3',19120
             assert http('/login')[0] == 200
             print('PASS: detached preparation reports failure and cleans up without touching a wallet or stopping Hermes', flush=True)
             # An unrelated MCP entry must survive activation and disconnection.
-            smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint', 'python3',
-                          'x402_treazury-config', '-c',
-                          "from pathlib import Path; import yaml; p=Path('/agent-data/config.yaml'); c=yaml.safe_load(p.read_text()); c.setdefault('mcp_servers',{})['unrelated']={'url':'http://10.203.84.10:8000/mcp'}; p.write_text(yaml.safe_dump(c,sort_keys=False))")
+            smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint', '/opt/hermes/.venv/bin/python',
+                          'setup', '-c',
+                          "from pathlib import Path; import hermes_yaml as yaml; p=Path('/opt/data/config.yaml'); c=yaml.safe_load(p.read_text()); c.setdefault('mcp_servers',{})['unrelated']={'url':'http://10.203.84.10:8000/mcp'}; p.write_text(yaml.safe_dump(c,sort_keys=False))")
             controller.inspect = lambda: {'prepared': True}
             controller.activate()
             smoke.python('hermes', "from hermes_cli.config import load_config; assert len([k for k in load_config()['mcp_servers'] if k.startswith('x402_treazury_')])==12")
@@ -178,7 +178,7 @@ else: raise AssertionError('Missing authentication provider did not refuse start
 """)
             # Invalid credentials must never replace the authenticated profile.
             (folder / 'auth.json').write_text('{}')
-            result = smoke.compose('run', '--rm', 'bootstrap', check=False)
+            result = smoke.compose('run', '--rm', 'setup', check=False)
             assert result.returncode != 0, 'Invalid credentials were accepted'
             smoke.python('hermes', "from hermes_cli.config import load_config; assert load_config()['webapp']['enabled'] is True")
             smoke.compose('stop','webapp-proxy')
@@ -193,7 +193,7 @@ else: raise AssertionError('Missing authentication provider did not refuse start
         except subprocess.CalledProcessError as error:
             # Logs may include gateway metadata, but test credentials are never printed.
             print((error.stdout or '')[-4000:], (error.stderr or '')[-4000:], flush=True)
-            print(smoke.compose('logs','--tail','12','hermes','webapp-proxy','bootstrap','tls-fixture',check=False).stdout, flush=True)
+            print(smoke.compose('logs','--tail','12','hermes','webapp-proxy','setup','tls-fixture',check=False).stdout, flush=True)
             raise
         finally:
             if failed and os.getenv('KEEP_FAILED_TEST_STACK') == '1':

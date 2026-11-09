@@ -5,7 +5,7 @@ services:
     entrypoint: !reset null
     command: [gateway, run]
     cap_drop: !override [NET_ADMIN, NET_RAW]
-  bootstrap:
+  setup:
     volumes:
       - type: bind
         source: ${WEBAPP_TEST_AUTH:?test auth required}
@@ -25,8 +25,6 @@ services:
     depends_on: !override
       tor: {condition: service_healthy}
       agent-net: {condition: service_healthy}
-  x402_treazury-config:
-    profiles: [maintenance]
   tailscale:
     profiles: [real-funnel]
   tls-fixture:
