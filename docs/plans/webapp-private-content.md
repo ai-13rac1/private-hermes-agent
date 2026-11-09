@@ -252,7 +252,10 @@ Selected answers, subject to independent design review:
   non-global answer, and connects only to a validated numeric address. Retain
   original Host and TLS SNI/certificate validation. Repeat validation for each
   redirect, never re-resolve the hostname during connection, reject credentials,
-  controls, ambiguous URL syntax and unsupported address families. This closes
+  controls, ambiguous URL syntax and unsupported address families. In `ask`,
+  reject cross-origin redirects before next-hop DNS or network activity, including
+  load-once requests; approval covers only the submitted origin. Preserve
+  same-origin redirects. This closes
   the privileged-route exception even for DNS changes. Use fresh connections,
   no environment proxies/cookies/browser headers, streaming byte limits, socket
   timeouts, and a bounded redirect count. Validate raster signatures and decode
@@ -391,8 +394,11 @@ that any successful same-origin response must have used Tor.
 ## Evidence and completion status
 
 - Implementation: not started; P1-1 through P1-4 pending.
-- Design/phase/final reviews: not yet passed. Plan review alone is not a review
-  of a future implementation or its unresolved technical decisions.
+- P1-DESIGN: fresh read-only review of `dba3be8` passed with the redirect
+  clarification above incorporated. The reviewer identified cross-origin redirect
+  consent ambiguity; `ask` now rejects before next-hop DNS/network activity.
+  Review explicitly requires plugin HTML/SVG, preview blobs, file tickets/direct
+  navigation and old-proxy closure coverage. Phase/final reviews remain pending.
 - Existing evidence: source inspection and the preliminary intercepted Chromium
   policy experiment described above; no full feature or cross-browser guarantee.
 - Planning-only review: a fresh read-only subagent reviewed `2d0ec55` plus these
