@@ -6,6 +6,8 @@ import shutil
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'components/webapp'))
 from auth import initialize_credentials
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'components/provisioning'))
+from storage import initialize as initialize_storage
 
 
 def initialize(root):
@@ -24,7 +26,7 @@ def initialize(root):
         shutil.copymode(source, target)
     if not target.is_file():
         raise SystemExit('config/network/mcp-allowlist.json must be a file')
-    (root / 'data').mkdir(exist_ok=True)
+    initialize_storage(root / 'data')
     initialize_credentials(root)
 
 

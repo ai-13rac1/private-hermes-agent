@@ -38,6 +38,23 @@ x-network: &network
     start_period: 20s
 
 services:
+  storage-init:
+    image: private-hermes-executor:local
+    network_mode: none
+    entrypoint: [python3, /opt/storage.py, /persistent-data, /persistent-hermes, /persistent-x402]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    volumes:
+      - hermes-data:/persistent-hermes
+      - x402_treazury-data:/persistent-x402
+      # Only this trusted, networkless metadata initializer sees the parent.
+      - type: bind
+        source: ./data
+        target: /persistent-data
+        bind: {create_host_path: false}
+
   bootstrap:
     image: private-hermes-executor:local
     build:
@@ -45,14 +62,28 @@ services:
       dockerfile: components/executor/Dockerfile
     network_mode: none
     entrypoint: [python3, /opt/bootstrap.py]
+    depends_on:
+      storage-init: {condition: service_completed_successfully}
     environment:
       WEBAPP_USERNAME: ${WEBAPP_USERNAME:-admin}
     volumes:
-      - agent-ssh:/agent-ssh
-      - executor-auth:/executor-auth
+      - type: bind
+        source: ./data/ssh/agent
+        target: /agent-ssh
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./data/ssh/executor
+        target: /executor-auth
+        bind: {create_host_path: false}
       - hermes-data:/agent-data
-      - executor-home:/executor-home
-      - executor-work:/executor-work
+      - type: bind
+        source: ./data/executor/home
+        target: /executor-home
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./data/executor/workspace
+        target: /executor-work
+        bind: {create_host_path: false}
       - ./components/hermes/config.example.yaml:/opt/hermes-config.yaml:ro
       - type: bind
         source: ./config/webapp/auth.json
@@ -69,17 +100,24 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     entrypoint: [/opt/hermes/.venv/bin/hermes, config]
+    depends_on:
+      storage-init: {condition: service_completed_successfully}
     volumes:
       - hermes-data:/opt/data
 
   tor:
     <<: *network
     command: [router]
+    depends_on:
+      storage-init: {condition: service_completed_successfully}
     environment:
       PRIVATE_HERMES_X402_TREAZURY_SOCKS: "1"
     cap_add: [NET_ADMIN, SETUID, SETGID, CHOWN, FOWNER, DAC_OVERRIDE]
     volumes:
-      - tor-state:/var/lib/tor
+      - type: bind
+        source: ./data/tor
+        target: /var/lib/tor
+        bind: {create_host_path: false}
       - tor-x402_treazury:/run/tor-x402_treazury
       - ./components/network/torrc:/etc/tor/torrc:ro
     tmpfs:
@@ -149,9 +187,19 @@ services:
     read_only: true
     tmpfs: [/tmp:mode=1777, /run:mode=0755]
     volumes:
-      - executor-auth:/run/executor-auth:ro
-      - executor-home:/home/runner
-      - executor-work:/workspace
+      - type: bind
+        source: ./data/ssh/executor
+        target: /run/executor-auth
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./data/executor/home
+        target: /home/runner
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./data/executor/workspace
+        target: /workspace
+        bind: {create_host_path: false}
       - ./components/executor/resolv.conf:/etc/resolv.conf:ro
     restart: unless-stopped
     healthcheck:
@@ -208,7 +256,10 @@ services:
     volumes:
       - ./components/x402_treazury/setup.py:/opt/x402_treazury-setup.py:ro
       - ./components/x402_treazury/endpoints.py:/opt/endpoints.py:ro
-      - x402_treazury-auth:/x402_treazury-auth
+      - type: bind
+        source: ./data/x402_treazury-auth
+        target: /x402_treazury-auth
+        bind: {create_host_path: false}
       - hermes-data:/agent-data
 
   x402_treazury:
@@ -231,8 +282,12 @@ services:
     network_mode: service:agent-net
     volumes:
       - tor-x402_treazury:/run/tor-x402_treazury:ro
-      - x402_treazury-auth:/run/x402_treazury-auth:ro
-      - x402_treazury-state:/var/lib/x402
+      - type: bind
+        source: ./data/x402_treazury-auth
+        target: /run/x402_treazury-auth
+        read_only: true
+        bind: {create_host_path: false}
+      - x402_treazury-data:/var/lib/x402
     environment:
       BASE_RPC_URL: ${BASE_RPC_URL:-}
     restart: unless-stopped
@@ -256,7 +311,7 @@ services:
       BASE_RPC_URL: ${BASE_RPC_URL:-}
     volumes:
       - tor-x402_treazury:/run/tor-x402_treazury:ro
-      - x402_treazury-state:/var/lib/x402
+      - x402_treazury-data:/var/lib/x402
 
   x402_treazury-admin:
     profiles: [maintenance]
@@ -265,13 +320,15 @@ services:
     network_mode: none
     entrypoint: [python3, /opt/onboarding.py]
     command: [status]
+    depends_on:
+      storage-init: {condition: service_completed_successfully}
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     read_only: true
     environment:
       BASE_RPC_URL: ${BASE_RPC_URL:-}
     volumes:
-      - x402_treazury-state:/var/lib/x402
+      - x402_treazury-data:/var/lib/x402
 
   hermes:
     image: *hermes-image
@@ -285,7 +342,11 @@ services:
     security_opt: [no-new-privileges:true]
     volumes:
       - hermes-data:/opt/data
-      - agent-ssh:/run/agent-ssh:ro
+      - type: bind
+        source: ./data/ssh/agent
+        target: /run/agent-ssh
+        read_only: true
+        bind: {create_host_path: false}
       - ./components/hermes/ssh-client.conf:/etc/ssh/ssh_config.d/99-private-hermes.conf:ro
       - ./components/hermes/resolv.conf:/etc/resolv.conf:ro
     environment:
@@ -367,12 +428,7 @@ networks:
       com.docker.network.bridge.enable_ip_masquerade: "false"
 
 volumes:
+  # Named application volumes survive ordinary compose down/up.
   hermes-data: {}
-  tor-state: {}
-  agent-ssh: {}
-  executor-auth: {}
-  executor-home: {}
-  executor-work: {}
+  x402_treazury-data: {}
   tor-x402_treazury: {}
-  x402_treazury-auth: {}
-  x402_treazury-state: {}

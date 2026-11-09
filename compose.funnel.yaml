@@ -28,7 +28,10 @@ services:
       TS_AUTHKEY: ${TS_AUTHKEY:-}
       TS_ACCEPT_DNS: "false"
     volumes:
-      - tailscale-state:/var/lib/tailscale
+      - type: bind
+        source: ./data/tailscale
+        target: /var/lib/tailscale
+        bind: {create_host_path: false}
     networks:
       funnel-link:
         ipv4_address: 10.203.87.2
@@ -36,6 +39,7 @@ services:
         gw_priority: 1
     depends_on:
       webapp-proxy: {condition: service_started}
+      storage-init: {condition: service_completed_successfully}
     restart: unless-stopped
 
 networks:
@@ -44,6 +48,3 @@ networks:
     ipam:
       config: [{subnet: 10.203.87.0/24}]
   tailscale-uplink: {}
-
-volumes:
-  tailscale-state: {}

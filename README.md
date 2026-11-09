@@ -26,7 +26,7 @@ inside an application cannot grant a direct uplink.
 - `components/`: tracked Dockerfiles, container scripts, and component defaults.
 - `.env`: private operator settings, selected explicitly for each service.
 - `config/`: private editable bind-mount configuration; initialized from defaults.
-- `data/`: reserved for future application-state bind mounts; currently unused.
+- `data/`: persistent bind directories for identities and executor work.
 - `scripts/`: host-side initialization and checks.
 - `tests/fixtures/`: disposable test servers and configuration.
 
@@ -34,8 +34,9 @@ inside an application cannot grant a direct uplink.
 unchanged. Add new settings explicitly using `.env.example` as a reference.
 `make build`, `make up`, and
 `make x402_treazury-init` run it automatically. Image pins and source revisions live
-in Compose and component Dockerfiles, not `.env`. Existing named volumes remain
-the authoritative application state.
+in Compose and component Dockerfiles, not `.env`. Hermes and wallet state use native named volumes; other persistent files live
+in `data/`. Runtime Tor socket IPC also uses a named volume. See
+[configuration and backups](docs/configuration.md) before starting.
 
 See [configuration and backups](docs/configuration.md) for ownership and backup requirements.
 
@@ -73,7 +74,7 @@ and connects research tools without restarting Hermes. Preparation may wait for
 funds while the webapp remains available.
 
 `bootstrap` runs without networking. It generates separate SSH client and host
-keys in separate named volumes, pins the executor host key, initializes the
+keys in separate persistent directories, pins the executor host key, initializes the
 executor's workspace/home, and copies `components/hermes/config.example.yaml` only if the
 Hermes configuration does not already exist. Existing compatible configuration and keys
 are preserved. Bootstrap also installs the webapp authentication and SSH
@@ -135,7 +136,7 @@ the agent container; its browser terminal is separate from the SSH code executor
   file tools use SSH. Native subagents remain orchestrator instances; their
   code calls use this executor. Sessions/subagents share one executor user and
   workspace: this is agent/executor separation, not tenant or per-task isolation.
-- Provider credentials and the agent data volume are not mounted into the
+- Provider credentials and the agent data directory are not mounted into the
   executor. Hermes can intentionally synchronize skills, selected caches, and
   skill/operator-declared credential files to remote backends. Keep
   `terminal.credential_files` and skill passthrough declarations under review.
@@ -152,7 +153,7 @@ the agent container; its browser terminal is separate from the SSH code executor
 
 The default [x402_treazury integration](docs/x402_treazury.md) builds
 x402_treazury and, after staged preparation, connects its twelve authenticated MCP endpoints over shared
-localhost. It keeps wallet state in a separate container volume and uses a
+localhost. It keeps wallet state in the `x402_treazury-data` named volume with restricted mounts and uses a
 private Tor SOCKS Unix socket. The SSH executor has no access to these endpoints
 or their bearer token. See that guide for build, wallet initialization, startup,
 and verification instructions.
@@ -229,11 +230,13 @@ Tests cover actual Hermes terminal and Python execution over SSH, absence of
 agent keys/environment in the executor, Tor versus direct inference egress,
 forbidden host/VM/RPC/private destinations, actual Streamable HTTP MCP
 initialize/list/call with SSE responses, unselected ports, and Tor failure.
-Only the test project's containers, networks, and volumes are deleted.
+Tests use separate project volumes and private temporary bind directories, never
+the operator's volumes or `data/` tree. Only disposable test resources are deleted.
 
 Use `python3 scripts/stack.py compose logs -f tor executor` for startup diagnostics. `make down`
-retains state. `python3 scripts/stack.py compose down -v` permanently deletes the deployment's
-keys, workspaces, memories, and Tor guard state.
+retains named volumes and bind data. Starting with the same project name reuses
+them. Do not add `-v`: it deletes application volumes, including wallets and
+conversations. Bind data remains until explicitly removed from the host filesystem.
 
 References: [Hermes backends](https://hermes-agent.nousresearch.com/docs/user-guide/configuration/#terminal-backend-configuration),
 [Hermes security](https://hermes-agent.nousresearch.com/docs/user-guide/security/),

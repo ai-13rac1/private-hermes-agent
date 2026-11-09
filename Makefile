@@ -19,6 +19,10 @@ test: check
 	python3 scripts/preflight.py private-hermes-test
 	python3 -u tests/smoke.py
 
+.PHONY: storage-test
+storage-test: check
+	python3 -u tests/storage_smoke.py
+
 .PHONY: x402_treazury-init x402_treazury-status x402_treazury-prepare
 x402_treazury-init: init
 	python3 scripts/x402_treazury.py init

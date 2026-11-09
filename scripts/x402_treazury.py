@@ -183,6 +183,7 @@ def main():
     parser.add_argument('action', choices=('init', 'status', 'prepare'))
     args = parser.parse_args()
     controller = Controller(compose(settings()))
+    controller.call('run', '--rm', '-T', '--no-deps', 'storage-init')
     if args.action == 'status':
         controller.admin('status')
     else:

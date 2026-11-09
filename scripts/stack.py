@@ -70,6 +70,7 @@ def main_unlocked():
             stop_funnel(all_command)
         # A changed bind-mounted credential file does not itself recreate a
         # completed container. Always apply current settings before startup.
+        run(command + ['run', '--rm', '-T', '--no-deps', 'storage-init'])
         run(command + ['up', '-d', '--wait', '--no-deps', '--force-recreate', 'bootstrap'])
         infrastructure = ['tor', 'agent-net', 'executor-net', 'executor', 'teep']
         run(command + ['up', '-d', '--wait', *infrastructure])

@@ -8,8 +8,63 @@ import json
 import os
 import subprocess
 import time
+from contextlib import contextmanager
+from pathlib import Path
+import secrets
+import shutil
+import sys
+import tempfile
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'components/provisioning'))
+from storage import initialize as initialize_storage
 
 COMPOSE = ['docker', 'compose', '-p', 'private-hermes-test', '-f', 'compose.yaml', '-f', 'tests/compose.yaml']
+
+
+@contextmanager
+def storage_fixture():
+    root = Path(tempfile.mkdtemp(prefix='private-hermes-storage-'))
+    initialize_storage(root)
+    marker = secrets.token_hex(16)
+    (root / '.test-storage').write_text(marker)
+    previous = os.environ.get('TEST_DATA_DIR')
+    os.environ['TEST_DATA_DIR'] = str(root)
+    retain = False
+    try:
+        yield root
+    except BaseException:
+        retain = os.getenv('KEEP_FAILED_TEST_STACK') == '1'
+        raise
+    finally:
+        try:
+            if retain:
+                print('Retained disposable bind data: ' + str(root), flush=True)
+            else:
+                try:
+                    shutil.rmtree(root)
+                except PermissionError:
+                    # Linux hosts need ownership returned from container UIDs.
+                    # A nonce and a mandatory test-only Compose override keep
+                    # this metadata operation away from operator data.
+                    (root / '.test-storage').write_text(marker)
+                    script = '''import os, pathlib, stat, sys
+root=pathlib.Path('/persistent-data')
+assert root.joinpath('.test-storage').read_text()==sys.argv[1]
+uid,gid=int(sys.argv[2]),int(sys.argv[3])
+for base,dirs,files in os.walk(root):
+ for path in [pathlib.Path(base),*(pathlib.Path(base)/p for p in dirs+files)]:
+  meta=path.lstat()
+  os.chown(path,uid,gid,follow_symlinks=False)
+  if not stat.S_ISLNK(meta.st_mode): path.chmod(stat.S_IMODE(meta.st_mode)|(0o700 if stat.S_ISDIR(meta.st_mode) else 0o600))
+'''
+                    compose('run', '--rm', '-T', '--no-deps', '--entrypoint', 'python3',
+                            'storage-init', '-c', script, marker, str(os.getuid()), str(os.getgid()))
+                    shutil.rmtree(root)
+        finally:
+            if previous is None:
+                os.environ.pop('TEST_DATA_DIR', None)
+            else:
+                os.environ['TEST_DATA_DIR'] = previous
 
 
 def compose(*args, check=True, **kwargs):
@@ -43,7 +98,7 @@ def eventually(operation, attempts=4):
             time.sleep(2)
 
 
-def main():
+def run_suite():
     failed = True
     try:
         print('Starting isolated test stack...', flush=True)
@@ -144,6 +199,11 @@ asyncio.run(main())
             print('Failed test stack retained for diagnosis: private-hermes-test', flush=True)
         else:
             compose('down', '--volumes', '--remove-orphans', check=False)
+
+
+def main():
+    with storage_fixture():
+        run_suite()
 
 
 if __name__ == '__main__':

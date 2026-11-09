@@ -6,6 +6,22 @@ services:
         target: /run/webapp/auth.json
         read_only: true
         bind: {create_host_path: false}
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/ssh/agent
+        target: /agent-ssh
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/ssh/executor
+        target: /executor-auth
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/executor/home
+        target: /executor-home
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/executor/workspace
+        target: /executor-work
+        bind: {create_host_path: false}
   webapp-proxy:
     profiles: [browser-test]
   hermes:
@@ -17,6 +33,12 @@ services:
     environment:
       HERMES_HOME: /opt/data
       AGENT_ONLY_SENTINEL: must-not-reach-executor
+    volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/ssh/agent
+        target: /run/agent-ssh
+        read_only: true
+        bind: {create_host_path: false}
   teep:
     environment:
       VENICE_API_KEY: integration-placeholder-not-a-real-key
@@ -50,6 +72,11 @@ services:
   x402_treazury-config:
     profiles: !reset []
     command: [connect]
+    volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/x402_treazury-auth
+        target: /x402_treazury-auth
+        bind: {create_host_path: false}
   x402_treazury:
     profiles: !reset []
     # Real Rust server; test config has local catalogs, an ephemeral static key,
@@ -63,3 +90,46 @@ services:
     volumes:
       - ./tests/fixtures/x402_treazury.py:/opt/x402_treazury-fixture.py:ro
       - ./components/x402_treazury/endpoints.py:/opt/endpoints.py:ro
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/x402_treazury-auth
+        target: /run/x402_treazury-auth
+        read_only: true
+        bind: {create_host_path: false}
+  storage-init:
+    volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}
+        target: /persistent-data
+        bind: {create_host_path: false}
+  tor:
+    volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/tor
+        target: /var/lib/tor
+        bind: {create_host_path: false}
+  executor:
+    volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/ssh/executor
+        target: /run/executor-auth
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/executor/home
+        target: /home/runner
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/executor/workspace
+        target: /workspace
+        bind: {create_host_path: false}
+  x402_treazury-job:
+    environment:
+      BASE_RPC_URL: ""
+  x402_treazury-admin:
+    # Offline creation qualification needs the scratch filesystem used by the
+    # production job. Production admin only performs offline inspection.
+    tmpfs: [/tmp:mode=1777]
+    environment:
+      BASE_RPC_URL: ""
+    volumes:
+      - ./tests/fixtures/storage-check.py:/opt/storage-check.py:ro

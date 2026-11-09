@@ -50,7 +50,7 @@ def browser_checks(password_path, mode="full"):
     subprocess.run([browser_python, str(ROOT / 'tests/webapp_browser.py'), str(password_path), mode], check=True)
 
 
-def main():
+def run_suite():
     browser_python = os.environ.get('WEBAPP_BROWSER_PYTHON', sys.executable)
     ready = subprocess.run([browser_python, '-c',
         'from pathlib import Path; from playwright.sync_api import sync_playwright; '        'p=sync_playwright().start(); assert Path(p.chromium.executable_path).is_file(); p.stop()'],
@@ -203,6 +203,11 @@ else: raise AssertionError('Missing authentication provider did not refuse start
                 shutil.copytree(folder, Path('/tmp/private-hermes-ingress-debug'), dirs_exist_ok=True)
             else:
                 smoke.compose('down','--volumes','--remove-orphans',check=False)
+
+
+def main():
+    with smoke.storage_fixture():
+        run_suite()
 
 
 if __name__ == '__main__':

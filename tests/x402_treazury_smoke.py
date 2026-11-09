@@ -15,7 +15,7 @@ smoke.COMPOSE = ['docker', 'compose', '-p', 'private-hermes-x402-treazury-test',
                  '-f', 'compose.yaml', '-f', 'tests/compose.yaml']
 
 
-def main():
+def run_suite():
     failed = True
     try:
         print('Validating the production x402_treazury configuration offline...', flush=True)
@@ -46,6 +46,23 @@ def main():
         assert partial.returncode != 0 and 'initialization refused' in partial.stderr
         print('PASS: native production serving gate and partial-state initialization refusal validated offline', flush=True)
         print('PASS: pinned release identity and production x402_treazury config validated without wallet/catalog I/O', flush=True)
+        smoke.compose('run', '--rm', '-T', '--no-deps', 'storage-init')
+        proof = smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint', 'python3',
+                              'x402_treazury-admin', '/opt/storage-check.py')
+        print(proof.stdout.strip(), flush=True)
+        # A new disposable, unfunded Zcash wallet is initialized entirely
+        # offline with an explicit test birthday; never use the operator tree.
+        wallet_command = ('run', '--rm', '-T', '--no-deps', '--entrypoint', '/usr/local/bin/x402_treazury',
+                          'x402_treazury-admin', 'wallet')
+        initialized = json.loads(smoke.compose(*wallet_command, 'init', '--birthday', '1', '--json').stdout)
+        assert initialized['receive_addresses']
+        identifier = initialized['state']['treasury_id']
+        reopened = json.loads(smoke.compose(*wallet_command, 'status', '--json').stdout)
+        assert reopened['treasury_id'] == identifier
+        assert smoke.compose(*wallet_command, 'init', '--birthday', '1', check=False).returncode != 0
+        smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint', 'python3', 'x402_treazury-admin',
+                      '-c', "import os,stat; from pathlib import Path; p=Path('/var/lib/x402/state/wallet.key'); assert p.stat().st_uid==10003; assert stat.S_IMODE(p.stat().st_mode)==0o600; assert p.stat().st_nlink==1")
+        print('PASS: native offline test wallet initializes and reopens across containers sharing the native volume with private key permissions intact', flush=True)
         smoke.compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '600')
         # No new readiness policy in production: just allow test listeners to
         # finish startup, reporting server failure rather than making paid probes.
@@ -170,6 +187,11 @@ assert summary['sources'][0]['catalog_cache']=='fresh',summary
             print('Retained test project: private-hermes-x402-treazury-test', flush=True)
         else:
             smoke.compose('down','--volumes','--remove-orphans',check=False)
+
+
+def main():
+    with smoke.storage_fixture():
+        run_suite()
 
 
 if __name__ == '__main__':

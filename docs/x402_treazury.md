@@ -68,7 +68,7 @@ start funding, serving, or Hermes MCP connections. If needed, the command starts
 only Tor and the agent network namespace for the one-shot administration process.
 
 Back up the wallet before depositing ZEC. Native wallet commands use the same
-configured treasury, private state volume, and UID as serving:
+configured treasury, `x402_treazury-data` named volume, and UID as serving:
 
 ```sh
 python3 scripts/stack.py compose run --rm --no-deps x402_treazury wallet backup --help
@@ -115,7 +115,7 @@ Each phase streams native output. A failure stops the sequence, reports the
 native exit status and recent redacted output, and leaves Hermes available.
 The private preparation record retains the failed phase and recent output.
 Retry the same command to resume through native wallet journals and cache policy;
-never delete the state volume to retry. Bootstrap and paid warming require
+never delete the state directory to retry. Bootstrap and paid warming require
 exclusive ownership and must not run beside `serve` or another wallet operation.
 
 Ctrl-C requests graceful termination and waits for native cleanup. These commands
@@ -126,7 +126,7 @@ the workflow refuses to overwrite a retained container or competing owner.
 Do not use an auto-restarting serving container for one-shot financial commands.
 
 Completion is recorded atomically under `/var/lib/x402/onboarding/` in the
-private state volume, bound to the treasury identity, source/build identity,
+`x402_treazury-data` named volume, bound to the treasury identity, source/build identity,
 coordinator code and effective configuration, including a hash of the supplied
 RPC setting. The record contains no RPC secret or full deployment configuration.
 Only successful bootstrap and complete Tor catalog warming authorize serving.
@@ -148,12 +148,12 @@ expire, and serving continues native synchronization, replacement funding, and
 discovery under its policy. Startup does not rerun explicit bootstrap/warming.
 
 `catalog warm` stores cache data under the configured treasury's `http-cache/`
-directory in the same persistent volume. It never uses `--direct`. Cached entries
+directory in the same persistent directory. It never uses `--direct`. Cached entries
 remain subject to native freshness, provenance, and revalidation rules; warming
 is not a promise that future help, dynamic discovery or API calls are offline.
 
 `x402_treazury-config` is the networkless token/registration helper. It mounts
-Hermes configuration and the MCP-token volume, never wallet state. Only activation
+Hermes configuration and `data/x402_treazury-auth/`, never wallet state. Only activation
 copies the serving token into Hermes and installs its twelve MCP entries.
 Disconnecting removes only managed entries and that token from the profile, preserving unrelated
 configuration. `x402_treazury-admin` runs offline inspection and record updates;
@@ -164,8 +164,8 @@ command cannot be repeated by Docker; retries are explicit operator actions.
 ## Secrets and execution boundary
 
 - x402_treazury runs as UID 10003 with a separate PID namespace and mount
-  namespace, no capabilities, a read-only root, and a private `x402_treazury-state`
-  volume. Hermes has neither that volume nor the server's private token mount.
+  namespace, no capabilities, a read-only root, and a private `x402_treazury-data`
+  named volume. Hermes has neither that directory nor the server's private token mount.
 - Tor exposes a group-restricted Unix SOCKS socket only in the x402_treazury
   container. Its control socket/cookie remains private to Tor. x402_treazury's
   native Tor policy and SOCKS authentication remain enabled. Its shared agent
@@ -189,12 +189,13 @@ command cannot be repeated by Docker; retries are explicit operator actions.
 
 Use `make down` to stop the deployment while retaining state.
 Use the deployment workflow for graceful financial shutdown; `make down` waits
-for native cleanup. Do not use `down -v`: `x402_treazury-state` contains wallet data and `x402_treazury-auth`
-contains the persistent MCP token. Back up wallet/recovery material using the
+for native cleanup. `x402_treazury-data` contains wallet data and `data/x402_treazury-auth/`
+contains the persistent MCP token. Ordinary `docker compose down` preserves this volume and token directory.
+`docker compose down -v` deletes the wallet volume; do not use it for routine shutdown. Back up wallet/recovery material using the
 upstream wallet guidance and protect backups as secrets.
 The default `wallet.key` is stored alongside encrypted wallet state; obtaining
 that directory gives access to both state and its decryption key. The native
-`wallet backup` command includes the encryption key. A full private-volume backup
+`wallet backup` command includes the encryption key. A full private-directory backup
 also preserves the deployment preparation record and catalog cache. A missing
 preparation record requires explicit preparation again; it never authorizes
 creation of a replacement wallet.

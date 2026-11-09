@@ -94,6 +94,8 @@ class ShutdownTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 stack.main()
             self.assertIn('down', run.call_args.args[0])
+            self.assertNotIn('--volumes', run.call_args.args[0])
+            self.assertNotIn('-v', run.call_args.args[0])
 
     def test_startup_reprovisions_auth_before_gateway_without_starting_funnel(self):
         sys.path.insert(0, str(ROOT / 'scripts'))
