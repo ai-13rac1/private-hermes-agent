@@ -106,7 +106,7 @@ Edit `config/x402_treazury/research_desk.toml` to adjust wallet funding policy,
 payment caps, source/tool selections, or instructions.
 
 You can restore this file to the defaults by removing it: `make x402_treazury-config`
-and new-wallet initialization will create this file if missing; the config command
+and `make x402_treazury-init` below will create this file if missing; both commands
 preserves an existing file. You can also edit the `config/x402_treazury/research_desk.toml`
 **before or after** `make x402_treazury-init`: initialization does not freeze the
 policy or require it to be finalized.
@@ -125,7 +125,8 @@ treasury and back it up before depositing ZEC:
 make x402_treazury-init
 ```
 
-After backing up and funding the displayed shielded receive address, run:
+After backing up and funding the displayed shielded receive address, ensure the
+stack is up (`make up`), then run:
 
 ```sh
 make x402_treazury-prepare
