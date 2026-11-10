@@ -103,6 +103,29 @@ storage preparation and does not require valid Hermes configuration. Wallet
 inspection stays in the networkless native treasury image, and financial jobs
 stay in its separate Tor-connected, non-restarting service.
 
+## Tool discovery default
+
+New Hermes profiles disable Hermes Tool Search (`tools.tool_search.enabled: "off"`).
+Enabled tools appear directly in the model's tool list, including built-in and
+plugin tools that Hermes would otherwise defer. x402_treazury retains its packaged
+endpoint-level discovery settings, so most research endpoints expose search/call
+wrappers instead of every API schema. This avoids nesting treasury discovery
+inside Hermes Tool Search; the web endpoint advertises its selected API tools
+directly. Enabling additional tools or plugins increases the model's tool context.
+
+Existing profiles retain their saved configuration. To apply this preference to
+an existing profile, gracefully stop the stack and use native offline maintenance:
+
+```sh
+make down
+python3 scripts/stack.py compose run --rm --no-deps setup config set tools.tool_search.enabled off
+make up
+```
+
+Use `auto` in place of `off` to restore Hermes Tool Search. Tool discovery settings
+control model presentation; they do not enable disabled tools or change MCP
+authentication, wallet policy, or network access.
+
 ## Host inference access
 
 See [updates and plugins](updates-and-plugins.md) for the version-check/update

@@ -36,6 +36,10 @@ terminal:
   env_passthrough: []
 # Staged x402_treazury activation adds its twelve MCP endpoints after preparation.
 mcp_servers: {}
+# Expose enabled tools directly; x402_treazury keeps its endpoint-level discovery.
+tools:
+  tool_search:
+    enabled: "off"
 # Usage uploads are independent of update notifications.
 telemetry:
   shared_metrics:

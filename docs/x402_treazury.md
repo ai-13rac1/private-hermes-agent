@@ -48,6 +48,14 @@ Wallet pools group requests by potential payer linkability: general research,
 personal context, health context, and financial interests. They are upstream
 payment policies, not separate MCP access-control identities.
 
+New Hermes profiles expose enabled tools directly with Hermes Tool Search off.
+The packaged treasury policy keeps `discover_on_demand = true` on all endpoints
+except web: those endpoints advertise discovery/call wrappers, while web
+advertises its selected API definitions. Endpoint search descriptions include
+category keywords to help the model choose where to search. See
+[tool discovery configuration](configuration.md#tool-discovery-default) for
+existing profiles and the additional built-in/plugin tool context this entails.
+
 ## Start Hermes first
 
 ```sh
