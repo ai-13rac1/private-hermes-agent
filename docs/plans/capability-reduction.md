@@ -1,110 +1,287 @@
-# Capability reduction
+# Capability and root privilege reduction
 
-The maintained [maintenance job contracts](../configuration.md) and
-[development workflow](../development.md) supersede earlier shared setup/
-configuration-repair and wallet-inspection prerequisites; historical qualification
-below describes its recorded revision.
+Status: proposed; implementation, runtime qualification and independent design
+acceptance are pending. This revision updates the plan only.
+Planning baseline: branch `main`, commit
+`0f19d8ee88a383f0e6de7eb72291761015136711`.
+Plan path: `docs/plans/capability-reduction.md`.
+Follow the [planning workflow](../planning-workflow.md) before implementation.
 
-Status: proposed for the main Hermes runtime. Consolidated offline setup already
-uses an explicit capability set; its current baseline is recorded below.
+## Intent and scope
 
-## Objective
+Reduce unnecessary Linux capabilities and retained root authority while preserving
+startup, execution, maintenance, ingress and shutdown. Address the concrete
+exposure of long-lived processes retaining initialization authority after their
+privileged work ends. Do not select grants merely because another deployment
+calls them minimal, or claim that changing UID removes every capability.
 
-Reduce Linux capabilities granted to the deployment where evidence shows they
-are unnecessary. Preserve normal startup, execution, maintenance, and shutdown.
-Do not select a capability set merely because another deployment calls it
-minimal.
+Prefer native privilege dropping and small explicit startup changes. Keep existing
+services, namespace ownership and Make workflows. Add no runtime privilege broker,
+state marker, recovery engine or generic privilege-management framework. Retain
+justified root processes and grants where the owning component requires them;
+this plan does not promise an entirely rootless stack.
 
-Resource and storage limits are outside this plan. Do not add CPU, memory, PID,
-disk, temporary-storage, or log-size limits as part of this work.
+Resource/storage limits, a read-only Hermes root filesystem, image upgrades,
+filesystem redesign, replacement supervision/SSH backends and financial-policy
+changes are outside scope. No CPU, memory, PID, disk, temporary-storage or log-size
+limits are included. Live Funnel enrollment/publication, payments, funded wallet
+operations and destructive private-state changes are not authorized by this plan.
 
 ## Current baseline
 
-The source of truth is `compose.yaml`, including its inherited service fields.
+The source of truth is [base Compose](../../compose.yaml), including inherited
+fields, and [the optional Funnel overlay](../../compose.funnel.yaml). These tables
+record source and packaged-startup inspection, not a live process/capability
+snapshot or a qualified reduction.
 
-| Service | Current capability configuration | Role |
+### Root inventory
+
+| Service | Starts as root? | Drop point and retained root processes |
 | --- | --- | --- |
-| `hermes` | Docker defaults minus `NET_ADMIN` and `NET_RAW` | Official root initialization, then unprivileged agent services |
-| `setup` | All dropped; `CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, `SETGID` added | Networkless ownership, SSH/auth/MCP provisioning; native config command drops to UID/GID 10000 |
-| `executor` | All dropped; `SETUID`, `SETGID`, `SYS_CHROOT` added | SSH daemon privilege separation; commands run as UID 10000 |
-| `agent-net`, `executor-net` | All dropped; `NET_ADMIN` added | Firewall, GRE, and route setup; stable namespace ownership |
-| `tor` | All dropped; `NET_ADMIN`, `SETUID`, `SETGID`, `CHOWN`, `FOWNER`, `DAC_OVERRIDE` added | Network and volume setup, followed by unprivileged Tor |
-| `teep` | All dropped | Unprivileged inference proxy |
+| `hermes` | Yes | The official dispatcher invokes `/init`; after bootstrap, `main-wrapper.sh` uses `s6-setuidgid hermes` for the requested gateway/CLI command (UID/GID 10000). Profile supervision also drops to Hermes. Outer s6 supervision and its no-op `main-hermes` sleep remain root; enabled dashboard code drops separately. |
+| `executor` | Yes | OpenSSH drops authenticated sessions/commands to runner UID/GID 10000. The listener retains root for privilege separation and session creation. |
+| `agent-net`, `executor-net` | Yes | No drop. After firewall, GRE and route installation, Python waits for signals as root with `NET_ADMIN`. |
+| `tor` | Yes | After network setup, state ownership repair and SOCKS-directory preparation, `su-exec 101:102` executes Tor. Full post-drop capability sets remain to be measured. |
+| `webapp-proxy` | Yes | After firewall installation, `setpriv` switches to UID/GID 10005, clears supplementary groups and removes bounding, inheritable and ambient capabilities before HAProxy. Its maintained contract also requires empty effective/permitted sets. |
+| Optional `tailscale` | Yes | No drop configured. The Python wrapper starts upstream `containerboot` in userspace networking mode; qualification must inspect the complete child tree. |
+| `setup`, `setup-storage`, `mcp-config` | Yes | No drop. Short networkless jobs exit after ownership/provisioning work; they bypass native image bootstrap. |
+| `teep` | No | Starts as UID/GID 10002. |
+| `x402_treazury`, `x402_treazury-setup`, `x402_treazury-inspect`, `x402_treazury-admin` | No | Start as UID/GID 10003; serving and online setup also receive group 102 for the private Tor socket. |
+| `hermes-config` | No | Starts the native configuration CLI directly as UID/GID 10000, independently of privileged setup. |
 
-The agent retains the official `/init` entrypoint and s6 supervision. Its
-default UID/GID is 10000. A previous networkless help-command check established
-that the current configuration starts, but did not establish a reduced minimum
-or exercise every long-running service and shutdown path.
+### Capability grants
 
-## Invariants
+| Service | Current container capability configuration |
+| --- | --- |
+| `hermes` | Docker defaults minus `NET_ADMIN` and `NET_RAW` |
+| `setup`, `setup-storage`, `mcp-config` | All dropped; `CHOWN`, `FOWNER`, `DAC_OVERRIDE` added |
+| `executor` | All dropped; `SETUID`, `SETGID`, `SYS_CHROOT` added |
+| `agent-net`, `executor-net` | All dropped; `NET_ADMIN` added |
+| `tor` | All dropped; `NET_ADMIN`, `SETUID`, `SETGID`, `CHOWN`, `FOWNER`, `DAC_OVERRIDE` added |
+| `webapp-proxy` | All dropped; `NET_ADMIN`, `SETUID`, `SETGID`, `SETPCAP` added for startup, then irreversibly removed from serving processes |
+| Optional `tailscale`, `teep`, all `x402_treazury` services/jobs, `hermes-config` | All dropped |
 
-- Keep the agent and executor in separate containers and network namespaces.
-- Give neither application `NET_ADMIN`, `NET_RAW`, host networking, privileged
-  mode, or Docker engine access.
-- Preserve pinned SSH identity, key-only login, remote code execution, and the
-  existing host/VM and MCP firewall boundaries.
-- Keep the trusted network initialization services separate from applications.
-- Retain the official Hermes initialization and privilege-dropping contract.
-- Preserve data, key identities, Tor guard state, and existing volume ownership
-  across restarts and upgrades.
-- Distinguish capabilities granted to a container from the effective,
-  permitted, inheritable, ambient, and bounding sets of its actual processes.
-  Initialization capabilities do not disappear simply because boot finishes.
+The earlier setup description is superseded: setup neither receives `SETUID`/
+`SETGID` nor runs native configuration after a UID transition. Preserve the
+[operation-scoped maintenance contracts](../configuration.md), including separate
+unprivileged configuration and profile-only disconnect paths.
 
-## Implementation sequence
+### Packaged contracts and evidence limits
 
-1. Record the resolved Compose configuration, pinned image identities, and
-   process capability sets in a disposable deployment. Inspect the scripts in
-   the actual pinned Hermes image; the reference checkout may differ.
-2. Audit s6 initialization, UID/GID changes, ownership and permission changes,
-   profile reconciliation, child supervision, and termination. Establish which
-   operations need capabilities and which already work through ownership.
-3. Replace the main Hermes service's broad default set with `cap_drop: [ALL]`
-   and an explicit, experimentally justified `cap_add` list. Treat `CHOWN`,
-   `SETUID`, `SETGID`, and `DAC_OVERRIDE` as candidates, not an established
-   answer. Investigate `FOWNER`, `KILL`, and other operations where required;
-   add nothing without an identified use and a reproducing check.
-4. Review the explicit `setup` set separately. Ownership/provisioning uses
-   `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`; the native configuration command uses
-   `SETUID`/`SETGID` to execute as UID/GID 10000 with supplementary groups cleared.
-   Preserve fresh and repeated setup, configuration repair, and MCP updates.
-5. Review the already explicit executor, network, and Tor sets independently.
-   Remove a capability only when the relevant lifecycle checks support doing
-   so. Verify that executed code and Tor retain no effective capabilities.
-6. Update Compose, owning documentation, and meaningful regression checks in
-   focused changes. Record why each retained capability is needed and what
-   would fail without it. Do not bundle an image upgrade or filesystem redesign.
+- Hermes: official v0.23.0, source
+  `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, base digest
+  `adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002`.
+  Packaged dispatcher, stage2 hook, main wrapper and profile supervision scripts
+  were inspected. Root bootstrap and service drops are distinct; Compose
+  `user: 10000` is not an established equivalent lifecycle.
+- Network/Tor: `dockurr/tor:0.4.9.16`, digest
+  `5b5c9e5036fff91bdf021ef225fdb0fc9ba4222425b9cbc1858a15681d220590`.
+  Our `components/network/network.py` owns setup and the Tor handoff.
+- HAProxy: `haproxy:3.4-alpine`, digest
+  `5312d37032c079c4937d45ef63758852434351f3b425a3703521fd999837abcf`.
+  `components/webapp/proxy-start.py` already demonstrates irreversible privilege
+  removal; preserve its [ingress contract](../webapp.md).
+- Optional Tailscale: digest
+  `ed6480b33c6eb67c9cbd203ed42b9fb57e361986725b6856def71b7a3d9e276c`
+  (recorded as 1.104.4). Userspace networking uses no capabilities, but
+  `data/tailscale` is root-owned mode 0700. Non-root `containerboot` behavior,
+  scratch paths and state access remain investigation items.
+- Executor: Alpine 3.24 with OpenSSH. Teep source:
+  `789918ea606826650447a7f1930b917521d3d135`; treasury source:
+  `4346421a1a4d0d53fc31e246ff6fde27f634a9f6`. Record actual built image IDs and
+  package versions for qualification; mutable tags are not exact build identities.
 
-## Qualification
+Earlier networkless help-command evidence does not establish minimum grants or
+qualify supervision/shutdown. The general smoke override bypasses native Hermes
+startup; use production entrypoints for lifecycle claims. No new runtime
+qualification has been performed for this proposal.
 
-Use disposable volumes and the pinned production entrypoint. The smoke-test
-override starts Hermes directly as UID 10000, bypassing s6, so it cannot by
-itself qualify changes to the main container's initialization capabilities.
+## Preserved boundaries and intended behavior
 
-Cover:
+- Keep Hermes/executor mounts, processes and network namespaces separate. Neither
+  application receives `NET_ADMIN`, `NET_RAW`, host networking, privileged mode or
+  Docker engine access. Preserve exact SSH, inference and selected MCP grants.
+- Preserve Tor-only public TCP/DNS paths, prohibited host/VM/private destinations,
+  unsupported UDP/non-loopback IPv6 denial and no direct fallback. Namespace owners
+  must stay alive after dropping privilege; do not replace them with exiting jobs.
+- Preserve official Hermes bootstrap, profile reconciliation, unprivileged gateway/
+  CLI services, supervision and termination. Minimize capabilities available to
+  retained root supervision without replacing the native lifecycle.
+- Preserve SSH identities, key-only login and unprivileged execution. Retain the
+  root listener if required by native OpenSSH privilege separation/session creation.
+- Keep trusted offline setup separate from execution. Inspection, backup, repair,
+  disconnect and shutdown must not acquire unrelated startup prerequisites.
+- Preserve Teep uplink/attestation behavior, wallet isolation, group-102 private
+  SOCKS access, authenticated ingress and exact-host/origin checks. Tailscale stays
+  userspace-only with no TUN or network capabilities. Preserve browser-content
+  controls and the authenticated operator's administrative authority.
+- Preserve current-format credentials, Tor guards, enrollment identity, wallets,
+  configuration and retry-safe initialization. Any ownership adjustment must
+  preserve existing state and have a concrete reverse operation for rollback.
+- Measure real/effective/saved UID/GID, supplementary groups and effective,
+  permitted, inheritable, ambient and bounding sets across process trees. A UID
+  drop or `no-new-privileges` alone is not proof of empty sets. Distinguish service
+  descendants from operator-controlled Docker exec.
 
-- Fresh provisioning and repeated bootstrap with existing keys and data.
-- Initialization with representative existing ownership and permissions.
-- CLI startup and the supported long-running gateway/profile lifecycle,
-  including clean termination without permission errors or abandoned children.
-- Container restart and recreation while retaining data and SSH identities.
-- Actual Hermes terminal and Python execution over SSH, including the
-  executor's unprivileged UID and capability sets.
-- The existing Tor, host/VM, embedded-DNS, and selected MCP integration checks.
-- Representative enabled features that use subprocesses or native tools.
-  A help command succeeding is insufficient evidence of compatibility.
+## Phases, commits and gates
 
-Run `make check` and `make test` for implementation changes, plus the focused
-production-entrypoint and lifecycle checks above. Do not deliberately run a
-fork bomb or resource-exhaustion workload to qualify capability reduction.
+Commit this plan before implementation. Each phase includes affected consumers,
+tests, maintained guides and concise evidence; commit coherent passing work at
+phase boundaries. Commit scopes below describe outcomes, not mandatory extra
+commits or permission to commit failing intermediate work.
 
-## Acceptance and rollback
+### P1 — Establish lifecycle evidence and accept the design
 
-Accept a reduction when the intended capabilities are absent, all supported
-operations pass, and shutdown and restart logs contain no relevant permission
-failures. If a capability is still needed, document the reason and retain it;
-functionality preservation takes precedence over a smaller-looking list.
+Capture effective base/Funnel Compose grants without retaining secrets, exact
+built images, packaged startup scripts and process identity/capability snapshots
+in disposable resources. Trace bootstrap, steady state, subprocess creation,
+profile operations, SSH authentication and shutdown. Check native guarantees
+before adding wrapper enforcement. Resolve these decisions before affected edits:
 
-Rollback by restoring the previous capability configuration and recreating
-affected services. Do not delete volumes, regenerate keys, disable
-`no-new-privileges`, or broaden network access to work around a failed reduction.
+- Which Hermes/maintenance operations need each capability? Hermes candidates
+  include `CHOWN`, `SETUID`, `SETGID`, `DAC_OVERRIDE`; investigate `FOWNER`, `KILL`
+  and other grants only against concrete uses and reproducing checks.
+- Can network owners irreversibly drop UID/groups/all capabilities after setup
+  while retaining readiness, namespace ownership and restart behavior? Prefer an
+  existing tool such as the proxy's `setpriv`; justify any startup `SETUID`,
+  `SETGID` or `SETPCAP` additions against the reduced steady-state authority.
+- What does Tor retain after `su-exec`? Can irreversible removal preserve state,
+  health/control paths and private socket ownership/access?
+- Does pinned Tailscale `containerboot` support a fully non-root userspace lifecycle?
+  Trace scratch paths, CLI socket permissions, state contents/ownership, child
+  cleanup and enrollment reuse. Select a fixed image user only after this check.
+  If unavailable, record the concrete blocker and deferral; do not add privileges
+  or replace upstream orchestration to force it.
+
+Commit scope: focused qualification support and the evidence-backed design,
+without production privilege changes. Update development guidance for reusable
+checks; add no evidence subsystem.
+
+**G1 — Independent design gate:** a fresh read-only reviewer inspects this plan,
+the exact baseline/evidence snapshot and native contracts. Confirm the smallest
+approach, retained root justifications, state preservation and allowed/forbidden
+checks. Resolve material findings before production edits; commit and re-review
+material design changes that invalidate acceptance.
+
+### P2 — Reduce application and maintenance capability grants
+
+Replace Hermes's Docker-default set with `cap_drop: [ALL]` and an experimentally
+justified explicit list. Audit root s6 supervision, ownership/profile operations,
+children and termination together. Review executor and offline maintenance sets
+separately; remove grants only when native lifecycle evidence supports doing so.
+Preserve unprivileged jobs and their mount scope; do not merge repair into setup.
+
+Consumers: `compose.yaml`, Hermes bootstrap/profile services, executor SSH,
+provisioning and maintenance callers. Commit scope: reductions, focused checks
+and retained-grant rationale in `docs/architecture.md`, `docs/configuration.md`
+and `docs/development.md` as applicable.
+
+Acceptance: fresh/repeated setup, representative existing permissions, CLI and
+gateway/profile lifecycle, SSH terminal/Python execution, repair/disconnect,
+restart/recreation and clean shutdown pass. Record retained root processes/grants
+and what fails without them. Executed code has empty effective, permitted,
+inheritable and ambient sets; measure and justify any bounding-set inheritance
+from native SSH rather than implying every set is cleared by the UID transition.
+
+**G2 — Application/maintenance gate:** fresh independent review of the phase
+snapshot, supervision/SSH failure paths and focused evidence before dependent
+work. Retaining a justified capability is acceptable.
+
+### P3 — End network initialization authority before steady state
+
+After installing firewall/GRE/routes, have `agent-net` and `executor-net` switch
+to an unprivileged identity, clear groups and irreversibly remove all capability
+sets while continuing to own namespaces and wait for signals. Initialization stays
+fail-closed. Verify Tor's post-drop sets and remove initialization authority where
+necessary using the simplest qualified handoff. Preserve the existing HAProxy drop.
+
+Consumers: network image/startup, Compose startup grants/tmpfs permissions, Tor
+health/control/SOCKS paths, dependency readiness and ingress. Commit scope:
+qualified handoffs, needed tools/grants, focused checks and architecture/development
+guidance. Justify temporary privilege additions; add no shared management framework.
+
+Acceptance: steady-state network owners and Tor are non-root with every capability
+set empty; readiness and clean stop work. Show allowed SSH/Teep/MCP/Tor/ingress
+paths and forbidden host/VM/private, embedded-DNS, unsupported UDP/IPv6 and direct
+egress paths before and after relevant Tor/network restart/recreation. Tor loss
+blocks public egress while established local grants remain usable. Exercise native
+namespace-sharing recovery; document required application recreation rather than
+adding a recovery engine.
+
+**G3 — Network authority gate:** fresh independent review of startup/steady-state
+grants, firewall order, namespace ownership, dependency failure/restart evidence
+and unchanged ingress isolation.
+
+### P4 — Qualify optional non-root Tailscale
+
+If G1 establishes native support, start the wrapper/child tree as a fixed
+unprivileged image user with all capabilities dropped. Change trusted storage
+preparation only for the Tailscale leaf and existing contents actually requiring
+ownership adjustment. Preserve enrollment bytes and retry behavior; diagnose
+missing material instead of reenrolling or deleting state.
+
+Consumers: `compose.funnel.yaml`, Tailscale image/wrapper, provisioning storage,
+Funnel lifecycle fixtures and webapp/configuration guidance. Commit scope: the
+coherent non-root lifecycle, state-preservation checks and docs, or an evidence-backed
+deferral with a concrete next action if native support is unavailable.
+
+Acceptance: disposable fixtures cover first-use state creation, existing state
+permissions, repeated setup, restart/recreation and clean child termination.
+Exact-name checks, empty forwarding on startup and reset on shutdown remain intact.
+Demonstrate non-root operation with empty capability sets and unchanged proxy/network
+grants. Controlled fixtures do not establish live enrollment/public HTTPS; record
+unavailable native/live coverage explicitly.
+
+**G4 — Optional ingress gate:** fresh independent review of native boot support,
+identity/ownership preservation and shutdown/failure behavior. If this is the final
+implementation phase, G4 and G5 may share one fresh review covering both scopes.
+
+### P5 — Combined qualification and completion
+
+Run `make check` and `make test` for the resulting implementation, plus focused
+production-entrypoint, process-set and lifecycle checks above. Validate effective
+base/Funnel Compose models for changed definitions. Every security phase needs
+allowed/forbidden-path evidence and relevant failure/restart checks before its
+gate, not just static inspection. Serialize fixtures sharing fixed networks; use
+disposable volumes and no operator secrets/state or paid calls. Do not run resource
+exhaustion workloads. Reuse still-valid evidence; repeat checks only for changed
+inputs, failures or unresolved concerns.
+
+**G5 — Final combined gate:** a fresh independent reviewer assesses the complete
+result, relevant unchanged security contracts, corrections, maintained guides and
+limitations. Supply the exact SHA/snapshot (including new files), baseline,
+evidence and earlier findings. Require tracing consumers/failure paths and
+challenging unnecessary machinery. Resolve material findings before completion;
+unavailable review/checks remain pending rather than passed.
+
+All independent reviews use newly spawned read-only subagents with fresh
+conversations (`fork_turns="none"`); reviewers author no changes. One review may
+cover a phase and gate when explicitly briefed for both. Record concise results,
+reviewed revisions, finding dispositions and missing coverage here while active.
+After final acceptance, preserve lasting contracts/evidence/limits in maintained
+guides, resolve inbound links and remove the completed plan in the completion or
+focused cleanup commit. Do not archive it or remove it while gates remain pending.
+
+## Related plans, acceptance and rollback
+
+[Read-only configuration](readonly-configuration.md) stays separate: preserve
+administrative writers/profile operations without adding configuration integrity
+work here. [Configurable MCP listeners](changing-mcp-listeners.md) shares readiness
+and maintenance consumers: qualify the implemented inventory and reconcile that
+plan if either implementation changes shared interfaces. [Browser content work](webapp-interactive-content.md)
+retains ingress and authenticated-operator authority; preserve its fixtures without
+implementing deferred browser features. These proposals are not implemented
+contracts or authority to expand this work.
+
+Accept a reduction only when intended privilege is absent, supported operations
+pass and relevant restart/shutdown logs show no permission failures. Document
+justified retained root/grants and explicit deferrals; a deferred item needs a
+concrete next action and must not be described as implemented. Runtime inventory
+and G1–G5 are pending; source inspection alone does not meet acceptance.
+
+Rollback restores prior image/Compose startup behavior and recreates affected
+services while preserving volumes, keys and configuration. For Tailscale ownership
+changes, document the exact prior leaf/content ownership and a trusted offline
+reverse operation before rollout; preserve enrollment bytes. Do not delete state,
+regenerate identities, disable `no-new-privileges` or broaden network access to
+work around a failed reduction.
