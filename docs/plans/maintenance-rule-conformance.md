@@ -1,8 +1,9 @@
 # Maintenance and initialization rule conformance
 
-Status: initial P1 fixes committed as `085230c` and qualified. Final combined
-review found three further P2 operation-scoping defects; corrections below are
-in progress. Initial independent design review of `fad9ab2` found no material findings.
+Status: complete. Original audit findings and additional rule violations found by
+fresh reviewers are corrected through `c0e69ed`, qualified and independently reviewed.
+Design reviews of `fad9ab2` and revised approach `47ae65a` found no material findings.
+The final fresh review of combined `48a0f9b..c0e69ed` found no material findings.
 Baseline: branch `webapp-private-content`, commit `48a0f9b3584ff2368de4f5af60832b957eb7e3e5`.
 
 ## Intent and current defects
@@ -207,3 +208,22 @@ missing/incomplete/mismatched. Complete matching public files/comments remain in
 This is the same file-publication principle, not a journal or recovery framework.
 Tests inject both publication interruptions and incomplete public files; real setup
 qualification verifies unchanged private/public identities on the actual bind target.
+
+## Completion
+
+Final fresh combined/P1 review of `48a0f9b..c0e69ed` found no material findings.
+The reviewer was explicitly instructed that any other noticed rule violation was
+valid, including unchanged consumers. It traced maintenance jobs/dispatch, token and
+disconnect authority, saved-state bookkeeping, native policy-aware administration,
+SSH publication and guides; independently ran six initialization tests and
+`git diff --check`. Runtime qualification was inspected from supplied evidence,
+not independently repeated. Its minor whole-data-mount wording correction is applied.
+
+Final validation: 88 unit tests/effective Compose models/compilation, real disposable
+build/wallet/storage qualification, and local links/diff checks passed. The last
+storage run includes atomically generated SSH keys on the actual bind filesystem
+and incomplete public-sidecar repair without private-key replacement. No operator
+state was changed, no funded operations or live Funnel enrollment were run, and
+unrelated files remain untouched. Existing live financial/attestation qualification
+limits remain; this work does not establish those outcomes or exhaustive absence of
+all possible repository defects.

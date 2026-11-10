@@ -315,7 +315,7 @@ wallet and SSH private-file permissions remain restrictive. On Linux, service-ow
 private directories may require privileged access or a container backup helper
 for backup. Do not loosen wallet permissions to make them readable to host tools.
 
-Only the trusted setup service mounts the whole `data/` parent. Hermes,
+Only trusted offline setup/storage and MCP jobs mount the whole `data/` parent. Hermes,
 the executor, financial services, Tor and Tailscale each receive their own leaf
 mounts. The executor never receives Hermes state, wallet files, or the MCP token.
 The shared Tor Unix-socket directory remains a Docker volume: it is runtime IPC,
