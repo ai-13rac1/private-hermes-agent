@@ -1,7 +1,8 @@
 # Maintenance and initialization rule conformance
 
-Status: P1 implemented and qualified; independent final combined review pending.
-Independent read-only design review of `fad9ab2` found no material findings.
+Status: initial P1 fixes committed as `085230c` and qualified. Final combined
+review found three further P2 operation-scoping defects; corrections below are
+in progress. Initial independent design review of `fad9ab2` found no material findings.
 Baseline: branch `webapp-private-content`, commit `48a0f9b3584ff2368de4f5af60832b957eb7e3e5`.
 
 ## Intent and current defects
@@ -115,3 +116,39 @@ All checks used public source and disposable projects, not operator wallet/profi
 state. Local link and diff checks accompany the final evidence update. The final
 review is explicitly asked to assess other rule violations it notices, not only
 regressions in this diff; material findings must be resolved before completion.
+
+## Final-review corrections
+
+The fresh final reviewer was explicitly asked to report other rule violations and
+found three valid P2 cases: `setup mcp` still requires webapp/wallet mounts;
+documented full storage repair still validates unrelated settings; and image build
+still runs initialization/check/settings gates. Final approval is pending correction.
+The earlier proposal to retain build validation was wrong for an artifact-only build.
+
+- Add a same-image trusted networkless `mcp-config` job for token/connect, with
+  Hermes profile, bind-data parent for its auth directory, and required public code;
+  no webapp credentials or wallet volume. Only the actual auth directory is prepared
+  by registration code; unrelated bind-data leaves are neither validated nor used.
+  Disconnect uses the existing unprivileged profile-only `hermes-config` job with
+  its entrypoint set to Python and the required public component code mounted read-only.
+  This avoids an unused auth mount blocking disconnect, an additional disconnect
+  service, or conditional fake config/secret mounts. Preserve root helper authority
+  for cross-UID token publication, and native UID 10000 for profile-only removal.
+- Add a declarative `setup-storage` job using the existing trusted setup image/code
+  and actual storage mounts, excluding webapp auth. Its purpose is explicit full
+  storage qualification, so actual invalid storage paths still fail. Replace the
+  documented repair command directly and include both new jobs in narrow maintenance
+  dispatch. No legacy aliases or general command-routing framework.
+- Make both Make/stack build artifact-only: no init, whole-deployment check, Settings
+  validation or post-build policy publication. Use inert unused serving interpolation
+  while retaining actual pinned build inputs. Launch continues to validate actual
+  settings. Add explicit `make x402_treazury-config` policy seeding via the existing
+  treasury helper/extractor; startup/new-wallet creation still seed if needed.
+  Update every affected operating/build workflow rather than hide state writes in build.
+
+Independently review the revised MCP mount/authority approach before implementation.
+Qualify root token publication and unprivileged disconnect, including missing unrelated
+webapp/auth paths, plus offline full storage repair and artifact dispatch under bad
+settings. Reuse still-valid atomic/default and wallet fixture evidence; rerun affected
+checks only. A fresh final reviewer will assess the corrected combined state and any
+other rules it notices, as the user requested. No financial/live state is involved.
