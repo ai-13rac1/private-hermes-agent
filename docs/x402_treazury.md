@@ -73,12 +73,14 @@ Startup runs cached image builds, including treasury, before setup or service
 changes. Use `make build` separately to build ahead of startup if desired.
 
 The image builds unmodified upstream commit
-`a05e4fb973a9e227eda36fa73eb4510a8d2e4263` using its Rust 1.99.1 toolchain and
+`ec4e2355fca8355273f0aa4490b13139c4136e22` using its Rust 1.99.1 toolchain and
 locked dependencies. The renderer changes only the Tor SOCKS endpoint, persistent
 state path, and HTTP Host allowlists. Wallet groups, rotation, funding, payment
 caps, source selection, and tool selection retain upstream policy. This revision
 fixes premature `wallet bootstrap` failure when Zcash funds are pending or cannot
-yet be assessed, including while swaps are progressing.
+yet be assessed, including while swaps are progressing. It also recognizes
+confirmed swap refunds from saved Zcash note history and resumes managed funding
+with fresh operations under current funding authority.
 
 Inspect the packaged default policy offline before funding:
 
@@ -157,7 +159,7 @@ including by an empty group created during an earlier startup. Simply changing
 a name in TOML creates a different group on startup; the old group and its funds
 remain saved but are no longer selected by the renamed references. Renaming a
 group also preserves its historical payer correlation. See the pinned upstream
-[wallet rename guide](https://github.com/mikeperry-tor/x402_treazury/blob/a05e4fb973a9e227eda36fa73eb4510a8d2e4263/docs/wallet-cli.md#rename-a-managed-wallet-group).
+[wallet rename guide](https://github.com/mikeperry-tor/x402_treazury/blob/ec4e2355fca8355273f0aa4490b13139c4136e22/docs/wallet-cli.md#rename-a-managed-wallet-group).
 
 ## Create the wallet and deposit when ready
 
@@ -216,7 +218,7 @@ Preview reports saved metadata and requested policy differences, not live
 balances or cryptographic verification. The upstream `wallet rename` command is
 also available for deliberate offline administration; it requires exclusive store
 ownership and a backup first. This update does not rename groups automatically.
-See the [pinned upstream wallet CLI guide](https://github.com/mikeperry-tor/x402_treazury/blob/a05e4fb973a9e227eda36fa73eb4510a8d2e4263/docs/wallet-cli.md)
+See the [pinned upstream wallet CLI guide](https://github.com/mikeperry-tor/x402_treazury/blob/ec4e2355fca8355273f0aa4490b13139c4136e22/docs/wallet-cli.md)
 for its constraints. Deployment policy remains packaged in the image; renaming a
 saved group alone does not change the configured wallet references.
 
