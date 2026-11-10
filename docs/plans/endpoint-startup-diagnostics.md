@@ -1,8 +1,8 @@
 # Endpoint startup diagnostics without failure deadlines
 
-Status: P1 implemented and focused qualification passed; final combined review
-and final evidence commit are pending. Independent read-only design review of
-`65fa7f1` found no blocking findings.
+Status: complete. P1 implemented in `b794f17`, qualified and independently
+reviewed. Independent read-only design review of `65fa7f1` and final combined/P1
+review of `c8cb1e2..b794f17` found no blocking findings.
 Baseline: branch `webapp-private-content`, commit `c8cb1e2aa6a94a3f5558d2f4272a8c9b8837f1e6`.
 
 ## Intent and current behavior
@@ -94,6 +94,10 @@ commit coherent completed work. Independent final combined/P1 review is required
   updated MCP helper is supplied to Hermes by the controller's existing Python
   command mechanism. Public fixture code is mounted only into disposable tests.
 - `git diff --check` and changed documentation local-link checks passed.
+- A fresh independent reviewer traced all affected consumers and the pinned native
+  diagnostic contract in combined `c8cb1e2..b794f17`, with no blocking findings.
+  The reviewer independently reran all nine endpoint-readiness unit tests and
+  `git diff --check`; the real-image runtime evidence was inspected, not repeated.
 
 The initial fixture used a missing catalog path, which is a process-wide native
 configuration error rather than the desired per-endpoint failure. The final fixture
