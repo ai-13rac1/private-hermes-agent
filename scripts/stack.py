@@ -70,6 +70,9 @@ def main_unlocked():
         if not path.is_file():
             raise RuntimeError('Run make init before starting the stack.')
         validate(json.loads(path.read_text()))
+        # Build shared images before setup consumes them or services are changed.
+        # Include treasury even before preparation: setup/config seeding need it.
+        run(command + ['--profile', 'x402_treazury', 'build'])
         render(config)
         if not config.funnel:
             stop_funnel(all_command)

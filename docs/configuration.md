@@ -70,7 +70,8 @@ for ownership/lock checks; it does not contain or invoke the wallet CLI.
 Its tool search path excludes the writable Hermes profile, and SSH provisioning
 uses `/usr/bin/ssh-keygen`, so profile-installed tools cannot run as setup's root.
 
-`make up` recreates the canonical `setup` container once, checks its exit code,
+`make up` first runs cached image builds for the selected deployment and treasury,
+then recreates the canonical `setup` container once, checks its exit code,
 and starts applications only after it succeeds. Initialization prepares storage,
 creates missing SSH identities, reconstructs missing or incomplete public key files from intact
 private keys, validates/preserves Hermes configuration, installs

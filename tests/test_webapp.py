@@ -1,6 +1,7 @@
 """Ingress selection, exact hosts, credential format and Funnel publication gates."""
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 import sys
 import unittest
@@ -102,7 +103,8 @@ class ShutdownTests(unittest.TestCase):
         import os
         with patch.dict(os.environ, {'TAILSCALE_FUNNEL_ENABLED':'bad', 'TEEP_HOST_PORT':'invalid'}), patch.object(sys,'argv',['stack.py','down']), patch.object(stack,'settings',side_effect=AssertionError('Unrelated settings validation')), patch.object(stack,'stop_funnel',side_effect=RuntimeError('test reset failure')), patch.object(stack,'run') as run:
             with self.assertRaises(RuntimeError):
-                stack.main()
+                # Shutdown behavior must not acquire the operator's real lock.
+                stack.main_unlocked()
             self.assertIn('down', run.call_args.args[0])
             self.assertNotIn('--volumes', run.call_args.args[0])
             self.assertNotIn('-v', run.call_args.args[0])
@@ -117,13 +119,16 @@ class ShutdownTests(unittest.TestCase):
             auth_path.parent.mkdir(parents=True)
             credentials = {'password_hash':hash_password('test-only-password'),'secret':'s'*64}
             auth_path.write_text(json.dumps(credentials))
-            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render'), patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run, patch.object(stack,'Controller'), patch.object(stack,'initialize_setup') as provision, patch.object(stack, 'initialize_research_config'):
+            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render') as render, patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run, patch.object(stack,'Controller'), patch.object(stack,'initialize_setup') as provision, patch.object(stack, 'initialize_research_config') as seed:
                 events = []
                 run.side_effect = lambda command: events.append(command)
                 provision.side_effect = lambda command: events.append(['offline-setup'])
                 stack.main()
                 commands = [call.args[0] for call in run.call_args_list]
                 provision.assert_called_once()
+                build = next(c for c in commands if c[-1] == 'build')
+                self.assertEqual(build[-3:], ['--profile', 'x402_treazury', 'build'])
+                self.assertLess(events.index(build), events.index(['offline-setup']))
                 gateway = next(i for i,c in enumerate(commands) if '--force-recreate' in c and c[-1]=='hermes')
                 self.assertLess(events.index(['offline-setup']), events.index(commands[gateway]))
                 self.assertTrue(any('--force-recreate' in c and 'webapp-proxy' in c for c in commands))
@@ -135,6 +140,20 @@ class ShutdownTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'test setup failure'):
                     stack.main()
                 self.assertFalse(any('up' in call.args[0] for call in run.call_args_list))
+                provision.reset_mock()
+                disable.reset_mock()
+                render.reset_mock()
+                seed.reset_mock()
+                def fail_build(command):
+                    if command[-1] == 'build':
+                        raise subprocess.CalledProcessError(1, command)
+                run.side_effect = fail_build
+                with self.assertRaises(subprocess.CalledProcessError):
+                    stack.main()
+                provision.assert_not_called()
+                disable.assert_not_called()
+                render.assert_not_called()
+                seed.assert_not_called()
 
     def test_funnel_startup_does_not_restart_setup_dependencies(self):
         sys.path.insert(0, str(ROOT / 'scripts'))
@@ -153,6 +172,9 @@ class ShutdownTests(unittest.TestCase):
                     patch.object(stack, 'run') as run:
                 stack.main()
                 setup.assert_called_once()
+                builds = [call.args[0] for call in run.call_args_list if call.args[0][-1] == 'build']
+                self.assertEqual(len(builds), 1)
+                self.assertIn('compose.funnel.yaml', builds[0])
                 startups = [call.args[0] for call in run.call_args_list if 'up' in call.args[0]]
                 self.assertTrue(any(command[-1] == 'tailscale' for command in startups))
                 self.assertTrue(all('--no-deps' in command for command in startups))

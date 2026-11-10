@@ -325,6 +325,11 @@ class NativeExecutionTests(unittest.TestCase):
 
 
 class ActivationTests(unittest.TestCase):
+    def setUp(self):
+        seed = patch('x402_treazury.initialize_research_config')
+        self.seed = seed.start()
+        self.addCleanup(seed.stop)
+
     def controller(self):
         controller = Controller(['docker', 'compose'])
         controller.events = []
@@ -365,6 +370,7 @@ class ActivationTests(unittest.TestCase):
         with patch('subprocess.check_output', return_value='0'):
             controller.prepare()
         events = controller.events
+        self.assertEqual(events[0], ('build', 'x402_treazury'))
         self.assertLess(events.index(('config', 'disconnect')), events.index(('wallet', 'prepare')))
         self.assertLess(events.index(('stop', '--timeout', '-1', 'x402_treazury')), events.index(('wallet', 'prepare')))
         self.assertLess(events.index(('client', 'probe')), events.index(('config', 'connect')))
@@ -387,12 +393,47 @@ class ActivationTests(unittest.TestCase):
             controller.admin = lambda action: (_ for _ in ()).throw(RuntimeError('invalid runtime policy'))
             with self.assertRaisesRegex(RuntimeError, 'invalid runtime policy'):
                 controller.prepare()
-            self.assertEqual(controller.events, [])
+            self.assertEqual(controller.events, [('build', 'x402_treazury')])
+
+    def test_failed_build_leaves_serving_and_preparation_untouched(self):
+        controller = self.controller()
+        controller.inspect = lambda: self.fail('Build failure must precede wallet inspection')
+        def failed(*args, **kwargs):
+            controller.events.append(args)
+            raise subprocess.CalledProcessError(1, ['docker', 'compose', *args])
+        controller.call = failed
+        with self.assertRaises(subprocess.CalledProcessError):
+            controller.prepare()
+        self.assertEqual(controller.events, [('build', 'x402_treazury')])
+        self.seed.assert_not_called()
+
+    def test_prepare_entrypoint_builds_before_seeding_missing_policy(self):
+        import x402_treazury
+        for fail in (False, True):
+            with self.subTest(build_fails=fail):
+                controller = self.controller()
+                def build(*args, **kwargs):
+                    controller.events.append(args)
+                    if fail:
+                        raise subprocess.CalledProcessError(1, list(args))
+                controller.call = build
+                self.seed.side_effect = lambda *args: controller.events.append(('seed-policy',))
+                with patch.object(sys, 'argv', ['x402_treazury.py', 'prepare']), \
+                        patch.object(x402_treazury, 'Controller', return_value=controller), \
+                        patch.object(x402_treazury, 'operation_lock', return_value=contextlib.nullcontext()):
+                    if fail:
+                        with self.assertRaises(subprocess.CalledProcessError):
+                            x402_treazury.main()
+                        self.assertEqual(controller.events, [('build', 'x402_treazury')])
+                    else:
+                        x402_treazury.main()
+                        self.assertEqual(controller.events[:2], [('build', 'x402_treazury'), ('seed-policy',)])
 
     def test_prepare_retries_activation_without_repeating_completed_wallet_work(self):
         controller = self.controller()
         with patch('subprocess.check_output', return_value='0'):
             controller.prepare()
+        self.assertEqual(controller.events[0], ('build', 'x402_treazury'))
         self.assertIn(('config', 'connect'), controller.events)
         self.assertFalse(any(event[0] in ('wallet', 'stop') for event in controller.events))
 

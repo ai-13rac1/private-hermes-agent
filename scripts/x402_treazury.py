@@ -230,6 +230,10 @@ class Controller:
     def prepare(self):
         if not self.running('hermes'):
             raise RuntimeError('Start Hermes with make up before preparing research services.')
+        # The setup/admin jobs share this image but have no build definition.
+        # Finish the cached build before inspection, disconnection or wallet work.
+        self.call('build', 'x402_treazury')
+        initialize_research_config(self.command, self.root)
         if self.inspect()['prepared']:
             self.activate()
             return
@@ -289,8 +293,6 @@ def main():
         initialize_research_config(controller.command, ROOT)
         print('Research policy is available at config/x402_treazury/research_desk.toml; existing policy was preserved.')
         return
-    if args.action == 'prepare':
-        initialize_research_config(controller.command, ROOT)
     if args.action == 'status':
         controller.admin('status')
     else:

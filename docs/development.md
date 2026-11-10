@@ -15,7 +15,15 @@ Read [AGENTS.md](../AGENTS.md) before changing the stack and follow the
 - `tests/fixtures/`: disposable test servers and configuration.
 
 `make init` creates missing local configuration and preserves existing files.
-`make up` runs it automatically. `make build` constructs images only: it does not
+`make up` runs it automatically, then runs cached Compose builds for the selected
+base/Funnel deployment and the treasury profile before offline setup or service
+changes. Treasury is included even before preparation because its image supplies
+the initial policy. `make x402_treazury-prepare` builds only the owning treasury
+service before inspecting preparation history or disconnecting/stopping services.
+The shared setup/admin image aliases need no separate build definitions.
+Build failure aborts the requested operation before those runtime changes.
+Docker owns build-input detection and caching; no freshness records are stored.
+Inspection, backup and shutdown do not invoke builds. `make build` constructs images only: it does not
 initialize operator state or validate deployment policy. Run `make check`
 explicitly for source/configuration qualification.
 

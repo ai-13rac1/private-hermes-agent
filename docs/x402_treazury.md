@@ -61,7 +61,6 @@ existing profiles and the additional built-in/plugin tool context this entails.
 ```sh
 make init
 # Set NEARAI_API_KEY in .env for the recommended default inference model.
-make build
 make up
 ```
 
@@ -70,6 +69,8 @@ Log in at `http://127.0.0.1:9120` with the credentials described in
 needed for this first startup. x402_treazury remains built into the main Compose
 file; the deployment workflow activates its profile after preparation. There is
 no additional overlay or enablement variable.
+Startup runs cached image builds, including treasury, before setup or service
+changes. Use `make build` separately to build ahead of startup if desired.
 
 The image builds unmodified upstream commit
 `a05e4fb973a9e227eda36fa73eb4510a8d2e4263` using its Rust 1.99.1 toolchain and
@@ -227,6 +228,11 @@ through Tor; there is no operator RPC endpoint setting:
 ```sh
 make x402_treazury-prepare
 ```
+
+The command first runs a cached build of the treasury image before reading
+preparation history, disconnecting services or doing wallet work. It may need
+Internet access; a build failure stops preparation without disturbing existing
+research services. It does not rebuild or restart the running Hermes image.
 
 If matching preparation already completed, this command retries serving and
 Hermes activation directly. Otherwise it runs, in order:

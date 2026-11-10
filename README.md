@@ -79,10 +79,9 @@ Set `NEARAI_API_KEY` in the generated root `.env` for the default NearAI
 run `make up` to choose another default. See [inference configuration](docs/configuration.md#host-inference-access)
 for model selection and the local OpenAI-compatible endpoint.
 
-Build and start:
+Start the stack (including cached image builds):
 
 ```sh
-make build
 make up
 ```
 
@@ -90,6 +89,8 @@ Open **http://127.0.0.1:9120** and log in as `admin` with the password saved in
 `config/webapp/password`. Tor bootstrapping can take several minutes.
 `make init` preserves existing configuration and credentials; add new settings
 to an existing `.env` explicitly using [`.env.example`](.env.example).
+Startup rebuilds changed image inputs and reuses Docker's cache for unchanged
+layers. Builds may need Internet access. Use `make build` to build ahead of time.
 
 Use the terminal client with:
 
@@ -135,6 +136,8 @@ make x402_treazury-prepare
 Preparation funds the API wallets, warms provider catalogs, and connects research
 tools without restarting Hermes. It can spend ZEC and USDC under the configured
 policy and may wait for spendable funds while the webapp remains available.
+It first runs a cached build of the treasury image; build failure leaves existing
+research services and preparation history untouched.
 Use `make x402_treazury-status` to inspect saved status.
 
 Live ZEC receipt, managed USDC funding, and funded catalog preparation remain

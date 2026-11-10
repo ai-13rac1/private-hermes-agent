@@ -43,7 +43,17 @@ make down
 make up
 ```
 
-Building first keeps the existing deployment available during the build. Image
+`make up` automatically runs cached builds for the selected deployment and treasury
+before setup or service changes. `make x402_treazury-prepare` also runs a cached
+treasury build before inspecting completion or changing research services. Changed
+Dockerfiles, source pins and copied inputs rebuild their affected layers; unchanged
+layers reuse Docker's cache. Build failure stops the operation before those runtime
+changes. Builds may need Internet access; these commands do not search for newer
+upstream commits or force base-image pulls. Status, backup and shutdown remain
+independent of builds.
+
+The explicit `make build` above builds all images, including optional Funnel, ahead
+of shutdown and keeps the existing deployment available during the build. Image
 construction does not run initialization or deployment-policy checks, so it remains
 available when operator configuration needs repair. `make up` validates and applies
 actual operator settings; use `make check` explicitly for development qualification.
