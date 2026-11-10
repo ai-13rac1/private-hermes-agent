@@ -7,7 +7,7 @@ check:
 	python3 scripts/stack.py config
 	docker compose -f compose.yaml -f compose.funnel.yaml config --quiet
 	python3 -m compileall -q components scripts tests
-build: init check
+build:
 	python3 scripts/stack.py build
 up: init
 	python3 scripts/stack.py up
@@ -23,7 +23,9 @@ test: check
 storage-test: check
 	python3 -u tests/storage_smoke.py
 
-.PHONY: x402_treazury-init x402_treazury-status x402_treazury-prepare
+.PHONY: x402_treazury-init x402_treazury-status x402_treazury-prepare x402_treazury-config
+x402_treazury-config:
+	python3 scripts/x402_treazury.py config
 x402_treazury-init:
 	python3 scripts/x402_treazury.py init
 x402_treazury-status:

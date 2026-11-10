@@ -110,7 +110,7 @@ def start_stack(setup=True):
     started = subprocess.check_output(['docker', 'inspect', identifier, '--format', '{{.State.StartedAt}}'], text=True)
     # The unfunded test fixture intentionally connects its MCP inventory before
     # startup. Production only connects after authenticated endpoint readiness.
-    compose('run', '--rm', '-T', '--no-deps', 'setup', 'mcp', 'connect')
+    compose('run', '--rm', '-T', '--no-deps', 'mcp-config', 'connect')
     compose('up', '-d', '--no-build', '--wait', '--no-deps', '--wait-timeout', '600',
             'tor', 'agent-net', 'executor-net', 'executor', 'teep', 'fixture', 'x402_treazury', 'hermes')
     assert subprocess.check_output(['docker', 'inspect', identifier, '--format', '{{.State.StartedAt}}'], text=True) == started

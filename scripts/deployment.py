@@ -40,7 +40,7 @@ def maintenance_compose(all_ingress=False):
 def maintenance_command(arguments):
     if not arguments:
         return False
-    if arguments[0] in ('logs', 'ps', 'top', 'port', 'exec', 'stop', 'down', 'rm', 'kill', 'pause', 'unpause'):
+    if arguments[0] in ('build', 'logs', 'ps', 'top', 'port', 'exec', 'stop', 'down', 'rm', 'kill', 'pause', 'unpause'):
         return True
     # Explicit networkless maintenance jobs; do not normalize arbitrary launches.
     if arguments[0] != 'run' or '--no-deps' not in arguments:
@@ -53,7 +53,8 @@ def maintenance_command(arguments):
             if next(options, None) is None:
                 return False
             continue
-        return value in ('hermes-config', 'x402_treazury-inspect', 'x402_treazury-admin')
+        return value in ('hermes-config', 'setup-storage', 'mcp-config',
+                         'x402_treazury-inspect', 'x402_treazury-admin')
     return False
 
 

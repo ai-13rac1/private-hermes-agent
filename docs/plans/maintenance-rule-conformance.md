@@ -152,3 +152,35 @@ webapp/auth paths, plus offline full storage repair and artifact dispatch under 
 settings. Reuse still-valid atomic/default and wallet fixture evidence; rerun affected
 checks only. A fresh final reviewer will assess the corrected combined state and any
 other rules it notices, as the user requested. No financial/live state is involved.
+
+## Correction qualification
+
+- Independent revised-design review of `47ae65a` found no material findings.
+- `make check`: 87 unit tests, effective base/Funnel Compose models and Python
+  compilation passed. Both artifact build dispatch forms bypass initialization and
+  Settings; actual application launch retains validation. New offline job dispatch
+  remains explicit, not a general runtime command parser.
+- `tests/build_smoke.py`: real Make image build passed from an isolated copy of public
+  source with invalid policy, Teep publication/command and wrong-type config/data
+  paths. All synthetic operator files remained byte-identical, no operation lock or
+  configuration was initialized, and no runtime containers or financial actions ran.
+- Revised `tests/storage_smoke.py` passed root token/connect with a missing webapp bind
+  in the setup model. UID10000 profile-only disconnect succeeded while the entire
+  bind-data directory (including auth) was temporarily absent, then reconnect succeeded.
+  Existing unrelated MCP entries and private identities remain preserved. This also
+  qualifies self-chown atomic publication without root for disconnect.
+- Setup no longer needs SETUID/SETGID after native config repair moved to its own UID;
+  those unused capabilities were removed. Real setup/default/SSH/lock/persistence checks
+  passed with the remaining CHOWN/FOWNER/DAC_OVERRIDE responsibilities. The new jobs
+  have no uplink, wallet/webapp binds for MCP, or new private-state ledger.
+- Maintained guides now document explicit policy seeding and artifact-only builds;
+  prior completed plans retain their historical evidence with supersession notes.
+  Final approval remains pending a fresh combined review including these corrections.
+
+- Final focused reruns also passed explicit `setup-storage` repair with the unrelated
+  webapp bind absent, and the explicit policy-seeding Make entrypoint preserving edits.
+  Networkless checks assert no routes/non-loopback addresses plus denied connections,
+  not an exact interface-name inventory: this Docker kernel creates harmless inactive
+  fallback tunnel devices even in a new `--network none` namespace. The overly strict
+  initial fixture assertion was corrected to test the actual connectivity contract;
+  process identities, zero capabilities, mount denials and connection denials remain.

@@ -24,6 +24,7 @@ def configure(mode, home, auth):
         raise SystemExit('Expected token, connect or disconnect')
     token = None
     if mode != 'disconnect':
+        auth.mkdir(mode=0o700, exist_ok=True)
         os.chown(auth, 10003, 10003)
         auth.chmod(0o700)
         token_path = auth / 'token'

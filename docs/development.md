@@ -14,13 +14,19 @@ Read [AGENTS.md](../AGENTS.md) before changing the stack and follow the
 - `scripts/`: host-side initialization and checks.
 - `tests/fixtures/`: disposable test servers and configuration.
 
-`make init` creates missing local configuration files and leaves existing files
-unchanged. The research TOML is seeded separately from the built treasury image
-after `make build` or before managed startup/treasury commands; see
-[research configuration](x402_treazury.md#edit-the-research-configuration). Add new settings explicitly using `.env.example` as a reference.
-`make build` and `make up` run it automatically. Saved-wallet commands do not run
-full initialization; new-wallet creation prepares only its Tor/network host inputs. Image pins and source revisions live
-in Compose and component Dockerfiles, not `.env`. Hermes and wallet state use native named volumes; other persistent files live
+`make init` creates missing local configuration and preserves existing files.
+`make up` runs it automatically. `make build` constructs images only: it does not
+initialize operator state or validate deployment policy. Run `make check`
+explicitly for source/configuration qualification.
+
+Research policy is seeded from the built image by `make x402_treazury-config`,
+managed startup or new-wallet creation; see
+[research configuration](x402_treazury.md#edit-the-research-configuration).
+Saved-wallet commands do not initialize unrelated state. New-wallet creation
+prepares only its Tor/network host inputs. Add new settings explicitly using
+`.env.example`; image/source pins remain in Compose and Dockerfiles.
+
+Hermes and wallet state use native named volumes; other persistent files live
 in `data/`. Runtime Tor socket IPC also uses a named volume. See
 [configuration and backups](configuration.md) before starting.
 

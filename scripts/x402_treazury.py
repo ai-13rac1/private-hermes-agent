@@ -80,8 +80,15 @@ class Controller:
         return self.call('ps', '-q', '--status', 'running', service, capture_output=True).stdout.strip()
 
     def configure(self, mode):
-        result = self.call('run', '--rm', '-T', '--no-deps', 'setup', 'mcp', mode,
-                           capture_output=True)
+        arguments = ['run', '--rm', '-T', '--no-deps']
+        if mode == 'disconnect':
+            # Removing profile registrations needs neither root nor treasury auth.
+            arguments += ['--entrypoint', '/opt/hermes/.venv/bin/python', '--volume',
+                          f'{self.root / "components"}:/opt/private-hermes:ro', 'hermes-config',
+                          '/opt/private-hermes/provisioning/setup.py', 'mcp', mode]
+        else:
+            arguments += ['mcp-config', mode]
+        result = self.call(*arguments, capture_output=True)
         return json.loads(result.stdout)['changed']
 
     def client_arguments(self, action):
@@ -272,11 +279,15 @@ class Controller:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('init', 'status', 'prepare'))
+    parser.add_argument('action', choices=('init', 'status', 'prepare', 'config'))
     args = parser.parse_args()
     # Only treasury and existing Hermes control RPC are used here. Actual treasury
     # policy is validated by its own admin/job, not unrelated ingress settings.
     controller = Controller(maintenance_compose())
+    if args.action == 'config':
+        initialize_research_config(controller.command, ROOT)
+        print('Research policy is available at config/x402_treazury/research_desk.toml; existing policy was preserved.')
+        return
     if args.action == 'prepare':
         initialize_research_config(controller.command, ROOT)
     if args.action == 'status':

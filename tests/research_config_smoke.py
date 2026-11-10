@@ -159,6 +159,11 @@ def main():
             auth.write_text('invalid auth')
             initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
             assert path.read_text() == changed
+            seeded = subprocess.run(['make', 'x402_treazury-config'], cwd=root,
+                                    env=dict(os.environ, COMPOSE_PROJECT_NAME=identity),
+                                    capture_output=True, text=True, check=True)
+            assert path.read_text() == changed
+            assert not (root / 'data').exists()
             # Broken unrelated network/storage/config paths must not be mounted
             # or initialized by saved-wallet inspection or repeated init.
             network = root / 'config/network/mcp-allowlist.json'

@@ -98,7 +98,7 @@ class PersistentStorageTests(unittest.TestCase):
                     self.assertTrue(mount['read_only'])
                     self.assertFalse(mount['bind']['create_host_path'])
                 if source == root:
-                    self.assertEqual(name, 'setup')
+                    self.assertIn(name, ('setup', 'setup-storage', 'mcp-config'))
                     self.assertEqual(service['network_mode'], 'none')
                 elif source.is_relative_to(root):
                     self.assertFalse(mount['bind']['create_host_path'])
@@ -108,7 +108,7 @@ class PersistentStorageTests(unittest.TestCase):
                     if name == 'hermes':
                         self.assertEqual(source.relative_to(root).as_posix(), 'ssh/agent')
         self.assertEqual(config_readers, {'x402_treazury', 'x402_treazury-setup', 'x402_treazury-admin'})
-        self.assertEqual(wallet_readers, {'setup', 'x402_treazury', 'x402_treazury-setup', 'x402_treazury-admin', 'x402_treazury-inspect'})
+        self.assertEqual(wallet_readers, {'setup', 'setup-storage', 'x402_treazury', 'x402_treazury-setup', 'x402_treazury-admin', 'x402_treazury-inspect'})
 
 
 if __name__ == '__main__':

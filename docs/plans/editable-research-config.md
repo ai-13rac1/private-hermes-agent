@@ -5,6 +5,9 @@ The later [operation-scoped state corrections](operation-scoped-state.md) supers
 this plan's build/coordinator eligibility binding and inspection-time serving
 policy checks; preparation history now survives unrelated updates, and offline
 inspection is separate from runtime policy validation.
+[Maintenance rule conformance](maintenance-rule-conformance.md) further separates
+artifact building from explicit policy seeding; historical build-time seeding
+evidence below describes its recorded revision.
 Independent read-only design review of `66c641b` found no material blockers;
 its recommendations on validation, safe seeding and rename ordering are adopted.
 Baseline: branch `webapp-private-content`, commit `80d267f6e177d18f39dd59ee56cb33d9f9d14e54`.

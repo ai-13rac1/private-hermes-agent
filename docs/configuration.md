@@ -57,12 +57,14 @@ does not implement the separate read-only Hermes configuration plan.
 ## Offline setup and maintenance
 
 Offline jobs have explicit mount requirements: `setup` provisions the stack,
-`hermes-config` repairs only Hermes configuration, `x402_treazury-inspect` reads
+`hermes-config` repairs only Hermes configuration, `setup-storage` checks the
+full storage layout, `mcp-config` publishes MCP credentials/registrations, and
+`x402_treazury-inspect` reads
 saved wallet state, and `x402_treazury-admin` handles policy-aware administration.
 `x402_treazury-setup` performs Tor-routed wallet initialization/preparation. The offline `setup` service uses the same derived pinned
 Hermes image as the agent, with component scripts mounted read-only. No custom
 setup image or combined Hermes/treasury image is built. It has a read-only root,
-no network, and only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, and `SETGID`.
+no network, and only `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`.
 It is trusted with the persistent directories, Hermes state, and wallet volume
 for ownership/lock checks; it does not contain or invoke the wallet CLI.
 Its tool search path excludes the writable Hermes profile, and SSH provisioning
@@ -97,23 +99,27 @@ deliberate full storage qualification:
 
 ```sh
 python3 scripts/stack.py compose run --rm --no-deps hermes-config set model.default 'neardirect:z-ai/glm-5.3-flash-long'
-python3 scripts/stack.py compose run --rm --no-deps setup storage
+python3 scripts/stack.py compose run --rm --no-deps setup-storage
 ```
 
 `hermes-config` invokes the native configuration CLI directly as UID/GID 10000,
 with only the Hermes profile volume, no networking and no startup/bootstrap
 validation. It can repair incompatible settings without mounting webapp credentials,
-executor paths or the wallet. `setup storage` deliberately prepares the full storage
+executor paths or the wallet. `setup-storage` deliberately prepares the full storage
 layout and checks native-volume locks; ordinary saved-wallet inspection does not
-run or depend on it. Trusted `setup mcp token|connect|disconnect` handles registration
-without rerunning SSH/auth initialization.
+run or depend on it. Trusted networkless `mcp-config token|connect` publishes the MCP credential and
+registrations with the profile and bind-data auth storage, without webapp credentials
+or wallet mounts. The controller removes registrations using the profile-only
+`hermes-config` job as UID 10000 with public helper code; missing auth/bind-data paths
+do not block disconnection. It does not rerun SSH/auth initialization.
 
 The Compose wrapper bypasses unrelated deployment-settings validation for logs,
 inspection, exec/control of existing containers, and documented `run --rm --no-deps`
 maintenance jobs. It includes the Funnel overlay so existing optional services are
 visible. Process-local inert values satisfy unused ingress/inference interpolation;
-`.env` and running container environments are unchanged. Normal launch/build/config
-paths still validate actual operator settings. `make down` uses the same maintenance
+`.env` and running container environments are unchanged. Normal launch and deployment validation still use actual operator settings.
+Raw `compose config` inspects actual values through native Compose validation.
+Image builds use only source/build inputs and do not initialize operator state. `make down` uses the same maintenance
 interpolation and includes all ingress resources, even after a malformed Teep port
 or command setting. Existing native policy checks still guard actual application
 startup. Malformed Compose/ dotenv syntax or ambiguous project identity can still

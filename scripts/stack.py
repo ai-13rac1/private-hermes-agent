@@ -37,6 +37,9 @@ def main_unlocked():
     parser.add_argument('action', choices=('build', 'up', 'down', 'config', 'compose'))
     parser.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    if args.action == 'build':
+        run(maintenance_compose(all_ingress=True) + ['--profile', '*', 'build'])
+        return
     if args.action == 'down':
         all_command = maintenance_compose(all_ingress=True)
         try:
@@ -61,9 +64,6 @@ def main_unlocked():
         run(command + args.arguments)
     elif args.action == 'config':
         run(command + ['config', '--quiet'])
-    elif args.action == 'build':
-        run(command + ['--profile', '*', 'build'])
-        initialize_research_config(command, ROOT)
     else:
         run([sys.executable, 'scripts/preflight.py', *(['--funnel'] if config.funnel else [])])
         path = ROOT / 'config/webapp/auth.json'

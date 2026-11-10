@@ -85,9 +85,15 @@ docker run --rm --network none private-hermes-x402_treazury:local config show
 
 ## Edit the research configuration
 
-After a successful `make build`, the policy is available at
-`config/x402_treazury/research_desk.toml`. Managed startup and treasury commands
-also create it if missing, using the already built image. `make init` alone does
+After building, explicitly seed the policy without creating a wallet:
+
+```sh
+make x402_treazury-config
+```
+
+The policy is then available at `config/x402_treazury/research_desk.toml`.
+Managed startup and new-wallet creation also seed it if missing from the built image.
+Image builds themselves do not write operator configuration. `make init` alone does
 not create this file before the image exists. Initialization never replaces an
 existing file; image updates also leave your edits intact. Compare new packaged
 defaults with your saved policy when upgrading.
@@ -307,10 +313,12 @@ directory in the same persistent directory. It never uses `--direct`. Cached ent
 remain subject to native freshness, provenance, and revalidation rules; warming
 is not a promise that future help, dynamic discovery or API calls are offline.
 
-`setup mcp` provides networkless token/registration operations in the stock
-Hermes setup service. The setup service also prepares storage and has wallet-volume
-access for ownership/lock checks, but does not run native wallet commands. Only activation
-copies the serving token into Hermes and installs its twelve MCP entries.
+`mcp-config` provides networkless token/registration publication with the Hermes
+profile, bind-data parent for its auth directory, and read-only public helper code.
+It examines only that auth directory and mounts no webapp credentials or wallet. Disconnection runs as UID 10000 with only the profile
+and public helper code, so missing auth storage cannot block removal. Trusted setup
+also prepares storage and has wallet-volume access for ownership/lock checks, but
+does not run native wallet commands. Only activation copies the serving token into Hermes and installs its twelve MCP entries.
 Disconnecting removes only managed entries and that token from the profile, preserving unrelated
 configuration. `x402_treazury-inspect` has only the native wallet volume and image
 for saved-state inspection, so invalid policy paths cannot block access. Policy-aware

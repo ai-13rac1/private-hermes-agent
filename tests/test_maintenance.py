@@ -30,7 +30,8 @@ class MaintenanceScopeTests(unittest.TestCase):
         self.assertIn('compose.funnel.yaml', command)
 
     def test_logs_and_explicit_offline_jobs_skip_settings_but_launch_does_not(self):
-        commands = (['logs', 'hermes'], ['exec', '-T', 'hermes', 'true'],
+        commands = (['build', 'hermes'], ['run', '--rm', '--no-deps', 'setup-storage'],
+                    ['run', '--rm', '--no-deps', 'mcp-config', 'token'], ['logs', 'hermes'], ['exec', '-T', 'hermes', 'true'],
                     ['run', '--rm', '--no-deps', 'hermes-config', 'set', 'terminal.backend', 'ssh'],
                     ['run', '--rm', '-T', '--no-deps', '--entrypoint', '/usr/local/bin/x402_treazury',
                      'x402_treazury-admin', 'wallet', 'preview'],
@@ -49,6 +50,15 @@ class MaintenanceScopeTests(unittest.TestCase):
                     patch.object(stack, 'run') as run, self.assertRaisesRegex(ValueError, 'invalid launch policy'):
                 stack.main()
             run.assert_not_called()
+
+    def test_artifact_build_needs_no_initialization_or_deployment_policy(self):
+        with patch.dict(os.environ, BAD), patch.object(sys, 'argv', ['stack.py', 'build']), \
+                patch.object(stack, 'settings', side_effect=AssertionError('unrelated policy gate')), \
+                patch.object(stack, 'initialize_setup', side_effect=AssertionError('state initialization')), \
+                patch.object(stack, 'initialize_research_config', side_effect=AssertionError('policy publication')), \
+                patch.object(stack, 'run') as run:
+            stack.main()
+        self.assertEqual(run.call_args.args[0][-3:], ['--profile', '*', 'build'])
 
     def test_raw_model_inspection_preserves_actual_settings_without_policy_gate(self):
         with patch.dict(os.environ, BAD), patch.object(sys, 'argv', ['stack.py', 'compose', 'config']), \

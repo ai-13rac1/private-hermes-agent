@@ -3,6 +3,8 @@
 import json
 import secrets
 import subprocess
+import tempfile
+from pathlib import Path
 import smoke
 
 
@@ -14,7 +16,7 @@ def main():
     marker = secrets.token_hex(16)
     targets = [('setup', '/opt/hermes/.venv/bin/python', '/opt/data'),
                ('x402_treazury-admin', 'python3', '/var/lib/x402')]
-    with smoke.storage_fixture():
+    with smoke.storage_fixture() as bind_root:
         try:
             # The stock image normally puts this user-writable directory on
             # PATH. Root setup must use its own trusted tool search path.
@@ -48,6 +50,8 @@ assert not list(Path('/opt/data').glob('tmp*'))
                 smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint', interpreter, job, '-c',
                               "import os,socket; from pathlib import Path; "
                               f"assert os.getuid()=={uid}; "
+                              "assert len(Path('/proc/net/route').read_text().splitlines())==1; "
+                              "assert all(l.split()[-1]=='lo' for l in Path('/proc/net/if_inet6').read_text().splitlines()); "
                               f"assert not any(Path(p).exists() for p in {forbidden!r}); "
                               "assert int(next(l.split()[1] for l in Path('/proc/self/status').read_text().splitlines() if l.startswith('CapEff:')),16)==0; "
                               "s=socket.socket(); s.settimeout(.5); assert s.connect_ex(('10.203.83.3',8337))!=0; s.close()")
@@ -131,11 +135,28 @@ assert row['api_url'] == 'http://10.203.83.3:8337/v1'
             print('PASS: failed setup blocks startup; independent wallet inspection and offline config repair remain available', flush=True)
             # Maintenance must reuse successful setup, without rerunning init
             # and disconnecting a live research configuration.
-            smoke.compose('run', '--rm', '-T', '--no-deps', 'setup', 'mcp', 'connect')
+            smoke.compose('run', '--rm', '-T', '--no-deps', 'mcp-config', 'connect')
             smoke.compose('run', '--rm', '-T', '--no-deps', 'x402_treazury-inspect', 'status')
             smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
                           '/opt/hermes/.venv/bin/python', 'setup', '-c',
                           "import hermes_yaml as yaml; from pathlib import Path; c=yaml.safe_load(Path('/opt/data/config.yaml').read_text()); assert len([n for n in c['mcp_servers'] if n.startswith('x402_treazury_')])==12")
+            from x402_treazury import Controller
+            with tempfile.TemporaryDirectory(prefix='private-hermes-mcp-maintenance-') as folder:
+                override = Path(folder) / 'bad-webapp.json'
+                override.write_text(json.dumps({'services': {'setup': {'volumes': [
+                    {'type': 'bind', 'source': str(Path(folder) / 'absent-webapp'),
+                     'target': '/run/webapp', 'read_only': True, 'bind': {'create_host_path': False}}]}}}))
+                controller = Controller([*smoke.COMPOSE, '-f', str(override)])
+                controller.call('run', '--rm', '-T', '--no-deps', 'setup-storage', capture_output=True)
+                controller.configure('connect')
+                held = bind_root.with_name(bind_root.name + '-held')
+                bind_root.rename(held)
+                try:
+                    assert controller.configure('disconnect')
+                finally:
+                    held.rename(bind_root)
+                controller.configure('connect')
+            print('PASS: root MCP publication needs no webapp/wallet mount; UID10000 disconnect publishes profile changes without any bind-data/auth path', flush=True)
             print('PASS: repeated offline setup preserves SSH identities and native CLI settings; wallet stays absent; maintenance reuses completed setup', flush=True)
             for service, interpreter, root in targets:
                 script = """import sqlite3, sys

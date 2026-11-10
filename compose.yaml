@@ -42,7 +42,7 @@ x-network: &network
     start_period: 20s
 
 services:
-  setup:
+  setup: &setup-job
     image: *hermes-image
     build: *hermes-build
     user: "0:0"
@@ -52,7 +52,7 @@ services:
     entrypoint: [/opt/hermes/.venv/bin/python, /opt/private-hermes/provisioning/setup.py]
     command: [init]
     cap_drop: [ALL]
-    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
     security_opt: [no-new-privileges:true]
     read_only: true
     tmpfs: [/tmp:mode=1777]
@@ -79,6 +79,54 @@ services:
       - type: bind
         source: ./config/webapp
         target: /run/webapp
+        read_only: true
+        bind: {create_host_path: false}
+
+  setup-storage:
+    <<: *setup-job
+    profiles: [maintenance]
+    command: [storage]
+    environment:
+      HERMES_HOME: /opt/data
+      PATH: /opt/hermes/bin:/opt/hermes/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - hermes-data:/opt/data
+      - x402_treazury-data:/var/lib/x402
+      - type: bind
+        source: ./data
+        target: /persistent-data
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./components
+        target: /opt/private-hermes
+        read_only: true
+        bind: {create_host_path: false}
+
+  mcp-config:
+    profiles: [maintenance]
+    image: *hermes-image
+    user: "0:0"
+    network_mode: none
+    working_dir: /opt/hermes
+    entrypoint: [/opt/hermes/.venv/bin/python, /opt/private-hermes/provisioning/setup.py, mcp]
+    command: [token]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:mode=1777]
+    environment:
+      HERMES_HOME: /opt/data
+      PATH: /opt/hermes/bin:/opt/hermes/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - hermes-data:/opt/data
+      - type: bind
+        source: ./data
+        target: /persistent-data
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./components
+        target: /opt/private-hermes
         read_only: true
         bind: {create_host_path: false}
 

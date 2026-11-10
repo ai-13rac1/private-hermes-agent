@@ -1,4 +1,16 @@
 services:
+  setup-storage:
+    volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}
+        target: /persistent-data
+        bind: {create_host_path: false}
+  mcp-config:
+    volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}
+        target: /persistent-data
+        bind: {create_host_path: false}
   setup:
     environment:
       HERMES_DEFAULT_MODEL: ""

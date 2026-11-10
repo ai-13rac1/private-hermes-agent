@@ -43,7 +43,10 @@ make down
 make up
 ```
 
-Building first keeps the existing deployment available during the build.
+Building first keeps the existing deployment available during the build. Image
+construction does not run initialization or deployment-policy checks, so it remains
+available when operator configuration needs repair. `make up` validates and applies
+actual operator settings; use `make check` explicitly for development qualification.
 `make down` waits for graceful financial shutdown and preserves named volumes
 and bind data. `make up` reapplies offline setup and verifies research readiness.
 Back up configuration, bind data, and the Hermes/treasury named volumes before
