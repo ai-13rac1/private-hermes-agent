@@ -126,8 +126,16 @@ treasury and back it up before depositing ZEC:
 make x402_treazury-init
 ```
 
-After backing up and funding the displayed shielded receive address, ensure the
-stack is up (`make up`), then run:
+The `config/x402_treazury/research_desk.toml` file specifies four wallets
+initially funded with a randomized amount from $2-4. This means that you need to
+deposit at least $16 in ZEC to ensure all four wallets are funded. You can
+reduce this requirement by changing the config file to use fewer wallets. Removing the endpoints by themselves will not eliminate the wallet funding
+requirement; instead you must remove wallet definitions and then either remove those endpoints or point them at different wallets.
+
+For example, changing all endpoints to use the `general` wallet and removing `personal`, `health`, and `financial` wallets will reduce the ZEC needed to fund the research desk down to ~$5, at the cost of associating all of your usage together under a single rotating USDC wallet.
+
+After adjusting your wallet selection and funding the displayed shielded receive
+address with sufficient ZEC, ensure the stack is up (`make up`), then run:
 
 ```sh
 make x402_treazury-prepare
