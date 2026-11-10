@@ -102,8 +102,24 @@ Funnel is disabled by default and requires explicit enrollment and activation.
 
 ## Enable paid research when ready
 
-Follow the [x402_treazury onboarding guide](docs/x402_treazury.md) to inspect the
-funding policy, create a treasury, and back it up before depositing ZEC:
+Edit `config/x402_treazury/research_desk.toml` to adjust wallet funding policy,
+payment caps, source/tool selections, or instructions.
+
+You can restore this file to the defaults by removing it: `make x402_treazury-config`
+and new-wallet initialization will create this file if missing; the config command
+preserves an existing file. You can also edit the `config/x402_treazury/research_desk.toml`
+**before or after** `make x402_treazury-init`: initialization does not freeze the
+policy or require it to be finalized.
+
+For config changes after the stack is running, stop with `make down`, edit, then
+restart with `make up`; there is no hot reload. Starting with a changed policy
+can spend funds under its automatic funding settings. Keep the deployment's
+network, state paths, and listener settings intact, and use the documented
+procedure when renaming wallet groups to preserve their wallets. See
+[configuration and wallet renaming](docs/x402_treazury.md#edit-the-research-configuration).
+
+Follow the [x402_treazury onboarding guide](docs/x402_treazury.md) to create a
+treasury and back it up before depositing ZEC:
 
 ```sh
 make x402_treazury-init
@@ -118,9 +134,7 @@ make x402_treazury-prepare
 Preparation funds the API wallets, warms provider catalogs, and connects research
 tools without restarting Hermes. It can spend ZEC and USDC under the configured
 policy and may wait for spendable funds while the webapp remains available.
-Use `make x402_treazury-status` to inspect saved status. Research policy is editable
-in `config/x402_treazury/research_desk.toml` after building; see
-[configuration and wallet renaming](docs/x402_treazury.md#edit-the-research-configuration).
+Use `make x402_treazury-status` to inspect saved status.
 
 Live ZEC receipt, managed USDC funding, and funded catalog preparation remain
 unqualified in this deployment wrapper; local fixture tests do not establish
