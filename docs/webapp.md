@@ -176,7 +176,7 @@ Provision the optional browser-test environment explicitly:
 ```sh
 python3 -m venv /tmp/private-hermes-browser-tests
 /tmp/private-hermes-browser-tests/bin/pip install -r tests/requirements-browser.txt
-/tmp/private-hermes-browser-tests/bin/python -m playwright install chromium
+/tmp/private-hermes-browser-tests/bin/python -m playwright install chromium firefox webkit
 WEBAPP_BROWSER_PYTHON=/tmp/private-hermes-browser-tests/bin/python make webapp-test
 ```
 

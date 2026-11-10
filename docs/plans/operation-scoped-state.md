@@ -1,7 +1,7 @@
 # Operation-scoped validation and persistent state
 
-Status: P1 implemented; focused qualification and independent combined review
-passed. Extended browser qualification and final evidence/commit are pending.
+Status: complete. P1 implemented in `984a2b1`, validated and independently
+reviewed. Final browser qualification passed; this document records the results.
 Independent read-only design review of `555febd` found no blocking findings.
 Baseline: branch `webapp-private-content`, commit `5b29ec666804235d912fd1cc6e09746b6b5540da`.
 
@@ -90,13 +90,18 @@ plans retain their scope; no new configuration-integrity enforcement is added.
   and persistence across ordinary Compose down/recreation passed.
 - Changed documentation links and `git diff --check` passed.
 - Fresh read-only combined P1 review of the implementation snapshot based on
-  `555febd` (including the new interruption tests and moved public auth fixture)
+  `555febd`, committed as `984a2b1` (including new interruption tests and the moved
+  public auth fixture)
   found no material findings. Reviewer inspected all changed consumers and pinned
   native CLI contracts; runtime tests were not independently repeated.
 - Browser auth qualification passed local/simulated-HTTPS login, session
   persistence, explicit rotation, native auth guards, Host/origin checks and
-  executor isolation. Full browser suite rerun is pending with the complete
-  installed browser cache. Fixture initialization now sets its disposable mount
+  executor isolation. Full `tests/webapp_smoke.py` passed with the installed
+  Playwright interpreter and complete browser cache after successful image builds
+  and preflight. Chromium, Firefox and WebKit covered all four modes over local
+  and simulated HTTPS ingress, stale consent/policy refusal, Tor loss without
+  direct fallback and recovery, native twelve-endpoint MCP activation/disconnection,
+  and invalid-credential refusal. Fixture initialization sets disposable mount
   variables before Compose model extraction; no operator auth is mounted.
 
 No journals, recovery services, eligibility replacements or additional persistent
