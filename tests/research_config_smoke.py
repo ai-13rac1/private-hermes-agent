@@ -180,6 +180,10 @@ def main():
                 result = subprocess.run(['make', target], cwd=root, env=environment,
                                         capture_output=True, text=True, check=True)
                 assert address in result.stdout
+            meta = ('import sys; sys.path.insert(0,' + repr(str(ROOT / 'scripts')) + '); '
+                    'from x402_treazury import Controller; Controller(' + repr(command) + ').admin("activation-failed")')
+            subprocess.run([sys.executable, '-c', meta], capture_output=True, text=True, check=True)
+            assert inspect()['record']['activation'] == 'activation-failed'
             assert auth.read_text() == 'invalid auth'
             assert not (auth.parent / 'password').exists()
             assert inspect()['prepared']

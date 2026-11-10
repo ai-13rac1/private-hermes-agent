@@ -280,7 +280,7 @@ After updating Docker Desktop or the engine's file-sharing backend, test the
 host-backed `data/` filesystem directly with:
 
 ```sh
-docker compose run --rm --no-deps setup check-filesystem /persistent-data
+python3 scripts/stack.py compose run --rm --no-deps setup-storage check-filesystem /persistent-data
 ```
 
 This creates and removes temporary probe files without changing application data

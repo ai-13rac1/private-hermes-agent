@@ -31,6 +31,7 @@ class MaintenanceScopeTests(unittest.TestCase):
 
     def test_logs_and_explicit_offline_jobs_skip_settings_but_launch_does_not(self):
         commands = (['build', 'hermes'], ['run', '--rm', '--no-deps', 'setup-storage'],
+                    ['run', '--rm', '--no-deps', 'setup-storage', 'check-filesystem', '/persistent-data'],
                     ['run', '--rm', '--no-deps', 'mcp-config', 'token'], ['logs', 'hermes'], ['exec', '-T', 'hermes', 'true'],
                     ['run', '--rm', '--no-deps', 'hermes-config', 'set', 'terminal.backend', 'ssh'],
                     ['run', '--rm', '-T', '--no-deps', '--entrypoint', '/usr/local/bin/x402_treazury',
@@ -78,9 +79,10 @@ class MaintenanceScopeTests(unittest.TestCase):
         controller.admin.assert_called_once_with('status')
         run.assert_not_called()
         seed.assert_not_called()
-        with patch.object(controller, 'call', return_value=None) as call:
-            Controller.admin(controller, 'inspect')
-        self.assertEqual(call.call_args.args[-2:], ('x402_treazury-inspect', 'inspect'))
+        for action in ('inspect', 'status', 'connected', 'disconnected', 'activation-failed'):
+            with patch.object(controller, 'call', return_value=None) as call:
+                Controller.admin(controller, action)
+            self.assertEqual(call.call_args.args[-2:], ('x402_treazury-inspect', action))
 
     def test_bad_component_config_does_not_block_shared_operation_lock(self):
         with tempfile.TemporaryDirectory() as folder:

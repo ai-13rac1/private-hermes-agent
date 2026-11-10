@@ -184,3 +184,17 @@ other rules it notices, as the user requested. No financial/live state is involv
   fallback tunnel devices even in a new `--network none` namespace. The overly strict
   initial fixture assertion was corrected to test the actual connectivity contract;
   process identities, zero capabilities, mount denials and connection denials remain.
+
+## Combined review follow-up
+
+Fresh combined review of `48a0f9b..f0bb8cd` found one further P2 documentation
+consumer: the filesystem-check example still invoked raw broad setup. It now uses
+maintenance dispatch and `setup-storage`, whose source/authority path is qualified.
+No other material findings were reported in that combined review.
+
+Self-review also routed activation-record updates through the same saved-state job
+as inspection: those operations use only the wallet-volume record, not policy input.
+This prevents an unused policy bind from vetoing state bookkeeping or masking an
+activation error. Policy validation still uses the policy-aware admin job. Focused
+unit and real disposable-wallet tests cover this routing with bad policy paths and
+preserved preparation. The corrected combined state receives a fresh final review.

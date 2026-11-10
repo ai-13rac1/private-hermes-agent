@@ -69,7 +69,8 @@ class Controller:
         return subprocess.run([*self.command, *arguments], cwd=self.root, text=True, check=True, **kwargs)
 
     def admin(self, action, capture=False):
-        service = 'x402_treazury-inspect' if action in ('inspect', 'status') else 'x402_treazury-admin'
+        saved_state = ('inspect', 'status', 'connected', 'disconnected', 'activation-failed')
+        service = 'x402_treazury-inspect' if action in saved_state else 'x402_treazury-admin'
         return self.call('run', '--rm', '-T', '--no-deps', service, action,
                          capture_output=capture)
 

@@ -321,8 +321,9 @@ also prepares storage and has wallet-volume access for ownership/lock checks, bu
 does not run native wallet commands. Only activation copies the serving token into Hermes and installs its twelve MCP entries.
 Disconnecting removes only managed entries and that token from the profile, preserving unrelated
 configuration. `x402_treazury-inspect` has only the native wallet volume and image
-for saved-state inspection, so invalid policy paths cannot block access. Policy-aware
-`x402_treazury-admin` handles configuration administration and record updates;
+for saved-state inspection and activation-record updates, so invalid policy paths
+cannot block access or bookkeeping. Policy-aware `x402_treazury-admin` handles
+configuration administration;
 networked init/preparation uses `x402_treazury-setup` one-shot containers in the
 agent namespace. Jobs have no automatic restart policy, so a failed financial
 command cannot be repeated by Docker; retries are explicit operator actions.
