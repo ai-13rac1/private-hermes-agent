@@ -196,6 +196,7 @@ def initialize():
                 write_record(record)
                 raise error
         else:
+            print('Wallet already initialized; displaying saved wallet state.', flush=True)
             native(['wallet', 'status'], 'wallet status')
         print('Back up the wallet with the native wallet backup command before depositing ZEC.\n'
               'Deposit when ready, then run make x402_treazury-prepare. Hermes remains available.')
@@ -258,7 +259,12 @@ def main():
     elif action == 'status':
         result = inspect()
         print(json.dumps(result, indent=2))
-        if not result['wallet_absent']:
+        if result['wallet_absent']:
+            print('Wallet has not been initialized. Run make x402_treazury-init to create it.')
+        elif not result['wallet_valid']:
+            raise RuntimeError(result['reason'])
+        else:
+            print('Saved wallet state (offline; balances are not refreshed):', flush=True)
             native(['wallet', 'status'], 'wallet status')
     elif action in ('connected', 'disconnected', 'activation-failed'):
         record = json.loads(RECORD.read_text()) if RECORD.exists() else {}

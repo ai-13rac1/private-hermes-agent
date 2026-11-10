@@ -140,6 +140,25 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(self.calls.count(['wallet', 'init']), 1)
         self.assertIn(['wallet', 'status'], self.calls)
 
+    def test_status_works_with_owner_and_invalid_state_is_not_inspected_twice(self):
+        with onboarding.owner(), patch.object(sys, 'argv', ['onboarding.py', 'status']):
+            onboarding.main()
+        self.assertIn(['wallet', 'status'], self.calls)
+        self.calls.clear()
+        self.fail = 'wallet addresses'
+        with patch.object(sys, 'argv', ['onboarding.py', 'status']), self.assertRaises(RuntimeError):
+            onboarding.main()
+        self.assertEqual(self.calls.count(['wallet', 'addresses']), 1)
+        self.assertNotIn(['wallet', 'status'], self.calls)
+
+    def test_absent_status_does_not_create_wallet(self):
+        (self.state / 'wallet.key').unlink()
+        self.state.rmdir()
+        with patch.object(sys, 'argv', ['onboarding.py', 'status']):
+            onboarding.main()
+        self.assertNotIn(['wallet', 'init'], self.calls)
+        self.assertNotIn(['wallet', 'status'], self.calls)
+
     def test_init_failure_is_recorded_and_retry_preserves_later_preparation(self):
         (self.state / 'wallet.key').unlink()
         self.state.rmdir()
@@ -279,6 +298,24 @@ class ActivationTests(unittest.TestCase):
         controller.wallet_command = lambda action: controller.events.append(('wallet', action))
         controller.client = lambda action, **kwargs: controller.events.append(('client', action)) or subprocess.CompletedProcess([], 0)
         return controller
+
+    def test_existing_init_only_displays_offline_status(self):
+        controller = self.controller()
+        controller.inspect = lambda: {'wallet_absent': False, 'wallet_valid': True}
+        controller.initialize()
+        self.assertEqual(controller.events, [('admin', 'status')])
+
+    def test_absent_init_starts_network_but_invalid_state_does_not(self):
+        controller = self.controller()
+        controller.inspect = lambda: {'wallet_absent': True, 'wallet_valid': False}
+        controller.initialize()
+        self.assertEqual(controller.events, [('up', '-d', '--wait', '--no-deps', 'tor', 'agent-net'),
+                                             ('wallet', 'init')])
+        controller.events.clear()
+        controller.inspect = lambda: {'wallet_absent': False, 'wallet_valid': False, 'reason': 'unreadable wallet'}
+        with self.assertRaisesRegex(RuntimeError, 'unreadable wallet'):
+            controller.initialize()
+        self.assertEqual(controller.events, [])
 
     def test_prepare_disconnects_and_stops_owner_before_commands_then_connects(self):
         controller = self.controller()

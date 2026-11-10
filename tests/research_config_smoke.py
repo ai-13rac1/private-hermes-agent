@@ -56,7 +56,45 @@ def main():
             denied = execute('python3', '-c', "from pathlib import Path; Path('/opt/x402/examples/deployments/research_desk.toml').write_text('bad')", check=False)
             assert denied.returncode and 'Read-only file system' in denied.stderr
             assert inspect()['wallet_absent']
+            # Exercise the actual Compose admin service, not the networked
+            # setup service or this fixture container's hand-written mounts.
+            override = root / 'admin.json'
+            override.write_text(json.dumps({
+                'services': {'x402_treazury-admin': {'volumes': [
+                    {'type': 'bind', 'source': str(directory),
+                     'target': '/opt/x402/examples/deployments', 'read_only': True}]}},
+                'volumes': {'x402_treazury-data': {'external': True, 'name': identity}}}))
+            command = ['docker', 'compose', '--env-file', '/dev/null', '-p', identity,
+                       '-f', str(ROOT / 'compose.yaml'), '-f', str(override)]
+
+            def admin(action):
+                return subprocess.run([*command, 'run', '--rm', '-T', '--no-deps',
+                                       'x402_treazury-admin', action],
+                                      capture_output=True, text=True, check=True).stdout
+
+            assert 'has not been initialized' in admin('status')
             execute('x402_treazury', 'wallet', 'init', '--birthday', '1', '--json')
+            addresses = execute('x402_treazury', 'wallet', 'addresses').stdout
+            address = json.loads(addresses)['receive_addresses'][0]['encoded_address']
+            # Negative control reproduces the original missing-scratch defect
+            # against exactly the same wallet, without networking or spending.
+            denied = docker('run', '--rm', '--network', 'none', '--read-only',
+                            '--mount', f'type=volume,src={identity},dst=/var/lib/x402',
+                            '--mount', f'type=bind,src={directory},dst=/opt/x402/examples/deployments,readonly',
+                            image, 'wallet', 'addresses', check=False)
+            assert denied.returncode and 'Read-only file system' in denied.stderr, denied.stderr
+            assert address in admin('status')
+            # Invoke the real host controller with disposable Compose state:
+            # repeated init must take the offline branch and start no services.
+            code = ('import sys; sys.path.insert(0, ' + repr(str(ROOT / 'scripts')) + '); '
+                    'from x402_treazury import Controller; Controller(' + repr(command) + ').initialize()')
+            for _ in range(2):
+                result = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, check=True)
+                assert 'Wallet already initialized' in result.stdout and address in result.stdout
+            running = subprocess.run([*command, 'ps', '-q', '--status', 'running'],
+                                     capture_output=True, text=True, check=True)
+            assert not running.stdout.strip(), running.stdout
+            assert execute('x402_treazury', 'wallet', 'addresses').stdout == addresses
             assert not inspect()['prepared']
             # Controlled completion represents historical preparation only. No
             # bootstrap, warm, serve, funded operations or network run here.
@@ -94,7 +132,7 @@ def main():
             assert inspect()['prepared']
             initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
             assert path.read_text() == changed
-            print('PASS: real-image policy edits, relative providers, read-only mount, atomic replacement/restart, historical gate, forbidden/malformed/missing config, offline preview/rename error path and seed preservation')
+            print('PASS: Compose offline status/repeated init preserve wallet identity without starting services; missing-/tmp failure control; policy edits, read-only config, restart, historical gate, invalid config, preview/rename error path and seed preservation')
         finally:
             docker('rm', '-f', identity, check=False)
             docker('volume', 'rm', identity)

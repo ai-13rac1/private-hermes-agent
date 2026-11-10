@@ -294,6 +294,8 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     read_only: true
+    # Offline wallet inspection reconstructs an encrypted snapshot in scratch space.
+    tmpfs: [/tmp:mode=1777]
     volumes:
       - type: bind
         source: ./config/x402_treazury

@@ -158,7 +158,9 @@ address, and exits. If the wallet already exists, it displays its saved status
 and address instead. Unreadable, incomplete, or incompatible state is an error;
 it is never treated as permission to create a replacement wallet. It does not
 start funding, serving, or Hermes MCP connections. If needed, the command starts
-only Tor and the agent network namespace for the one-shot administration process.
+only Tor and the agent network namespace for new wallet creation. Repeated init
+uses offline inspection, even while the stack is down or another process owns
+the wallet; it does not start services or require preparation.
 
 Back up the wallet before depositing ZEC. Native wallet commands use the same
 configured treasury, `x402_treazury-data` named volume, and UID as serving:
@@ -179,7 +181,11 @@ make x402_treazury-status
 
 Status runs without networking or exclusive wallet ownership. It reads saved
 observations, not live proof of spendability, and can run while serving or
-preparing. Deposit ZEC at a time of your choosing; Hermes remains usable.
+preparing. Offline inspection uses private temporary snapshot files in the
+admin container's writable `/tmp`; the root filesystem and mounted configuration
+remain read-only. A missing wallet gives an initialization instruction; unreadable
+state reports an error without creating a replacement. Deposit ZEC at a time of
+your choosing; Hermes remains usable.
 
 To compare the packaged deployment's wallet policy with initialized saved groups
 without changing them, use the native offline preview:
@@ -323,7 +329,10 @@ The offline research configuration check uses the real image with a disposable,
 unfunded treasury and controlled historical completion marker. It covers mounted
 policy loading, atomic host edits and restart visibility, read-only writes,
 forbidden/malformed/missing configuration, preview and the missing-source rename
-error path. It does not run funding, warming or successful rename of a saved group.
+error path. It also reproduces snapshot inspection failure without writable
+`/tmp`, then verifies the actual offline Compose admin service and repeated host
+initialization display the same address without starting services or requiring
+preparation. It does not run funding, warming or successful rename of a saved group.
 
 The x402_treazury test uses a disposable project and the real Rust server, twelve
 local MCP listeners, an ephemeral unfunded static key, local catalog fixtures,

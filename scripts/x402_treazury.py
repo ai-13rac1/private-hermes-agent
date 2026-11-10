@@ -114,6 +114,10 @@ class Controller:
         state = self.inspect()
         if not state['wallet_absent'] and not state['wallet_valid']:
             raise RuntimeError(state['reason'])
+        if state['wallet_valid']:
+            print('Wallet already initialized; displaying saved wallet state.', flush=True)
+            self.admin('status')
+            return
         self.call('up', '-d', '--wait', '--no-deps', 'tor', 'agent-net')
         self.wallet_command('init')
 
