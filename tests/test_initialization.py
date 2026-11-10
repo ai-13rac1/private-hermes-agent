@@ -93,6 +93,30 @@ class CredentialRetryTests(unittest.TestCase):
 
 
 class SSHKeyRetryTests(unittest.TestCase):
+    def test_partial_public_files_and_interrupted_first_publication_retry_safely(self):
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory) / 'id_ed25519'
+            with patch.object(bootstrap, 'publish_default', side_effect=OSError('interrupted private publication')), self.assertRaises(OSError):
+                bootstrap.key(private)
+            self.assertFalse(private.exists())
+            self.assertFalse(private.with_name(private.name + '.pub').exists())
+            with patch.object(bootstrap.os, 'replace', side_effect=OSError('interrupted public publication')), self.assertRaises(OSError):
+                bootstrap.key(private)
+            original = private.read_bytes()
+            public = private.with_name(private.name + '.pub')
+            self.assertFalse(public.exists())
+            bootstrap.key(private)
+            identity = public.read_bytes().split()[:2]
+            for partial in (b'', b'ssh-ed25519 AAAApartial', b'corrupt public key'):
+                public.write_bytes(partial)
+                bootstrap.key(private)
+                self.assertEqual(private.read_bytes(), original)
+                self.assertEqual(public.read_bytes().split()[:2], identity)
+            commented = b' '.join(identity) + b' operator comment\n'
+            public.write_bytes(commented)
+            bootstrap.key(private)
+            self.assertEqual(public.read_bytes(), commented)
+
     def test_missing_public_sidecar_preserves_private_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             private = Path(directory) / 'id_ed25519'

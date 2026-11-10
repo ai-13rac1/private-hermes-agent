@@ -72,7 +72,7 @@ uses `/usr/bin/ssh-keygen`, so profile-installed tools cannot run as setup's roo
 
 `make up` recreates the canonical `setup` container once, checks its exit code,
 and starts applications only after it succeeds. Initialization prepares storage,
-creates missing SSH identities, reconstructs missing public key files from intact
+creates missing SSH identities, reconstructs missing or incomplete public key files from intact
 private keys, validates/preserves Hermes configuration, installs
 webapp authentication, and removes managed research registrations before the new
 gateway starts. The managed workflow explicitly starts runtime services with
@@ -86,7 +86,10 @@ executor host key and initializes its workspace/home. It publishes
 Defaults are written completely to same-directory temporary files and atomically
 published without replacing operator files. An interrupted first copy leaves no
 partial final configuration; retries preserve any existing complete file and modes.
-Existing compatible configuration and keys are preserved. Incompatible Hermes
+Initial SSH keys are generated in temporary storage and their private identity is
+published atomically before deriving the public file. Retries repair empty/truncated
+public files from the private identity; matching public files and operator comments
+are preserved. Existing compatible configuration and keys are preserved. Incompatible Hermes
 configuration blocks agent startup. Setup also installs the generated SSH
 file-browser settings.
 

@@ -11,18 +11,23 @@ from private_files import publish_default
 
 def key(path):
     if not path.exists():
-        subprocess.run(["/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(path)], check=True)
+        with tempfile.TemporaryDirectory(prefix='private-hermes-ssh-') as folder:
+            generated = Path(folder) / 'identity'
+            subprocess.run(["/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(generated)], check=True)
+            publish_default(path, generated.read_bytes(), 0o600)
     public = path.with_name(path.name + '.pub')
-    if not public.exists():
-        derived = subprocess.check_output(['/usr/bin/ssh-keygen', '-y', '-P', '', '-f', str(path)], text=True)
-        with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as stream:
-            temporary = Path(stream.name)
-            try:
-                stream.write(derived)
-                stream.flush()
-                os.replace(temporary, public)
-            finally:
-                temporary.unlink(missing_ok=True)
+    derived = subprocess.check_output(['/usr/bin/ssh-keygen', '-y', '-P', '', '-f', str(path)])
+    if public.exists() and public.read_bytes().split()[:2] == derived.split()[:2]:
+        return  # Preserve a complete matching public key and its operator comment.
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            stream.write(derived)
+            stream.flush()
+            os.fsync(stream.fileno())
+            os.replace(temporary, public)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 def initialize(data_root, home, defaults, auth, username):
@@ -34,10 +39,10 @@ def initialize(data_root, home, defaults, auth, username):
         os.chown(path, 10000, 10000)
         path.chmod(0o600)
     authorized = executor / "authorized_keys"
-    authorized.write_text((agent / "id_ed25519.pub").read_text())
+    authorized.write_bytes((agent / "id_ed25519.pub").read_bytes())
     authorized.chmod(0o644)
     known = agent / "known_hosts"
-    known.write_text("[10.203.82.3]:2222 " + (executor / "ssh_host_ed25519_key.pub").read_text())
+    known.write_bytes(b"[10.203.82.3]:2222 " + (executor / "ssh_host_ed25519_key.pub").read_bytes())
     os.chown(known, 10000, 10000)
     known.chmod(0o600)
     data = home

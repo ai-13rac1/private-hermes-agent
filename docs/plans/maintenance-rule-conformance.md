@@ -198,3 +198,12 @@ This prevents an unused policy bind from vetoing state bookkeeping or masking an
 activation error. Policy validation still uses the policy-aware admin job. Focused
 unit and real disposable-wallet tests cover this routing with bad policy paths and
 preserved preparation. The corrected combined state receives a fresh final review.
+
+A further fresh review of `602c7fd` found a P2 SSH retry defect: initial keygen wrote
+final files directly and retries trusted an existing truncated `.pub`. The native
+key generation now uses temporary storage and no-clobber private publication; public
+files are derived from the preserved private identity and atomically repaired when
+missing/incomplete/mismatched. Complete matching public files/comments remain intact.
+This is the same file-publication principle, not a journal or recovery framework.
+Tests inject both publication interruptions and incomplete public files; real setup
+qualification verifies unchanged private/public identities on the actual bind target.
