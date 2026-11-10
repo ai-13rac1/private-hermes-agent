@@ -63,7 +63,7 @@ class PreparationTests(unittest.TestCase):
         if args == ['wallet', 'status', '--json']:
             return {'treasury_id': self.treasury_id}
         if args == ['wallet', 'addresses']:
-            return [{'encoded_address': 'test-address'}]
+            return {'receive_addresses': [{'encoded_address': 'test-address'}]}
         if args == ['wallet', 'bootstrap', '--json']:
             return {'schema_version': 3, 'captured_completed_groups': ['general'],
                     'incomplete_captured_jobs': [], 'balance_estimates': []}
@@ -82,13 +82,33 @@ class PreparationTests(unittest.TestCase):
         self.treasury_id = 'different-wallet'
         self.assertFalse(onboarding.inspect()['prepared'])
 
-    def test_implementation_change_still_requires_explicit_preparation(self):
+    def test_implementation_changes_preserve_completion_and_serving(self):
         onboarding.prepare()
+        record = onboarding.RECORD.read_bytes()
         self.build_revision = 'different-source'
-        self.assertFalse(onboarding.inspect()['prepared'])
-        with self.assertRaises(RuntimeError):
+        with patch.object(onboarding, '__file__', '/unrelated/new/coordinator.py'):
+            self.assertTrue(onboarding.inspect()['prepared'])
             onboarding.serve()
+        self.assertEqual(onboarding.RECORD.read_bytes(), record)
+        self.assertNotIn(['build-info'], self.calls)
+        self.assertIn(['serve'], self.calls)
+
+    def test_absent_wrong_and_incomplete_completion_refuse_serving(self):
+        for record in ({}, {'schema': 1, 'treasury_id': 'other', 'completed': ['bootstrap', 'catalogs']},
+                       {'schema': 1, 'treasury_id': self.treasury_id, 'completed': ['bootstrap']}):
+            onboarding.write_record(record)
+            with self.assertRaises(RuntimeError):
+                onboarding.serve()
         self.assertNotIn(['serve'], self.calls)
+
+    def test_unreadable_runtime_config_does_not_block_saved_wallet(self):
+        onboarding.prepare()
+        self.fail = 'configuration'
+        self.assertTrue(onboarding.inspect()['prepared'])
+        with patch.object(sys, 'argv', ['onboarding.py', 'status']):
+            onboarding.main()
+        with self.assertRaises(onboarding.PhaseError):
+            onboarding.serve()
 
     def test_policy_changes_allow_native_serving_but_corrupt_record_does_not(self):
         onboarding.prepare()
@@ -227,8 +247,14 @@ class PreparationTests(unittest.TestCase):
                     onboarding.serve()
                 self.assertNotIn(['serve'], self.calls)
                 self.assertNotIn(['wallet', 'status', '--json'], self.calls)
+                self.assertTrue(onboarding.inspect()['wallet_valid'])
+                self.assertTrue(onboarding.inspect()['prepared'])
+                with patch.object(sys, 'argv', ['onboarding.py', 'status']):
+                    onboarding.main()
         with patch.dict(self.config['servers'], {'extra': {}}):
-            self.assertFalse(onboarding.inspect()['prepared'])
+            self.assertTrue(onboarding.inspect()['prepared'])
+            with self.assertRaises(RuntimeError):
+                onboarding.serve()
         self.assertTrue(onboarding.inspect()['prepared'])
 
     def test_activation_failure_does_not_erase_completed_preparation(self):
@@ -338,6 +364,15 @@ class ActivationTests(unittest.TestCase):
             controller.prepare()
         self.assertNotIn(('config', 'connect'), controller.events)
         self.assertNotIn(('up', '-d', '--no-deps', 'x402_treazury'), controller.events)
+
+    def test_invalid_runtime_policy_preserves_history_and_existing_connections(self):
+        for prepared in (False, True):
+            controller = self.controller()
+            controller.inspect = lambda: {'prepared': prepared}
+            controller.admin = lambda action: (_ for _ in ()).throw(RuntimeError('invalid runtime policy'))
+            with self.assertRaisesRegex(RuntimeError, 'invalid runtime policy'):
+                controller.prepare()
+            self.assertEqual(controller.events, [])
 
     def test_prepare_retries_activation_without_repeating_completed_wallet_work(self):
         controller = self.controller()

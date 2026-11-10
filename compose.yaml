@@ -77,8 +77,8 @@ services:
         read_only: true
         bind: {create_host_path: false}
       - type: bind
-        source: ./config/webapp/auth.json
-        target: /run/webapp/auth.json
+        source: ./config/webapp
+        target: /run/webapp
         read_only: true
         bind: {create_host_path: false}
 

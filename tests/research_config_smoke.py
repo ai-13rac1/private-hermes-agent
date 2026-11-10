@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Exercise editable policy with the real image, offline and unfunded."""
 import json
+import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -67,12 +69,12 @@ def main():
             command = ['docker', 'compose', '--env-file', '/dev/null', '-p', identity,
                        '-f', str(ROOT / 'compose.yaml'), '-f', str(override)]
 
-            def admin(action):
+            def admin(action, check=True):
                 return subprocess.run([*command, 'run', '--rm', '-T', '--no-deps',
                                        'x402_treazury-admin', action],
-                                      capture_output=True, text=True, check=True).stdout
+                                      capture_output=True, text=True, check=check)
 
-            assert 'has not been initialized' in admin('status')
+            assert 'has not been initialized' in admin('status').stdout
             execute('x402_treazury', 'wallet', 'init', '--birthday', '1', '--json')
             addresses = execute('x402_treazury', 'wallet', 'addresses').stdout
             address = json.loads(addresses)['receive_addresses'][0]['encoded_address']
@@ -83,7 +85,7 @@ def main():
                             '--mount', f'type=bind,src={directory},dst=/opt/x402/examples/deployments,readonly',
                             image, 'wallet', 'addresses', check=False)
             assert denied.returncode and 'Read-only file system' in denied.stderr, denied.stderr
-            assert address in admin('status')
+            assert address in admin('status').stdout
             # Invoke the real host controller with disposable Compose state:
             # repeated init must take the offline branch and start no services.
             code = ('import sys; sys.path.insert(0, ' + repr(str(ROOT / 'scripts')) + '); '
@@ -98,7 +100,7 @@ def main():
             assert not inspect()['prepared']
             # Controlled completion represents historical preparation only. No
             # bootstrap, warm, serve, funded operations or network run here.
-            execute('python3', '-c', "import sys; sys.path.insert(0,'/opt'); import onboarding as o; c,b,f=o.context(); o.write_record({'schema':1,'treasury_id':o.wallet(c),'fingerprint':f,'completed':['bootstrap','catalogs']})")
+            execute('python3', '-c', "import sys; sys.path.insert(0,'/opt'); import onboarding as o; o.write_record({'schema':1,'treasury_id':o.wallet(),'completed':['bootstrap','catalogs']})")
             assert inspect()['prepared']
             changed = original.replace('wallets.general', 'wallets.research').replace('wallet = "general"', 'wallet = "research"')
             publish(changed)
@@ -121,21 +123,57 @@ def main():
             )
             for text, reason in cases:
                 publish(text)
-                state = inspect()
-                assert not state['prepared'] and reason in state['reason'], state
+                assert inspect()['prepared'] and inspect()['wallet_valid']
+                validation = admin('validate', check=False)
+                assert validation.returncode and reason in validation.stderr, validation.stderr
+                assert address in admin('status').stdout
+                refused = admin('prepare', check=False)
+                assert refused.returncode and reason in refused.stderr, refused.stderr
+                refused = execute('python3', '-c', "import sys; sys.path.insert(0,'/opt'); import onboarding; onboarding.serve()", check=False)
+                assert refused.returncode and reason in refused.stderr, refused.stderr
             publish('invalid TOML [')
             assert execute('x402_treazury', 'config', 'show', check=False).returncode
-            assert not inspect()['prepared']
+            assert inspect()['prepared'] and address in admin('status').stdout
             path.unlink()
             assert execute('x402_treazury', 'config', 'show', check=False).returncode
+            assert inspect()['prepared'] and address in admin('status').stdout
             publish(changed)
             assert inspect()['prepared']
+            # A harmless source edit retains the same historical completion.
+            execute('python3', '-c', "from pathlib import Path; Path('/tmp/edited-onboarding.py').write_text(Path('/opt/onboarding.py').read_text()+'\\n# unrelated edit\\n')")
+            result = execute('python3', '-c', "import sys,runpy; sys.path.insert(0,'/opt'); sys.argv=['onboarding','inspect']; runpy.run_path('/tmp/edited-onboarding.py',run_name='__main__')")
+            assert json.loads(result.stdout)['prepared']
+            # Exercise the actual Make entrypoints from an isolated public-code
+            # copy. Invalid ingress settings and auth must not block inspection.
+            for name in ('Makefile', 'compose.yaml', '.env.example'):
+                shutil.copyfile(ROOT / name, root / name)
+            shutil.copytree(ROOT / 'scripts', root / 'scripts', ignore=shutil.ignore_patterns('__pycache__'))
+            (root / 'components').symlink_to(ROOT / 'components', target_is_directory=True)
+            compose_path = root / 'compose.yaml'
+            compose_path.write_text(compose_path.read_text().replace(
+                'x402_treazury-data: {}', 'x402_treazury-data: {external: true, name: ' + identity + '}'))
+            (root / '.env').write_text('WEBAPP_PORT=invalid\nWEBAPP_BIND=invalid\nWEBAPP_EXTERNAL_CONTENT=invalid\nTAILSCALE_FUNNEL_ENABLED=invalid\nTAILSCALE_FUNNEL_HOST=invalid\nTEEP_HOST_PORT=invalid\n')
+            auth = root / 'config/webapp/auth.json'
+            auth.parent.mkdir(parents=True)
+            auth.write_text('invalid auth')
+            environment = dict(os.environ, COMPOSE_PROJECT_NAME=identity)
+            for target in ('x402_treazury-status', 'x402_treazury-init'):
+                result = subprocess.run(['make', target], cwd=root, env=environment,
+                                        capture_output=True, text=True, check=True)
+                assert address in result.stdout
+            assert auth.read_text() == 'invalid auth'
+            assert not (auth.parent / 'password').exists()
+            assert inspect()['prepared']
+            running = subprocess.run([*command, 'ps', '-q', '--status', 'running'],
+                                     capture_output=True, text=True, check=True)
+            assert not running.stdout.strip(), running.stdout
             initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
             assert path.read_text() == changed
-            print('PASS: Compose offline status/repeated init preserve wallet identity without starting services; missing-/tmp failure control; policy edits, read-only config, restart, historical gate, invalid config, preview/rename error path and seed preservation')
+            print('PASS: Compose offline status/repeated init preserve wallet identity without starting services; missing-/tmp failure control; policy edits, read-only config, restart, retained completion after source edit/restart, invalid config permits inspection but refuses prepare/serve, actual Make entrypoints ignore unrelated ingress/auth errors, preview/rename error path and seed preservation')
         finally:
             docker('rm', '-f', identity, check=False)
             docker('volume', 'rm', identity)
+            docker('volume', 'rm', identity + '_hermes-data', check=False)
 
 
 if __name__ == '__main__':

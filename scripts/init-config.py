@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Initialize local operator configuration without replacing existing settings."""
 from pathlib import Path
+import argparse
 import os
 import shutil
 import sys
@@ -10,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'components/provisi
 from storage import initialize as initialize_storage
 
 
-def initialize(root):
+def initialize(root, wallet_only=False):
     root = Path(root)
     env = root / '.env'
     if not env.exists():
@@ -27,12 +28,19 @@ def initialize(root):
     if not target.is_file():
         raise SystemExit('config/network/mcp-allowlist.json must be a file')
     initialize_storage(root / 'data')
-    initialize_credentials(root)
+    (root / 'config/webapp').mkdir(parents=True, exist_ok=True)
+    if not wallet_only:
+        initialize_credentials(root)
 
 
 if __name__ == '__main__':
-    initialize(Path(__file__).resolve().parents[1])
-    from deployment import render, settings
-    render(settings())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--wallet', action='store_true', help='Prepare wallet host paths without webapp settings or credentials')
+    args = parser.parse_args()
+    initialize(Path(__file__).resolve().parents[1], wallet_only=args.wallet)
+    if not args.wallet:
+        from deployment import render, settings
+        render(settings())
     print('Initialized local configuration; existing settings and application volumes preserved.')
-    print('Webapp password: config/webapp/password (0600); credentials were not printed.')
+    if not args.wallet:
+        print('Webapp password: config/webapp/password (0600); credentials were not printed.')

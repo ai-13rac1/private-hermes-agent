@@ -5,6 +5,9 @@ import json
 import os
 from pathlib import Path
 import secrets
+import tempfile
+import hmac
+import sys
 
 
 def hash_password(password):
@@ -24,20 +27,53 @@ def validate(credentials):
     return credentials
 
 
+def write_private(path, value):
+    """Publish one complete private file; retries need no transaction record."""
+    with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(value)
+            stream.flush()
+            os.fsync(stream.fileno())
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
+def password_matches(password, encoded):
+    _, n, r, p, salt, digest = encoded.split('$')
+    calculated = hashlib.scrypt(password.encode(), salt=base64.b64decode(salt),
+                                n=int(n), r=int(r), p=int(p), dklen=32)
+    return hmac.compare_digest(calculated, base64.b64decode(digest))
+
+
 def initialize_credentials(root, rotate=False):
-    """Generate only missing credentials; rotation is an explicit operator action."""
+    """Preserve identity and reuse the saved password after interrupted writes."""
     folder = Path(root) / 'config/webapp'
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / 'auth.json'
+    password_path = folder / 'password'
+    credentials = None
     if path.exists() and not rotate:
-        validate(json.loads(path.read_text()))
+        credentials = validate(json.loads(path.read_text()))
+        if not password_path.is_file() or not password_path.read_text().strip():
+            print('Saved webapp password is missing or empty; existing authentication remains usable. '
+                  'If you do not know the password, restore config/webapp/password from backup '
+                  'or run make webapp-rotate explicitly.', file=sys.stderr)
+            return False
+    if password_path.exists() and not rotate:
+        password = password_path.read_text().strip()
+        if not password:
+            raise ValueError('Saved webapp password is empty; restore it or run make webapp-rotate explicitly.')
+    else:
+        password = secrets.token_urlsafe(32)
+        # Keep the recoverable value before its one-way hash. Initial creation
+        # can then reuse it if interrupted before auth.json is published.
+        write_private(password_path, password + '\n')
+    if credentials and password_matches(password, credentials['password_hash']):
         return False
-    password = secrets.token_urlsafe(32)
-    credentials = {'password_hash': hash_password(password), 'secret': secrets.token_urlsafe(48)}
-    for destination, value in ((path, json.dumps(credentials) + '\n'),
-                               (folder / 'password', password + '\n')):
-        descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(descriptor, 'w') as stream:
-            stream.write(value)
-        destination.chmod(0o600)
+    credentials = {'password_hash': hash_password(password),
+                   'secret': credentials['secret'] if credentials else secrets.token_urlsafe(48)}
+    write_private(path, json.dumps(credentials) + '\n')
     return True

@@ -32,13 +32,20 @@ config=Path('/opt/data/config.yaml')
 assert config.stat().st_uid==10000
 assert yaml.safe_load(config.read_text())['model']['default']=='setup-qualification-model'
 assert not Path('/var/lib/x402/state').exists()
-print(json.dumps({name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in
- ('ssh/agent/id_ed25519.pub','ssh/executor/ssh_host_ed25519_key.pub')}))
+print(json.dumps({name:hashlib.sha256((' '.join((root/name).read_text().split()[:2]).encode() if name.endswith('.pub') else (root/name).read_bytes())).hexdigest() for name in
+ ('ssh/agent/id_ed25519.pub','ssh/executor/ssh_host_ed25519_key.pub',
+  'ssh/agent/id_ed25519','ssh/executor/ssh_host_ed25519_key')}))
 """
             def identities():
                 return smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
                                      '/opt/hermes/.venv/bin/python', 'setup', '-c', snapshot).stdout
             original_identities = identities()
+            smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
+                          '/opt/hermes/.venv/bin/python', 'setup', '-c',
+                          "from pathlib import Path; root=Path('/persistent-data'); [(root/name).unlink() for name in ('ssh/agent/id_ed25519.pub','ssh/executor/ssh_host_ed25519_key.pub')]")
+            smoke.initialize_setup(smoke.COMPOSE)
+            assert identities() == original_identities
+            print('PASS: real setup reconstructs missing SSH public sidecars without replacing private identities', flush=True)
             # An already initialized profile may predate the picker catalog.
             smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
                           '/opt/hermes/.venv/bin/python', 'setup', '-c',

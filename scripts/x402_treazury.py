@@ -14,6 +14,17 @@ from deployment import ROOT, compose, settings
 from provisioning import ensure_storage, initialize_research_config
 
 
+def wallet_compose():
+    # Compose interpolates the entire model, including unused port publications.
+    # These process-local values are only for wallet commands, which never start
+    # ingress or inference. Operator .env and running services are untouched.
+    os.environ.update(TAILSCALE_FUNNEL_ENABLED='false', WEBAPP_EXTERNAL_CONTENT='off',
+                      WEBAPP_BIND='127.0.0.1', WEBAPP_PORT='9120', WEBAPP_USERNAME='admin',
+                      TAILSCALE_FUNNEL_HOST='', TAILSCALE_FUNNEL_PORT='443',
+                      TAILSCALE_HOSTNAME='private-hermes', TEEP_HOST_PORT='8337')
+    return ['docker', 'compose', '-f', 'compose.yaml']
+
+
 @contextmanager
 def operation_lock(root):
     folder = Path(root) / 'config/x402_treazury'
@@ -127,6 +138,7 @@ class Controller:
         if self.inspect()['prepared']:
             self.activate()
             return
+        self.admin('validate')
         self.disconnect()
         self.call('stop', '--timeout', '-1', 'x402_treazury')
         self.admin('disconnected')
@@ -136,6 +148,7 @@ class Controller:
     def activate(self):
         if not self.running('hermes'):
             raise RuntimeError('Start Hermes with make up before connecting research services.')
+        self.admin('validate')
         state = self.inspect()
         if not state['prepared']:
             raise RuntimeError(state['reason'] + ' Run make x402_treazury-prepare when ready.')
@@ -187,7 +200,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=('init', 'status', 'prepare'))
     args = parser.parse_args()
-    controller = Controller(compose(settings()))
+    controller = Controller(wallet_compose() if args.action in ('init', 'status') else compose(settings()))
     initialize_research_config(controller.command, ROOT)
     ensure_storage(controller.command)
     if args.action == 'status':

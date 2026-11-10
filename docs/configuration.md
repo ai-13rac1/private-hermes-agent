@@ -68,7 +68,8 @@ uses `/usr/bin/ssh-keygen`, so profile-installed tools cannot run as setup's roo
 
 `make up` recreates the canonical `setup` container once, checks its exit code,
 and starts applications only after it succeeds. Initialization prepares storage,
-creates missing SSH identities, validates/preserves Hermes configuration, installs
+creates missing SSH identities, reconstructs missing public key files from intact
+private keys, validates/preserves Hermes configuration, installs
 webapp authentication, and removes managed research registrations before the new
 gateway starts. The managed workflow explicitly starts runtime services with
 `--no-deps` afterward, preventing another setup run; Compose dependencies still
@@ -99,7 +100,9 @@ without rerunning bootstrap validation, so it can repair an incompatible setting
 The controller uses `setup mcp token|connect|disconnect` for registration changes;
 these subcommands do not rerun SSH/auth initialization. Wallet maintenance reuses
 successful setup; before initial startup or after failed setup, it runs only
-storage preparation and does not require valid Hermes configuration. Wallet
+storage preparation and does not require valid Hermes configuration. The setup
+service mounts the private webapp configuration directory read-only,
+so storage-only commands do not require an authentication file. Wallet
 inspection stays in the networkless native treasury image, and financial jobs
 stay in its separate Tor-connected, non-restarting service.
 

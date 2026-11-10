@@ -12,6 +12,17 @@ import hermes_yaml as yaml
 def key(path):
     if not path.exists():
         subprocess.run(["/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(path)], check=True)
+    public = path.with_name(path.name + '.pub')
+    if not public.exists():
+        derived = subprocess.check_output(['/usr/bin/ssh-keygen', '-y', '-P', '', '-f', str(path)], text=True)
+        with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            try:
+                stream.write(derived)
+                stream.flush()
+                os.replace(temporary, public)
+            finally:
+                temporary.unlink(missing_ok=True)
 
 
 def initialize(data_root, home, defaults, auth, username):

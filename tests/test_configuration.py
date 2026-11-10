@@ -62,6 +62,18 @@ class OperatorConfigurationTests(unittest.TestCase):
                                          n=int(n), r=int(r), p=int(p), dklen=32)
             self.assertEqual(calculated, base64.b64decode(digest))
 
+    def test_wallet_initialization_ignores_invalid_webapp_credentials(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.seed(root)
+            auth = root / 'config/webapp/auth.json'
+            auth.parent.mkdir(parents=True)
+            auth.write_text('invalid webapp auth')
+            init_config.initialize(root, wallet_only=True)
+            self.assertEqual(auth.read_text(), 'invalid webapp auth')
+            self.assertFalse((auth.parent / 'password').exists())
+            self.assertFalse((auth.parent / 'proxy.cfg').exists())
+
     def test_compose_passes_credentials_only_to_their_intended_services(self):
         provider_keys = ('VENICE_API_KEY', 'NEARAI_API_KEY', 'CHUTES_API_KEY',
                          'TINFOIL_API_KEY', 'NANOGPT_API_KEY', 'PHALA_API_KEY')
@@ -94,7 +106,7 @@ class OperatorConfigurationTests(unittest.TestCase):
                 self.assertEqual(supplied[key], secrets[key])
             self.assertNotIn('env_file', service)
         auth_recipients = [name for name, service in services.items()
-                           if any(mount.get('target') == '/run/webapp/auth.json'
+                           if any(mount.get('target') == '/run/webapp'
                                   for mount in service.get('volumes', []))]
         self.assertEqual(auth_recipients, ['setup'])
         self.assertTrue({'storage-init', 'bootstrap', 'configure', 'x402_treazury-config'}.isdisjoint(services))

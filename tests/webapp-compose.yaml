@@ -8,8 +8,8 @@ services:
   setup:
     volumes:
       - type: bind
-        source: ${WEBAPP_TEST_AUTH:?test auth required}
-        target: /run/webapp/auth.json
+        source: ${WEBAPP_TEST_CONFIG:?test auth directory required}
+        target: /run/webapp
         read_only: true
         bind: {create_host_path: false}
   webapp-proxy:

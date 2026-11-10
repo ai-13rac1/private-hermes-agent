@@ -4,8 +4,8 @@ services:
       HERMES_DEFAULT_MODEL: ""
     volumes:
       - type: bind
-        source: ./tests/fixtures/webapp-auth.json
-        target: /run/webapp/auth.json
+        source: ./tests/fixtures/webapp
+        target: /run/webapp
         read_only: true
         bind: {create_host_path: false}
       - type: bind

@@ -115,7 +115,9 @@ fixed deployment fields: Tor mode, private SOCKS socket with extended Tor
 authentication, treasury state/key paths, and the twelve authenticated loopback
 listeners with their Host checks and token variable. Keep those fields intact;
 wallet policy, payment caps, source/tool selections and instructions are editable.
-Malformed or unsupported configuration fails visibly without selecting defaults.
+Malformed or unsupported configuration blocks networked initialization, preparation
+and serving without selecting defaults. Offline wallet inspection remains available
+using the fixed wallet volume paths, even when the serving TOML is missing or invalid.
 
 Policy edits do not erase initial preparation eligibility. Native `serve` applies
 the new policy, can fund newly declared groups when automatic funding is enabled
@@ -160,7 +162,9 @@ it is never treated as permission to create a replacement wallet. It does not
 start funding, serving, or Hermes MCP connections. If needed, the command starts
 only Tor and the agent network namespace for new wallet creation. Repeated init
 uses offline inspection, even while the stack is down or another process owns
-the wallet; it does not start services or require preparation.
+the wallet; it does not start services or require preparation. The init/status
+Make commands prepare only the needed host paths and do not generate or validate
+webapp credentials or render ingress configuration.
 
 Back up the wallet before depositing ZEC. Native wallet commands use the same
 configured treasury, `x402_treazury-data` named volume, and UID as serving:
@@ -184,7 +188,11 @@ observations, not live proof of spendability, and can run while serving or
 preparing. Offline inspection uses private temporary snapshot files in the
 admin container's writable `/tmp`; the root filesystem and mounted configuration
 remain read-only. A missing wallet gives an initialization instruction; unreadable
-state reports an error without creating a replacement. Deposit ZEC at a time of
+state reports an error without creating a replacement. Invalid webapp/Funnel
+settings and serving policy do not block saved-wallet inspection. The wallet
+commands use base Compose with process-local inert ingress/inference publication
+values because Compose parses unused services too; they do not start those
+services or change `.env`. Deposit ZEC at a time of
 your choosing; Hermes remains usable.
 
 To compare the packaged deployment's wallet policy with initialized saved groups
@@ -241,9 +249,11 @@ the workflow refuses to overwrite a retained container or competing owner.
 Do not use an auto-restarting serving container for one-shot financial commands.
 
 Completion is recorded atomically under `/var/lib/x402/onboarding/` in the
-`x402_treazury-data` named volume, bound to the treasury identity, source/build identity,
-coordinator code. Ordinary configuration edits do not invalidate that initial
-completion. The record contains no full deployment configuration.
+`x402_treazury-data` named volume, bound to the treasury identity and successful
+bootstrap/catalog phases. Source, build and ordinary configuration changes do not
+invalidate that historical completion. Actual deployment policy is checked before
+preparing, activating or serving; a policy failure does not invalidate the wallet
+or its preparation history. The record contains no full deployment configuration.
 Only successful bootstrap and complete Tor catalog warming authorize serving.
 The entrypoint checks this even when the serving profile is started manually.
 
@@ -257,8 +267,10 @@ make x402_treazury-prepare
 ```
 
 Subsequent `make up` automatically starts and connects a prepared deployment.
-A changed implementation, missing preparation or different treasury identity
-leaves research disconnected and prints the next step. A completion record is historical evidence: balances can change, catalogs
+Missing or incomplete preparation, a different treasury identity, or invalid
+runtime policy leaves research disconnected and prints the reason. Correcting
+runtime policy restores eligibility without repeating completed preparation.
+A completion record is historical evidence: balances can change, catalogs
 expire, and serving continues native synchronization, replacement funding, and
 discovery under its policy. Startup does not rerun explicit bootstrap/warming.
 
@@ -329,7 +341,10 @@ The offline research configuration check uses the real image with a disposable,
 unfunded treasury and controlled historical completion marker. It covers mounted
 policy loading, atomic host edits and restart visibility, read-only writes,
 forbidden/malformed/missing configuration, preview and the missing-source rename
-error path. It also reproduces snapshot inspection failure without writable
+error path. Offline status remains available under those configuration failures,
+while networked preparation and serving are refused. Completed history survives
+a harmless coordinator edit and container restart. Actual Make commands also run
+against invalid ingress settings and credentials in an isolated public-code copy. It also reproduces snapshot inspection failure without writable
 `/tmp`, then verifies the actual offline Compose admin service and repeated host
 initialization display the same address without starting services or requiring
 preparation. It does not run funding, warming or successful rename of a saved group.

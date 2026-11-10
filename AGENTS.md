@@ -68,6 +68,33 @@ and operator configuration. Safe retries, native wallet recovery and ordinary
 state persistence are functional requirements, not legacy compatibility. Do not
 delete private state as a shortcut to simplifying implementation or tests.
 
+## Scope enforcement to the operation
+
+- Each blocking check must protect a concrete requirement of the operation being
+  attempted. Keep inspection, backup, repair and shutdown available when unrelated
+  services or deployment settings are invalid. Validate network/serving policy
+  before those capabilities are used, without making it a prerequisite for
+  reading saved local state.
+- Preserve valid persistent state and completed setup across unrelated source,
+  build and configuration changes. Do not use whole-file hashes, build identities,
+  timestamps or arbitrary versions as reasons to revoke access, discard completion
+  or repeat setup. Require invalidation only for a demonstrated incompatibility,
+  with the affected requirement, practical consequence and recovery explained.
+- Keep historical completion, current readiness and access to saved data distinct.
+  A dependency or policy failure may block the affected operation; it does not
+  make an existing wallet invalid or authorize initialization, rotation, payments
+  or destructive recovery. Prefer checking actual runtime requirements to adding
+  another persisted eligibility marker.
+- Make initialization retry-safe with native persistence and small explicit code:
+  atomically publish individual files, save recoverable inputs before derived
+  outputs, and reconstruct missing derived files from intact authoritative state.
+  Preserve keys, credentials and operator choices. If recovery is impossible,
+  report the specific missing material and deliberate recovery command.
+- Do not turn partial-initialization handling into startup journals, recovery
+  frameworks or speculative state machines. Test the relevant interruption and
+  retry paths, including identity preservation, and stop at the simplest behavior
+  that meets the demonstrated need.
+
 ## Preserve the accepted boundaries
 
 - Hermes and its SSH executor have separate mounts, processes and network

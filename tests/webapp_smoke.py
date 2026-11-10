@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Pinned-image ingress qualification; simulated TLS, no Funnel enrollment or inference."""
 import json
+from contextlib import ExitStack
 import os
 from pathlib import Path
 import secrets
@@ -58,7 +59,7 @@ def run_suite():
     if ready.returncode:
         raise RuntimeError('Install tests/requirements-browser.txt and Chromium, then set WEBAPP_BROWSER_PYTHON; see docs/webapp.md')
     failed = True
-    with tempfile.TemporaryDirectory(prefix='private-hermes-ingress-') as directory:
+    with tempfile.TemporaryDirectory(prefix='private-hermes-ingress-') as directory, ExitStack() as resources:
         folder = Path(directory)
         # Only disposable credentials enter this project, never operator auth files.
         password = secrets.token_urlsafe(32)
@@ -79,8 +80,9 @@ def run_suite():
         os.environ.update(WEBAPP_PORT='19120', WEBAPP_USERNAME='admin',
                           TAILSCALE_FUNNEL_ENABLED='true', TAILSCALE_FUNNEL_HOST='webapp-test.example.ts.net',
                           TAILSCALE_FUNNEL_PORT='10000', TS_AUTHKEY='',
-                          WEBAPP_TEST_AUTH=str(folder / 'auth.json'), WEBAPP_TEST_PROXY=str(folder / 'proxy.cfg'),
+                          WEBAPP_TEST_CONFIG=str(folder), WEBAPP_TEST_PROXY=str(folder / 'proxy.cfg'),
                           WEBAPP_TEST_TLS=str(tls))
+        resources.enter_context(smoke.storage_fixture())
         try:
             print('Starting real pinned Hermes with local and simulated HTTPS ingress...', flush=True)
             smoke.compose('down', '--volumes', '--remove-orphans')
@@ -342,8 +344,7 @@ else: raise AssertionError('Missing authentication provider did not refuse start
 
 
 def main():
-    with smoke.storage_fixture():
-        run_suite()
+    run_suite()
 
 
 if __name__ == '__main__':

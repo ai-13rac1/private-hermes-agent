@@ -24,9 +24,11 @@ storage-test: check
 	python3 -u tests/storage_smoke.py
 
 .PHONY: x402_treazury-init x402_treazury-status x402_treazury-prepare
-x402_treazury-init: init
+x402_treazury-init:
+	python3 scripts/init-config.py --wallet
 	python3 scripts/x402_treazury.py init
-x402_treazury-status: init
+x402_treazury-status:
+	python3 scripts/init-config.py --wallet
 	python3 scripts/x402_treazury.py status
 x402_treazury-prepare: init
 	python3 scripts/x402_treazury.py prepare
