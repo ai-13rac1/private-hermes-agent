@@ -18,8 +18,8 @@ Read [AGENTS.md](../AGENTS.md) before changing the stack and follow the
 unchanged. The research TOML is seeded separately from the built treasury image
 after `make build` or before managed startup/treasury commands; see
 [research configuration](x402_treazury.md#edit-the-research-configuration). Add new settings explicitly using `.env.example` as a reference.
-`make build`, `make up`, and
-`make x402_treazury-init` run it automatically. Image pins and source revisions live
+`make build` and `make up` run it automatically. Saved-wallet commands do not run
+full initialization; new-wallet creation prepares only its Tor/network host inputs. Image pins and source revisions live
 in Compose and component Dockerfiles, not `.env`. Hermes and wallet state use native named volumes; other persistent files live
 in `data/`. Runtime Tor socket IPC also uses a named volume. See
 [configuration and backups](configuration.md) before starting.

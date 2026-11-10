@@ -56,8 +56,10 @@ does not implement the separate read-only Hermes configuration plan.
 
 ## Offline setup and maintenance
 
-Three helpers cover setup: `setup`, `x402_treazury-admin`, and
-`x402_treazury-setup`. The offline `setup` service uses the same derived pinned
+Offline jobs have explicit mount requirements: `setup` provisions the stack,
+`hermes-config` repairs only Hermes configuration, `x402_treazury-inspect` reads
+saved wallet state, and `x402_treazury-admin` handles policy-aware administration.
+`x402_treazury-setup` performs Tor-routed wallet initialization/preparation. The offline `setup` service uses the same derived pinned
 Hermes image as the agent, with component scripts mounted read-only. No custom
 setup image or combined Hermes/treasury image is built. It has a read-only root,
 no network, and only `CHOWN`, `FOWNER`, `DAC_OVERRIDE`, `SETUID`, and `SETGID`.
@@ -77,8 +79,11 @@ guard direct first-run startup. Treasury activation
 reconnects MCP only after authenticated readiness succeeds.
 
 SSH client and host keys live in separate persistent directories; setup pins the
-executor host key and initializes its workspace/home. It copies
+executor host key and initializes its workspace/home. It publishes
 `components/hermes/config.example.yaml` only if Hermes configuration is absent.
+Defaults are written completely to same-directory temporary files and atomically
+published without replacing operator files. An interrupted first copy leaves no
+partial final configuration; retries preserve any existing complete file and modes.
 Existing compatible configuration and keys are preserved. Incompatible Hermes
 configuration blocks agent startup. Setup also installs the generated SSH
 file-browser settings.
@@ -87,24 +92,32 @@ file-browser settings.
 the existing runtime namespaces without starting setup again. The optional
 Tailscale service is also started without rerunning its completed dependencies.
 
-Explicit maintenance commands use the same offline service:
+Use the unprivileged offline configuration job for repair, or trusted setup for
+deliberate full storage qualification:
 
 ```sh
-python3 scripts/stack.py compose run --rm --no-deps setup config set model.default 'neardirect:z-ai/glm-5.3-flash-long'
+python3 scripts/stack.py compose run --rm --no-deps hermes-config set model.default 'neardirect:z-ai/glm-5.3-flash-long'
 python3 scripts/stack.py compose run --rm --no-deps setup storage
 ```
 
-`setup config` executes the native Hermes configuration CLI as UID/GID 10000,
-without rerunning bootstrap validation, so it can repair an incompatible setting.
-`setup storage` only prepares directory metadata and checks native-volume locks.
-The controller uses `setup mcp token|connect|disconnect` for registration changes;
-these subcommands do not rerun SSH/auth initialization. Wallet maintenance reuses
-successful setup; before initial startup or after failed setup, it runs only
-storage preparation and does not require valid Hermes configuration. The setup
-service mounts the private webapp configuration directory read-only,
-so storage-only commands do not require an authentication file. Wallet
-inspection stays in the networkless native treasury image, and financial jobs
-stay in its separate Tor-connected, non-restarting service.
+`hermes-config` invokes the native configuration CLI directly as UID/GID 10000,
+with only the Hermes profile volume, no networking and no startup/bootstrap
+validation. It can repair incompatible settings without mounting webapp credentials,
+executor paths or the wallet. `setup storage` deliberately prepares the full storage
+layout and checks native-volume locks; ordinary saved-wallet inspection does not
+run or depend on it. Trusted `setup mcp token|connect|disconnect` handles registration
+without rerunning SSH/auth initialization.
+
+The Compose wrapper bypasses unrelated deployment-settings validation for logs,
+inspection, exec/control of existing containers, and documented `run --rm --no-deps`
+maintenance jobs. It includes the Funnel overlay so existing optional services are
+visible. Process-local inert values satisfy unused ingress/inference interpolation;
+`.env` and running container environments are unchanged. Normal launch/build/config
+paths still validate actual operator settings. `make down` uses the same maintenance
+interpolation and includes all ingress resources, even after a malformed Teep port
+or command setting. Existing native policy checks still guard actual application
+startup. Malformed Compose/ dotenv syntax or ambiguous project identity can still
+require correction before Compose can identify the deployment safely.
 
 ## Tool discovery default
 
@@ -121,7 +134,7 @@ an existing profile, gracefully stop the stack and use native offline maintenanc
 
 ```sh
 make down
-python3 scripts/stack.py compose run --rm --no-deps setup config set tools.tool_search.enabled off
+python3 scripts/stack.py compose run --rm --no-deps hermes-config set tools.tool_search.enabled off
 make up
 ```
 
@@ -165,7 +178,7 @@ Clearing the variable does not reset the previous choice. A nonblank value is
 reapplied on every `make up`; clear it to manage the default entirely in Hermes.
 Existing sessions may retain their session-specific model selections.
 
-Without an `.env` preference, use `setup config set model.default` followed by
+Without an `.env` preference, use `hermes-config set model.default` followed by
 `make up` to save another default. Preserve the custom Teep endpoint and SSH
 backend when editing native configuration.
 
@@ -173,7 +186,7 @@ List Teep's live model IDs and select an alternative with:
 
 ```sh
 python3 scripts/stack.py compose exec teep curl -fsS http://127.0.0.1:8337/v1/models
-python3 scripts/stack.py compose run --rm --no-deps setup config set model.default 'neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated'
+python3 scripts/stack.py compose run --rm --no-deps hermes-config set model.default 'neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated'
 make up
 ```
 
@@ -277,7 +290,7 @@ not by itself change the deployment or replace full application qualification.
 | `data/ssh/agent/` | Agent SSH client identity and pinned host trust |
 | `data/ssh/executor/` | Executor host identity and authorized client key |
 | `x402_treazury-data` named volume | Entire treasury home: wallet state/key, financial journals, catalog cache and onboarding record |
-| `config/x402_treazury/` | Editable research policy and host operation lock |
+| `config/x402_treazury/` | Editable research policy |
 | `data/x402_treazury-auth/` | Persistent MCP bearer token, separately mounted from the wallet |
 | `data/tor/` | Tor guard-selection and persistent Tor state |
 | `data/tailscale/` | Optional Funnel node enrollment and identity |
@@ -340,9 +353,9 @@ Hermes's generated profile `.env` in `hermes-data` is distinct from the root
 deployment `.env`: it contains the MCP token and Hermes-owned credentials.
 `x402_treazury-data` contains preparation records and catalog cache as well as
 the wallet. Those records are historical preparation evidence, not current
-spendability or perpetual cache freshness. Editable research policy and host
-operation locks remain under
-`config/x402_treazury/`; include this directory in backups. See
+spendability or perpetual cache freshness. Editable research policy remains under `config/x402_treazury/`; include this
+directory in backups. The shared host operation lock is `.operation.lock` at the
+project root; it is concurrency coordination, not wallet state or a backup input. See
 [editing research policy](x402_treazury.md#edit-the-research-configuration) and
 [staged onboarding](x402_treazury.md).
 

@@ -1,6 +1,7 @@
 # Maintenance and initialization rule conformance
 
-Status: proposed; independent design review pending.
+Status: P1 implemented and qualified; independent final combined review pending.
+Independent read-only design review of `fad9ab2` found no material findings.
 Baseline: branch `webapp-private-content`, commit `48a0f9b3584ff2368de4f5af60832b957eb7e3e5`.
 
 ## Intent and current defects
@@ -25,6 +26,8 @@ The treasury source remains `424f36a814711d542fbff27f139842c9d08d5b76`.
   containers and explicit offline maintenance jobs bypass unrelated Settings checks;
   normal launch/build/config validation retains actual operator settings. Keep command
   dispatch small and explicit; do not build a generic CLI parser/adapter registry.
+- Treasury operations validate their actual mounted policy and existing Hermes
+  availability, without full Make init or unrelated ingress validation.
 - Plugins/update checks operate on the existing Hermes container without validating
   unrelated ingress settings. Credential creation/rotation needs no deployment settings;
   remove Make prerequisites that run full init before deliberate credential repair.
@@ -50,10 +53,11 @@ The treasury source remains `424f36a814711d542fbff27f139842c9d08d5b76`.
   files and modes remain untouched, including a concurrent winner. No journal or state
   machine; retries simply see a complete file or no file. Apply to .env, allowlist and
   initial Hermes defaults; retain the existing atomic update path for established config.
-- Trust native command success for bootstrap/catalog completion. Keep JSON parsing for
-  requested structured diagnostics, but remove schema/completion/source-set presentation
-  gates already owned by the pinned native command. Preserve actual deployment-policy
-  validation, errors, saved treasury identity and only record completed successful phases.
+- Trust native command success for bootstrap/catalog completion. Stream native output
+  as diagnostics without parsing it to authorize completion; remove presentation gates
+  already owned by the native command. JSON parsing remains only where an actual read
+  interface needs its data. Preserve actual deployment-policy validation, errors, saved
+  treasury identity and only record completed successful phases.
 
 ## Phase P1: implementation and acceptance
 
@@ -76,3 +80,38 @@ material findings and record validation/limitations here. The final review brief
 explicitly invite other rule violations noticed across affected/unchanged consumers.
 No blanket new quotas, timeouts, fallback policy, extra persistent records or recovery
 frameworks. New Compose jobs are explicit invocations, not long-running services.
+
+## P1 qualification
+
+- `make check`: 86 unit tests, effective base/Funnel Compose validation and Python
+  compilation passed. Synthetic bad ingress/Teep settings cannot block shutdown,
+  logs, existing-container commands or documented offline repair/backup jobs; actual
+  launch retains its policy gate, and raw model inspection retains actual settings.
+- Host default publication tests inject source-read/fsync/link failures and a concurrent
+  operator-file winner. No partial final file is left, retry publishes complete data,
+  and existing content/modes remain intact. Credential repair needs no deployment settings.
+- Treasury image rebuilt from the unchanged native pin. Packaged Hermes profile path
+  ownership is UID/GID 10000, so the unprivileged job needs no root initialization shim.
+- `tests/research_config_smoke.py`: passed with disposable unfunded state. Actual Make
+  status/repeated init kept the same address/identity/history despite invalid ingress,
+  credentials, network allowlist, executor/Tailscale paths, and wrong-type research
+  configuration directory. No unrelated paths were initialized and no services started.
+- `tests/storage_smoke.py`: passed. Real setup's injected initial default-publication
+  failure left no final config, and retry succeeded. Native config repair and wallet
+  inspection worked after failed setup. New jobs ran as their unprivileged UIDs with
+  zero effective capabilities, only their required native volume, no unrelated private
+  paths, and no internal Teep connection. SSH identity, native lock exclusion and
+  persistence through ordinary Compose down/recreation remained qualified.
+- Controlled native results prove successful presentation changes do not veto phase
+  completion; native failure still stops later phases. Exact pinned bootstrap/warming
+  Result propagation and native completeness guarantees were independently inspected
+  during design review. No funded bootstrap/warming was executed.
+- Prior endpoint/browser/network qualification is carried forward for unchanged paths;
+  no broad test matrix or success cache was added. No new image/dependency/fork, journal,
+  financial ledger, timeout or transport fallback was introduced. The two additional
+  Compose jobs are explicit same-image maintenance invocations with distinct mounts.
+
+All checks used public source and disposable projects, not operator wallet/profile
+state. Local link and diff checks accompany the final evidence update. The final
+review is explicitly asked to assess other rule violations it notices, not only
+regressions in this diff; material findings must be resolved before completion.

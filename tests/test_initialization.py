@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'components/webapp'))
+sys.path.insert(0, str(ROOT / 'components/provisioning'))
 import auth
 
 spec = importlib.util.spec_from_file_location('bootstrap_keys', ROOT / 'components/provisioning/bootstrap.py')

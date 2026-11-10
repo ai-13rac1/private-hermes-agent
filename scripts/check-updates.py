@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
-from deployment import ROOT, compose, settings
+from deployment import ROOT, maintenance_compose
 
 
 def inventory(root=ROOT):
@@ -37,7 +37,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
-    command = compose(settings())
+    command = maintenance_compose()
     if not subprocess.check_output([*command, 'ps', '-q', '--status', 'running', 'hermes'], cwd=ROOT, text=True).strip():
         raise SystemExit('Start the stack with make up first; update checks use its Tor route.')
     worker = (ROOT / 'components/updates/check.py').read_text()

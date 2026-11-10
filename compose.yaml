@@ -282,20 +282,25 @@ services:
         bind: {create_host_path: false}
       - x402_treazury-data:/var/lib/x402
 
-  x402_treazury-admin:
+  x402_treazury-inspect: &x402-offline
     profiles: [maintenance]
     image: *x402-image
     user: "10003:10003"
     network_mode: none
     entrypoint: [python3, /opt/onboarding.py]
     command: [status]
-    depends_on:
-      setup: {condition: service_completed_successfully}
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     read_only: true
     # Offline wallet inspection reconstructs an encrypted snapshot in scratch space.
     tmpfs: [/tmp:mode=1777]
+    volumes:
+      - x402_treazury-data:/var/lib/x402
+
+  x402_treazury-admin:
+    <<: *x402-offline
+    depends_on:
+      setup: {condition: service_completed_successfully}
     volumes:
       - type: bind
         source: ./config/x402_treazury
@@ -303,6 +308,23 @@ services:
         read_only: true
         bind: {create_host_path: false}
       - x402_treazury-data:/var/lib/x402
+
+  hermes-config:
+    profiles: [maintenance]
+    image: *hermes-image
+    user: "10000:10000"
+    network_mode: none
+    entrypoint: [/opt/hermes/.venv/bin/hermes, config]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:mode=1777]
+    environment:
+      HOME: /opt/data
+      HERMES_HOME: /opt/data
+      WEBAPP_EXTERNAL_CONTENT: "off"
+    volumes:
+      - hermes-data:/opt/data
 
   hermes:
     image: *hermes-image

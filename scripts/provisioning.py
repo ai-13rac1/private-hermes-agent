@@ -24,18 +24,6 @@ def initialize_setup(command):
         raise RuntimeError(f'Offline setup failed (exit {code}); application startup was not attempted.')
 
 
-def ensure_storage(command):
-    identifier = setup_container(command)
-    if identifier:
-        state = json.loads(subprocess.check_output(['docker', 'inspect', identifier, '--format', '{{json .State}}'],
-                                                  cwd=ROOT, text=True))
-        if state['Status'] == 'exited' and state['ExitCode'] == 0:
-            return
-    # Wallet commands before first startup only need storage preparation. They
-    # must not depend on valid Hermes configuration or initialize SSH/auth state.
-    subprocess.run([*command, 'run', '--rm', '-T', '--no-deps', 'setup', 'storage'], cwd=ROOT, check=True)
-
-
 def initialize_research_config(command, root=ROOT):
     """Seed operator policy from the built image without mounting private state."""
     path = Path(root) / 'config/x402_treazury/research_desk.toml'

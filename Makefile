@@ -25,12 +25,10 @@ storage-test: check
 
 .PHONY: x402_treazury-init x402_treazury-status x402_treazury-prepare
 x402_treazury-init:
-	python3 scripts/init-config.py --wallet
 	python3 scripts/x402_treazury.py init
 x402_treazury-status:
-	python3 scripts/init-config.py --wallet
 	python3 scripts/x402_treazury.py status
-x402_treazury-prepare: init
+x402_treazury-prepare:
 	python3 scripts/x402_treazury.py prepare
 
 .PHONY: x402_treazury-test
@@ -39,8 +37,9 @@ x402_treazury-test: check
 	python3 -u tests/x402_treazury_smoke.py
 
 .PHONY: webapp-credentials webapp-rotate webapp-test
-webapp-credentials: init
-webapp-rotate: init
+webapp-credentials:
+	python3 scripts/webapp-credentials.py
+webapp-rotate:
 	python3 scripts/webapp-credentials.py --rotate
 webapp-test: check
 	docker compose -f compose.yaml build hermes webapp-proxy

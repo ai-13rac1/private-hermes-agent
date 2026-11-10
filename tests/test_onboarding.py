@@ -82,6 +82,18 @@ class PreparationTests(unittest.TestCase):
         self.treasury_id = 'different-wallet'
         self.assertFalse(onboarding.inspect()['prepared'])
 
+    def test_successful_native_output_is_diagnostic_not_completion_authority(self):
+        original = self.native
+        def changed(args, phase, **kwargs):
+            if phase in ('bootstrap', 'catalogs'):
+                self.calls.append(args)
+                return 'changed native presentation'
+            return original(args, phase, **kwargs)
+        with patch.object(onboarding, 'native', side_effect=changed):
+            onboarding.prepare()
+        self.assertTrue(onboarding.inspect()['prepared'])
+        self.assertNotIn('result', json.loads(onboarding.RECORD.read_text()))
+
     def test_implementation_changes_preserve_completion_and_serving(self):
         onboarding.prepare()
         record = onboarding.RECORD.read_bytes()
@@ -336,7 +348,8 @@ class ActivationTests(unittest.TestCase):
     def test_absent_init_starts_network_but_invalid_state_does_not(self):
         controller = self.controller()
         controller.inspect = lambda: {'wallet_absent': True, 'wallet_valid': False}
-        controller.initialize()
+        with patch('x402_treazury.subprocess.run'), patch('x402_treazury.initialize_research_config'):
+            controller.initialize()
         self.assertEqual(controller.events, [('up', '-d', '--wait', '--no-deps', 'tor', 'agent-net'),
                                              ('wallet', 'init')])
         controller.events.clear()

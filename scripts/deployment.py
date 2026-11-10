@@ -1,5 +1,6 @@
 """Compose handles dotenv interpolation; this module validates feature settings."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -20,6 +21,40 @@ def compose(config, all_ingress=False):
     if config.funnel or all_ingress:
         command += ['-f', 'compose.funnel.yaml']
     return command
+
+
+def maintenance_compose(all_ingress=False):
+    # These operations must not start ingress, inference or the agent with
+    # placeholders. Actual treasury policy remains in its mounted configuration.
+    # Compose still interpolates unused services and publications.
+    os.environ.update(TAILSCALE_FUNNEL_ENABLED='false', WEBAPP_EXTERNAL_CONTENT='off',
+                      WEBAPP_BIND='127.0.0.1', WEBAPP_PORT='9120', WEBAPP_USERNAME='admin',
+                      TAILSCALE_FUNNEL_HOST='', TAILSCALE_FUNNEL_PORT='443',
+                      TAILSCALE_HOSTNAME='private-hermes', TEEP_HOST_PORT='8337', TEEP_SERVE_ARGS='')
+    command = ['docker', 'compose', '-f', 'compose.yaml']
+    if all_ingress:
+        command += ['-f', 'compose.funnel.yaml']
+    return command
+
+
+def maintenance_command(arguments):
+    if not arguments:
+        return False
+    if arguments[0] in ('logs', 'ps', 'top', 'port', 'exec', 'stop', 'down', 'rm', 'kill', 'pause', 'unpause'):
+        return True
+    # Explicit networkless maintenance jobs; do not normalize arbitrary launches.
+    if arguments[0] != 'run' or '--no-deps' not in arguments:
+        return False
+    options = iter(arguments[1:])
+    for value in options:
+        if value in ('--rm', '--no-deps', '-T'):
+            continue
+        if value in ('--entrypoint', '--volume', '-v', '--env', '-e', '--user', '-u', '--name', '--workdir', '-w'):
+            if next(options, None) is None:
+                return False
+            continue
+        return value in ('hermes-config', 'x402_treazury-inspect', 'x402_treazury-admin')
+    return False
 
 
 def render(config):

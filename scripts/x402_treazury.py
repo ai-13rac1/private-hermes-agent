@@ -11,8 +11,8 @@ import subprocess
 import sys
 import threading
 import time
-from deployment import ROOT, compose, settings
-from provisioning import ensure_storage, initialize_research_config
+from deployment import ROOT, maintenance_compose
+from provisioning import initialize_research_config
 
 
 # Native diagnostic contract at pinned 424f36a; generic ERROR logs can recover.
@@ -50,22 +50,9 @@ def serving_diagnostics(identifier, started_at, root):
         logs.stdout.close()
 
 
-def wallet_compose():
-    # Compose interpolates the entire model, including unused port publications.
-    # These process-local values are only for wallet commands, which never start
-    # ingress or inference. Operator .env and running services are untouched.
-    os.environ.update(TAILSCALE_FUNNEL_ENABLED='false', WEBAPP_EXTERNAL_CONTENT='off',
-                      WEBAPP_BIND='127.0.0.1', WEBAPP_PORT='9120', WEBAPP_USERNAME='admin',
-                      TAILSCALE_FUNNEL_HOST='', TAILSCALE_FUNNEL_PORT='443',
-                      TAILSCALE_HOSTNAME='private-hermes', TEEP_HOST_PORT='8337')
-    return ['docker', 'compose', '-f', 'compose.yaml']
-
-
 @contextmanager
 def operation_lock(root):
-    folder = Path(root) / 'config/x402_treazury'
-    folder.mkdir(parents=True, exist_ok=True)
-    with (folder / 'operation.lock').open('a') as lock:
+    with (Path(root) / '.operation.lock').open('a') as lock:
         os.chmod(lock.name, 0o600)
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -82,7 +69,8 @@ class Controller:
         return subprocess.run([*self.command, *arguments], cwd=self.root, text=True, check=True, **kwargs)
 
     def admin(self, action, capture=False):
-        return self.call('run', '--rm', '-T', '--no-deps', 'x402_treazury-admin', action,
+        service = 'x402_treazury-inspect' if action in ('inspect', 'status') else 'x402_treazury-admin'
+        return self.call('run', '--rm', '-T', '--no-deps', service, action,
                          capture_output=capture)
 
     def inspect(self):
@@ -225,6 +213,9 @@ class Controller:
             print('Wallet already initialized; displaying saved wallet state.', flush=True)
             self.admin('status')
             return
+        subprocess.run([sys.executable, str(self.root / 'scripts/init-config.py'), '--wallet'],
+                       cwd=self.root, check=True)
+        initialize_research_config(self.command, self.root)
         self.call('up', '-d', '--wait', '--no-deps', 'tor', 'agent-net')
         self.wallet_command('init')
 
@@ -283,9 +274,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=('init', 'status', 'prepare'))
     args = parser.parse_args()
-    controller = Controller(wallet_compose() if args.action in ('init', 'status') else compose(settings()))
-    initialize_research_config(controller.command, ROOT)
-    ensure_storage(controller.command)
+    # Only treasury and existing Hermes control RPC are used here. Actual treasury
+    # policy is validated by its own admin/job, not unrelated ingress settings.
+    controller = Controller(maintenance_compose())
+    if args.action == 'prepare':
+        initialize_research_config(controller.command, ROOT)
     if args.action == 'status':
         controller.admin('status')
     else:

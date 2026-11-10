@@ -70,8 +70,9 @@ def main():
                        '-f', str(ROOT / 'compose.yaml'), '-f', str(override)]
 
             def admin(action, check=True):
+                service = 'x402_treazury-inspect' if action in ('inspect', 'status') else 'x402_treazury-admin'
                 return subprocess.run([*command, 'run', '--rm', '-T', '--no-deps',
-                                       'x402_treazury-admin', action],
+                                       service, action],
                                       capture_output=True, text=True, check=check)
 
             assert 'has not been initialized' in admin('status').stdout
@@ -156,6 +157,19 @@ def main():
             auth = root / 'config/webapp/auth.json'
             auth.parent.mkdir(parents=True)
             auth.write_text('invalid auth')
+            initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
+            assert path.read_text() == changed
+            # Broken unrelated network/storage/config paths must not be mounted
+            # or initialized by saved-wallet inspection or repeated init.
+            network = root / 'config/network/mcp-allowlist.json'
+            network.mkdir(parents=True)
+            data = root / 'data'
+            data.mkdir()
+            (data / 'tailscale').write_text('unrelated wrong-type path')
+            (data / 'executor').write_text('unrelated wrong-type path')
+            held_policy = root / 'held-research-policy'
+            directory.rename(held_policy)
+            directory.write_text('unrelated wrong-type config path')
             environment = dict(os.environ, COMPOSE_PROJECT_NAME=identity)
             for target in ('x402_treazury-status', 'x402_treazury-init'):
                 result = subprocess.run(['make', target], cwd=root, env=environment,
@@ -167,9 +181,8 @@ def main():
             running = subprocess.run([*command, 'ps', '-q', '--status', 'running'],
                                      capture_output=True, text=True, check=True)
             assert not running.stdout.strip(), running.stdout
-            initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
-            assert path.read_text() == changed
-            print('PASS: Compose offline status/repeated init preserve wallet identity without starting services; missing-/tmp failure control; policy edits, read-only config, restart, retained completion after source edit/restart, invalid config permits inspection but refuses prepare/serve, actual Make entrypoints ignore unrelated ingress/auth errors, preview/rename error path and seed preservation')
+            assert directory.read_text() == 'unrelated wrong-type config path'
+            print('PASS: Compose offline status/repeated init preserve wallet identity without starting services; missing-/tmp failure control; policy edits, read-only config, restart, retained completion after source edit/restart, invalid config permits inspection but refuses prepare/serve, actual Make entrypoints ignore unrelated ingress/auth/network/storage/policy paths, preview/rename error path and seed preservation')
         finally:
             docker('rm', '-f', identity, check=False)
             docker('volume', 'rm', identity)

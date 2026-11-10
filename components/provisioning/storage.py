@@ -31,13 +31,14 @@ def directory(path, create=False):
         raise ValueError(f'Persistent storage path must be a directory, not a symlink: {path}')
 
 
-def initialize(root, ownership=False):
+def initialize(root, ownership=False, paths=None):
     root = Path(root)
     directory(root, create=not ownership)
     # This parent remains host-owned, protecting leaves whose application needs
     # require traversal by its own root and unprivileged processes.
     root.chmod(0o700)
-    for relative, (uid, gid, mode) in LAYOUT.items():
+    for relative in LAYOUT if paths is None else paths:
+        uid, gid, mode = LAYOUT[relative]
         leaf = root
         for part in Path(relative).parts:
             leaf /= part

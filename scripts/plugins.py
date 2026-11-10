@@ -2,11 +2,11 @@
 """Manage persistent user plugins with Hermes's native CLI, as the agent UID."""
 import subprocess
 import sys
-from deployment import ROOT, compose, settings
+from deployment import ROOT, maintenance_compose
 
 
 def main():
-    command = compose(settings())
+    command = maintenance_compose()
     running = subprocess.check_output([*command, 'ps', '-q', '--status', 'running', 'hermes'], cwd=ROOT, text=True).strip()
     if not running:
         raise SystemExit('Start the stack with make up before managing plugins.')

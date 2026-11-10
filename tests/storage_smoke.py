@@ -21,9 +21,37 @@ def main():
             smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
                           '/opt/hermes/.venv/bin/python', 'setup', '-c',
                           "from pathlib import Path; p=Path('/opt/data/.local/bin/ssh-keygen'); p.parent.mkdir(parents=True); p.write_text('#!/bin/sh\\nexit 99\\n'); p.chmod(0o755)")
+            smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
+                          '/opt/hermes/.venv/bin/python', 'setup', '-c', """
+import sys
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,'/opt/private-hermes/provisioning')
+import setup
+sys.argv=['setup','init']
+with patch('private_files.os.link', side_effect=OSError('injected interrupted publication')):
+ try: setup.main()
+ except OSError: pass
+ else: raise AssertionError('Expected interrupted default publication')
+assert not Path('/opt/data/config.yaml').exists()
+assert not list(Path('/opt/data').glob('tmp*'))
+""")
             smoke.initialize_setup(smoke.COMPOSE)
-            smoke.compose('run', '--rm', '-T', '--no-deps', 'setup', 'config',
+            print('PASS: interrupted initial Hermes default publication leaves no final file; real setup safely retries', flush=True)
+            smoke.compose('run', '--rm', '-T', '--no-deps', 'hermes-config',
                           'set', 'model.default', 'setup-qualification-model')
+            for job, interpreter, uid, forbidden in (
+                    ('hermes-config', '/opt/hermes/.venv/bin/python', 10000,
+                     ['/var/lib/x402/state', '/persistent-data', '/run/webapp/auth.json']),
+                    ('x402_treazury-inspect', 'python3', 10003,
+                     ['/opt/data', '/persistent-data', '/run/webapp/auth.json'])):
+                smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint', interpreter, job, '-c',
+                              "import os,socket; from pathlib import Path; "
+                              f"assert os.getuid()=={uid}; "
+                              f"assert not any(Path(p).exists() for p in {forbidden!r}); "
+                              "assert int(next(l.split()[1] for l in Path('/proc/self/status').read_text().splitlines() if l.startswith('CapEff:')),16)==0; "
+                              "s=socket.socket(); s.settimeout(.5); assert s.connect_ex(('10.203.83.3',8337))!=0; s.close()")
+            print('PASS: maintenance jobs use unprivileged identities, zero effective capabilities, no unrelated private mounts or internal network access', flush=True)
             snapshot = """import hashlib,json
 from pathlib import Path
 import hermes_yaml as yaml
@@ -82,11 +110,11 @@ assert row['api_url'] == 'http://10.203.83.3:8337/v1'
             smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
                           '/opt/hermes/.venv/bin/python', 'setup', '-c',
                           "from pathlib import Path; import hermes_yaml as yaml; assert yaml.safe_load(Path('/opt/data/config.yaml').read_text())['model']['default']=='neardirect:qualification/arbitrary-model'")
-            smoke.compose('run', '--rm', '-T', '--no-deps', 'setup', 'config',
+            smoke.compose('run', '--rm', '-T', '--no-deps', 'hermes-config',
                           'set', 'model.default', 'setup-qualification-model')
             assert identities() == original_identities
             print('PASS: root model preference and native Teep picker accept additional model IDs without changing the inference route', flush=True)
-            smoke.compose('run', '--rm', '-T', '--no-deps', 'setup', 'config',
+            smoke.compose('run', '--rm', '-T', '--no-deps', 'hermes-config',
                           'set', 'terminal.backend', 'local')
             try:
                 smoke.initialize_setup(smoke.COMPOSE)
@@ -94,17 +122,17 @@ assert row['api_url'] == 'http://10.203.83.3:8337/v1'
                 assert 'Offline setup failed' in str(error)
             else:
                 raise AssertionError('Incompatible execution configuration permitted startup')
-            from provisioning import ensure_storage
-            ensure_storage(smoke.COMPOSE)
-            smoke.compose('run', '--rm', '-T', '--no-deps', 'setup', 'config',
+            status = smoke.compose('run', '--rm', '-T', '--no-deps', 'x402_treazury-inspect', 'status')
+            assert 'has not been initialized' in status.stdout
+            smoke.compose('run', '--rm', '-T', '--no-deps', 'hermes-config',
                           'set', 'terminal.backend', 'ssh')
             smoke.initialize_setup(smoke.COMPOSE)
             assert identities() == original_identities
-            print('PASS: failed setup blocks startup; storage-only wallet maintenance and offline config repair remain available', flush=True)
+            print('PASS: failed setup blocks startup; independent wallet inspection and offline config repair remain available', flush=True)
             # Maintenance must reuse successful setup, without rerunning init
             # and disconnecting a live research configuration.
             smoke.compose('run', '--rm', '-T', '--no-deps', 'setup', 'mcp', 'connect')
-            ensure_storage(smoke.COMPOSE)
+            smoke.compose('run', '--rm', '-T', '--no-deps', 'x402_treazury-inspect', 'status')
             smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
                           '/opt/hermes/.venv/bin/python', 'setup', '-c',
                           "import hermes_yaml as yaml; from pathlib import Path; c=yaml.safe_load(Path('/opt/data/config.yaml').read_text()); assert len([n for n in c['mcp_servers'] if n.startswith('x402_treazury_')])==12")

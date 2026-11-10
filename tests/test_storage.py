@@ -73,6 +73,14 @@ class PersistentStorageTests(unittest.TestCase):
                                  '--profile', '*', 'config', '--format', 'json'],
                                 cwd=ROOT, text=True, capture_output=True, check=True)
         config = json.loads(result.stdout)
+        for name, uid, volume in (('hermes-config', '10000:10000', 'hermes-data'),
+                                  ('x402_treazury-inspect', '10003:10003', 'x402_treazury-data')):
+            job = config['services'][name]
+            self.assertEqual(job['network_mode'], 'none')
+            self.assertEqual(job['user'], uid)
+            self.assertEqual(job['cap_drop'], ['ALL'])
+            self.assertEqual([(m['type'], m['source']) for m in job['volumes']], [('volume', volume)])
+            self.assertFalse(job.get('depends_on'))
         self.assertEqual(set(config['volumes']), {'tor-x402_treazury', 'hermes-data', 'x402_treazury-data'})
         wallet_readers = set()
         config_readers = set()
@@ -100,7 +108,7 @@ class PersistentStorageTests(unittest.TestCase):
                     if name == 'hermes':
                         self.assertEqual(source.relative_to(root).as_posix(), 'ssh/agent')
         self.assertEqual(config_readers, {'x402_treazury', 'x402_treazury-setup', 'x402_treazury-admin'})
-        self.assertEqual(wallet_readers, {'setup', 'x402_treazury', 'x402_treazury-setup', 'x402_treazury-admin'})
+        self.assertEqual(wallet_readers, {'setup', 'x402_treazury', 'x402_treazury-setup', 'x402_treazury-admin', 'x402_treazury-inspect'})
 
 
 if __name__ == '__main__':

@@ -100,10 +100,7 @@ class ShutdownTests(unittest.TestCase):
         sys.path.insert(0, str(ROOT / 'scripts'))
         import stack
         import os
-        def selected():
-            self.assertEqual(os.environ['TAILSCALE_FUNNEL_ENABLED'], 'false')
-            return Settings.read(values())
-        with patch.dict(os.environ, {'TAILSCALE_FUNNEL_ENABLED':'bad'}), patch.object(sys,'argv',['stack.py','down']), patch.object(stack,'settings',side_effect=selected), patch.object(stack,'stop_funnel',side_effect=RuntimeError('test reset failure')), patch.object(stack,'run') as run:
+        with patch.dict(os.environ, {'TAILSCALE_FUNNEL_ENABLED':'bad', 'TEEP_HOST_PORT':'invalid'}), patch.object(sys,'argv',['stack.py','down']), patch.object(stack,'settings',side_effect=AssertionError('Unrelated settings validation')), patch.object(stack,'stop_funnel',side_effect=RuntimeError('test reset failure')), patch.object(stack,'run') as run:
             with self.assertRaises(RuntimeError):
                 stack.main()
             self.assertIn('down', run.call_args.args[0])

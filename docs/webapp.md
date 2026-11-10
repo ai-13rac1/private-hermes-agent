@@ -20,7 +20,9 @@ WEBAPP_USERNAME=admin
 TAILSCALE_FUNNEL_ENABLED=false
 ```
 
-`make init` generates missing credentials and renders proxy configuration. Then
+`make init` generates missing credentials and renders proxy configuration.
+`make webapp-credentials` and explicit `make webapp-rotate` operate on credential
+files alone, so unrelated invalid deployment settings do not block login repair. Then
 build and start the services:
 
 ```sh

@@ -2,11 +2,10 @@
 """Apply validated deployment settings; Funnel is never enabled implicitly."""
 import argparse
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
-from deployment import ROOT, compose, render, settings
+from deployment import ROOT, compose, render, settings, maintenance_compose, maintenance_command
 from auth import validate
 from x402_treazury import Controller, operation_lock
 from provisioning import initialize_setup, initialize_research_config
@@ -39,11 +38,20 @@ def main_unlocked():
     parser.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.action == 'down':
-        # Shutdown must remain available even after an invalid operator edit.
-        os.environ.update(TAILSCALE_FUNNEL_ENABLED='false', WEBAPP_EXTERNAL_CONTENT='off',
-                          WEBAPP_BIND='127.0.0.1', WEBAPP_PORT='9120', WEBAPP_USERNAME='admin',
-                          TAILSCALE_FUNNEL_HOST='', TAILSCALE_FUNNEL_PORT='443',
-                          TAILSCALE_HOSTNAME='private-hermes')
+        all_command = maintenance_compose(all_ingress=True)
+        try:
+            stop_funnel(all_command)
+        finally:
+            run(all_command + ['down', '--timeout', '-1'])
+        return
+    if args.action == 'compose' and args.arguments[:1] == ['config']:
+        # Inspect the actual model, including invalid policy values, without
+        # replacing them with maintenance placeholders or pre-validating policy.
+        run(['docker', 'compose', '-f', 'compose.yaml', '-f', 'compose.funnel.yaml', *args.arguments])
+        return
+    if args.action == 'compose' and maintenance_command(args.arguments):
+        run(maintenance_compose(all_ingress=True) + args.arguments)
+        return
     config = settings()
     command = compose(config)
     all_command = compose(config, all_ingress=True)
@@ -56,11 +64,6 @@ def main_unlocked():
     elif args.action == 'build':
         run(command + ['--profile', '*', 'build'])
         initialize_research_config(command, ROOT)
-    elif args.action == 'down':
-        try:
-            stop_funnel(all_command)
-        finally:
-            run(all_command + ['down', '--timeout', '-1'])
     else:
         run([sys.executable, 'scripts/preflight.py', *(['--funnel'] if config.funnel else [])])
         path = ROOT / 'config/webapp/auth.json'

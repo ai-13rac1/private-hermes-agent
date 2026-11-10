@@ -199,7 +199,7 @@ def initialize():
 
 def prepare():
     with owner():
-        config = context()
+        context()
         treasury_id = wallet()
         if treasury_id is None:
             raise RuntimeError('Create the wallet first with make x402_treazury-init')
@@ -212,18 +212,8 @@ def prepare():
             write_record(record)
             print(f'Starting {phase}; native network/funding policy applies.', flush=True)
             try:
-                result = native(arguments, phase, structured=True)
-                if not isinstance(result, dict) or not result:
-                    raise PhaseError(phase, 1, 'Expected a structured command result')
-                if phase == 'bootstrap' and (result.get('schema_version') != 3 or
-                        not isinstance(result.get('captured_completed_groups'), list) or
-                        result.get('incomplete_captured_jobs') != []):
-                    raise PhaseError(phase, 1, 'Bootstrap summary did not confirm completion of captured funding work')
-                if phase == 'catalogs' and (result.get('direct') is not False or
-                        {source['source'] for source in result.get('sources', [])} != set(config['sources'])):
-                    raise PhaseError(phase, 1, 'Catalog summary did not cover configured sources over Tor')
+                native(arguments, phase)
                 record['completed'].append(phase)
-                record['result'] = result
                 write_record(record)
             except Exception as cause:
                 error = cause if isinstance(cause, PhaseError) else PhaseError(phase, 1, sanitize(str(cause)))

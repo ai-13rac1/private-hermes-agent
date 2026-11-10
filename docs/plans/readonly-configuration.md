@@ -24,7 +24,7 @@ to the SSH execution boundary are outside scope.
   authoritative configuration design must account for these writes too.
 - Hermes owns its writable state under `/opt/data`, including configuration,
   sessions, skills, and memories.
-- The networkless `setup config` command currently edits that same data volume
+- The networkless `hermes-config` command currently edits that same data volume
   as UID 10000. Setup and configuration commands can also write configuration.
 - Hermes configuration code uses atomic replacement. A read-only file mount
   can prevent both intended writes and automatic migration; even a writable
@@ -77,7 +77,7 @@ If a complete read-only configuration file is the appropriate design:
    its parent directory writable through the data volume or another alias.
 3. Adapt `setup init` to validate the mounted configuration and its ownership
    contract without trying to copy, chown, chmod, or migrate that mount.
-4. Adapt `setup config` for the operator-owned configuration source. It should edit a
+4. Adapt `hermes-config` for the operator-owned configuration source. It should edit a
    writable staging directory that supports atomic file replacement, validate
    the candidate, and publish it through an operator-controlled action.
 5. Define the application step. Recreating runtime containers after publication

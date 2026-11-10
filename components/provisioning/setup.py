@@ -22,8 +22,6 @@ def main():
     commands = parser.add_subparsers(dest='action', required=True)
     commands.add_parser('init', help='Prepare storage, SSH, webapp auth and disconnected MCP configuration')
     commands.add_parser('storage', help='Prepare storage ownership and verify database locking only')
-    config = commands.add_parser('config', help='Run the native Hermes configuration CLI offline as UID 10000')
-    config.add_argument('arguments', nargs=argparse.REMAINDER)
     mcp = commands.add_parser('mcp', help='Manage the research MCP token and registrations')
     mcp.add_argument('mode', choices=('token', 'connect', 'disconnect'))
     check = commands.add_parser('check-filesystem', help='Check locking using temporary probe files only')
@@ -37,13 +35,7 @@ def main():
         print(json.dumps(configure(args.mode, HERMES, DATA / 'x402_treazury-auth')))
         return
     prepare(DATA, HERMES, WALLET)
-    if args.action == 'config':
-        os.environ.update(HOME=str(HERMES), HERMES_HOME=str(HERMES))
-        os.setgroups([])
-        os.setgid(10000)
-        os.setuid(10000)
-        os.execv('/opt/hermes/.venv/bin/hermes', ['hermes', 'config', *args.arguments])
-    elif args.action == 'init':
+    if args.action == 'init':
         initialize(DATA, HERMES, COMPONENTS / 'hermes/config.example.yaml',
                    Path('/run/webapp/auth.json'), os.environ['WEBAPP_USERNAME'])
         configure('disconnect', HERMES, DATA / 'x402_treazury-auth')

@@ -15,7 +15,7 @@ spec.loader.exec_module(cli)
 
 class PluginCommandTests(unittest.TestCase):
     def test_native_arguments_are_forwarded_without_automatic_consent_or_force(self):
-        with patch.object(cli, 'settings'), patch.object(cli, 'compose', return_value=['docker', 'compose']), \
+        with patch.object(cli, 'maintenance_compose', return_value=['docker', 'compose']), \
                 patch.object(cli.subprocess, 'check_output', return_value='agent-container\n'), \
                 patch.object(cli.subprocess, 'run', return_value=subprocess.CompletedProcess([], 17)) as run, \
                 patch.object(sys.stdin, 'isatty', return_value=False), patch.object(sys.stdout, 'isatty', return_value=False), \
@@ -27,7 +27,7 @@ class PluginCommandTests(unittest.TestCase):
                          'hermes', '/opt/hermes/.venv/bin/hermes', 'plugins', 'install', 'owner/repo'])
 
     def test_stopped_agent_does_not_start_a_container_or_run_plugin_code(self):
-        with patch.object(cli, 'settings'), patch.object(cli, 'compose', return_value=['docker', 'compose']), \
+        with patch.object(cli, 'maintenance_compose', return_value=['docker', 'compose']), \
                 patch.object(cli.subprocess, 'check_output', return_value=''), patch.object(cli.subprocess, 'run') as run:
             with self.assertRaisesRegex(SystemExit, 'make up'):
                 cli.main()

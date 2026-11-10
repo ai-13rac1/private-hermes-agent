@@ -92,8 +92,9 @@ not create this file before the image exists. Initialization never replaces an
 existing file; image updates also leave your edits intact. Compare new packaged
 defaults with your saved policy when upgrading.
 
-The directory is bind-mounted read-only into serving and both maintenance
-services. You can edit the host file before wallet initialization or later.
+The directory is bind-mounted read-only into serving and the policy-aware admin
+and initialization/preparation jobs. The saved-wallet inspection job has no policy
+bind mount. You can edit the host file before wallet initialization or later.
 Relative `../../providers/` paths continue to refer to the image's packaged
 provider definitions. Additional provider files can be placed in this directory
 and referenced relative to the TOML. Keep the directory traversable and files
@@ -162,15 +163,15 @@ it is never treated as permission to create a replacement wallet. It does not
 start funding, serving, or Hermes MCP connections. If needed, the command starts
 only Tor and the agent network namespace for new wallet creation. Repeated init
 uses offline inspection, even while the stack is down or another process owns
-the wallet; it does not start services or require preparation. The init/status
-Make commands prepare only the needed host paths and do not generate or validate
-webapp credentials or render ingress configuration.
+the wallet; it does not start services or require preparation. Saved-wallet status and repeated init do not initialize host configuration or
+storage. Only new-wallet creation prepares the Tor/network host paths and research
+policy; it does not initialize executor/Tailscale paths or webapp credentials.
 
 Back up the wallet before depositing ZEC. Native wallet commands use the same
 configured treasury, `x402_treazury-data` named volume, and UID as serving:
 
 ```sh
-python3 scripts/stack.py compose run --rm --no-deps x402_treazury wallet backup --help
+python3 scripts/stack.py compose run --rm --no-deps --entrypoint /usr/local/bin/x402_treazury x402_treazury-inspect wallet backup --help
 ```
 
 Choose a backup destination with an appropriate private mount; the container's
@@ -189,8 +190,8 @@ preparing. Offline inspection uses private temporary snapshot files in the
 admin container's writable `/tmp`; the root filesystem and mounted configuration
 remain read-only. A missing wallet gives an initialization instruction; unreadable
 state reports an error without creating a replacement. Invalid webapp/Funnel
-settings and serving policy do not block saved-wallet inspection. The wallet
-commands use base Compose with process-local inert ingress/inference publication
+settings and serving policy do not block saved-wallet inspection. Treasury commands
+use base Compose with process-local inert ingress/inference interpolation
 values because Compose parses unused services too; they do not start those
 services or change `.env`. Deposit ZEC at a time of
 your choosing; Hermes remains usable.
@@ -227,7 +228,8 @@ Hermes activation directly. Otherwise it runs, in order:
 2. Run `wallet bootstrap --json`, waiting for ZEC receipt/spendability and the
    native managed funding claims. This can spend ZEC under the configured policy.
 3. Run `catalog warm` over Tor. Configured paid relay fallback can spend USDC.
-   An exit status and structured result identify completion of each phase.
+   Native command success establishes phase completion; printed summaries are
+   diagnostics, not a second schema/source-count eligibility gate.
 4. Start `serve`, then initialize and list tools on all twelve authenticated MCP
    endpoints without making research calls.
 5. Register the managed MCP entries and call Hermes's native `reload.mcp` RPC.
@@ -310,7 +312,9 @@ Hermes setup service. The setup service also prepares storage and has wallet-vol
 access for ownership/lock checks, but does not run native wallet commands. Only activation
 copies the serving token into Hermes and installs its twelve MCP entries.
 Disconnecting removes only managed entries and that token from the profile, preserving unrelated
-configuration. `x402_treazury-admin` runs offline inspection and record updates;
+configuration. `x402_treazury-inspect` has only the native wallet volume and image
+for saved-state inspection, so invalid policy paths cannot block access. Policy-aware
+`x402_treazury-admin` handles configuration administration and record updates;
 networked init/preparation uses `x402_treazury-setup` one-shot containers in the
 agent namespace. Jobs have no automatic restart policy, so a failed financial
 command cannot be repeated by Docker; retries are explicit operator actions.

@@ -1,5 +1,9 @@
 # Operation-scoped validation and persistent state
 
+[Maintenance rule conformance](maintenance-rule-conformance.md) supersedes earlier
+shared setup/configuration-repair and wallet-inspection prerequisites; historical
+qualification below describes its recorded revision.
+
 Status: complete. P1 implemented in `984a2b1`, validated and independently
 reviewed. Final browser qualification passed; this document records the results.
 Independent read-only design review of `555febd` found no blocking findings.
