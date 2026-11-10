@@ -1,8 +1,9 @@
 # Capability reduction
 
-[Maintenance rule conformance](maintenance-rule-conformance.md) supersedes earlier
-shared setup/configuration-repair and wallet-inspection prerequisites; historical
-qualification below describes its recorded revision.
+The maintained [maintenance job contracts](../configuration.md) and
+[development workflow](../development.md) supersede earlier shared setup/
+configuration-repair and wallet-inspection prerequisites; historical qualification
+below describes its recorded revision.
 
 Status: proposed for the main Hermes runtime. Consolidated offline setup already
 uses an explicit capability set; its current baseline is recorded below.

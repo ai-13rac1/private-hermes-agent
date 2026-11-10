@@ -218,8 +218,8 @@ References: [Tailscale Docker parameters](https://tailscale.com/docs/features/co
 ## External content policy
 
 Part 1 provides the safe default independently of the deferred streaming and
-interactive work. See [the retained plan](plans/webapp-private-content.md) for
-review gates, tested versions and acceptance evidence.
+interactive work. See [verification and limits](#qualification)
+for tested versions and acceptance evidence.
 
 Set the root deployment `.env` value and apply it with `make up`:
 
@@ -320,6 +320,12 @@ files there are ephemeral across recreation; durable agent state belongs under
 the separate durable executor workspace.
 
 ### Qualification
+
+The safe-default/passive-media implementation passed final independent review of
+`3db58120e78f003d5b3402d34a4541e9fa39a6a7` against `078e0eb`, with no material
+findings. Its integrated qualification covered 24 browser/mode/ingress cases;
+the scope and practical limits are described below. Detailed historical plan
+evidence remains in Git history. Streaming and interactive opt-in remain deferred.
 
 `make images-test` uses public-numbered HTTP/TLS canaries on isolated Docker
 networks, with no uplink or published ports. It qualifies socket destinations,

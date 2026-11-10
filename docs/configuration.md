@@ -381,8 +381,8 @@ policy changes.
 
 See [webapp operations](webapp.md#external-content-policy) for mode behavior,
 image approval, inert previews, browser scope and stale-page limits. Integrated
-qualification/review status is recorded in the retained
-[part 1 plan](plans/webapp-private-content.md).
+qualification and limitations are recorded in the
+[webapp guide](webapp.md#qualification).
 
 Tor-image remembered consent uses `webapp-image-consent.sqlite3` in `hermes-data`,
 with a native SQLite table and mode 0600. Its method is fixed to private image

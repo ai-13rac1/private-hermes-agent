@@ -1,7 +1,7 @@
 # Private webapp content: streaming and interactive opt-in
 
 Status: planned. Part 2, dependent on
-[safe defaults and passive media](webapp-private-content.md).
+the implemented [safe defaults and passive media](../webapp.md#external-content-policy).
 Execution follows the [planning workflow](../planning-workflow.md) and
 [repository instructions](../../AGENTS.md).
 

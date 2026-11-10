@@ -205,7 +205,8 @@ delete private state as a shortcut to simplifying implementation or tests.
 - Distinguish implemented, validated and independently reviewed work. Disclose
   unavailable review/checks rather than claiming completion evidence that does
   not exist. Update operating guides with implementation and keep plan status
-  accurate. Do not automatically delete or archive completed plans.
+  accurate. After final review acceptance, remove completed plans using the
+  planning workflow, preserving maintained documentation and resolving links.
 
 ## Validation and authority
 

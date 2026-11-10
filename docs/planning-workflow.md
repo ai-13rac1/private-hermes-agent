@@ -116,11 +116,16 @@ corrections and relevant unchanged contracts. Verify acceptance criteria, curren
 guides and affected plan consistency. Distinguish implementation, validation and
 review completion; unavailable checks are missing coverage, not passes.
 
-Update the plan's status and remaining limitations, and commit the completed
-development/documentation work. Retain completed plans with clear status and
-links to maintained guides; there is no automatic deletion or archive step.
-Keep genuinely deferred work explicit with a concrete next action. Do not create
-extra plans or guides merely to record incidental improvement ideas.
+After final independent review acceptance and resolution of material findings,
+remove the completed plan in the completion commit or a focused cleanup commit.
+Before removal, ensure maintained guides contain the lasting operating contracts,
+relevant qualification/review evidence and remaining limitations; update inbound
+links and dependent plans to refer to those guides. Git history preserves the
+plan and detailed historical evidence; do not create an archive copy. Do not
+remove a plan merely because implementation is finished while required review
+or acceptance remains pending. Keep active and genuinely deferred plans explicit
+with a concrete next action. Do not create extra plans or guides merely to record
+incidental improvement ideas.
 
 Do not rewrite existing history, push, merge or publish without authorization.
 Plan execution does not independently authorize live Funnel enrollment, funded

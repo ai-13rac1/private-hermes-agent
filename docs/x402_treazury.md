@@ -413,9 +413,9 @@ qualification. Live wallet birthday discovery, ZEC receipt, managed USDC funding
 and funded catalog preparation have not been qualified. The local checks above
 do not establish those financial outcomes.
 
-The operator intends to perform this qualification after
-[the first webapp privacy plan](plans/webapp-private-content.md) is complete.
-At that point, follow the existing workflow in this guide:
+The prerequisite webapp privacy work is complete; see its
+[qualification and limits](webapp.md#qualification). Live financial
+qualification remains pending. When undertaking it, follow this guide:
 
 1. Confirm Hermes is usable before treasury creation or funding.
 2. Run `make x402_treazury-init`, verify that it displays the receive address,

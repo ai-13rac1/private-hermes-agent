@@ -160,8 +160,7 @@ The derived image also creates an empty agent-side `/workspace` for native
 session-cwd validation; this is separate from the executor mount. Qualify actual
 browser chat, rather than relying on login/terminal checks alone.
 
-Follow [part 1's phase and qualification status](plans/webapp-private-content.md)
-and [current webapp limits](webapp.md#external-content-policy).
+Follow the [webapp qualification evidence and current limits](webapp.md#qualification).
 
 Run `make hermes-ui-test` for the patched renderer's full TypeScript check and
 focused native media/preview tests. It uses the disposable build stage, without
