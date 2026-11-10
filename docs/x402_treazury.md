@@ -234,12 +234,38 @@ Hermes activation directly. Otherwise it runs, in order:
    No gateway or network-namespace restart is needed. Unrelated MCP entries and
    sessions are preserved; active sessions follow Hermes's native reload policy.
 
+Activation requires all twelve endpoints; a subset is not registered. While they
+start, the command displays x402_treazury's current-startup diagnostics and repeats
+a waiting message every 30 seconds. There is no whole-startup deadline or attempt
+cutoff. Existing protocol transport timeouts cause another readiness probe where
+appropriate; they do not establish that native startup has failed.
+
+A native terminal catalog-startup or endpoint-tool-selection error fails activation
+with its diagnostic visible, even if the process and other endpoints remain up.
+Retryable native errors, such as SOCKS reachability checks with recovery remaining,
+do not become terminal endpoint failures merely because their log level is ERROR.
+Service exit/restart/replacement or loss of the diagnostic observer also fails
+activation visibly. Research remains disconnected, Hermes remains available, and
+preparation history is preserved. Correct the cause and retry activation with
+`make x402_treazury-prepare`; an already completed preparation is not repeated.
+Ctrl-C cancels the read-only readiness probe and local log observer, without
+stopping the serving treasury or replaying any accepted financial work.
+
 Each phase streams native output. A failure stops the sequence, reports the
 native exit status and recent redacted output, and leaves Hermes available.
 The private preparation record retains the failed phase and recent output.
 Retry the same command to resume through native wallet journals and cache policy;
 never delete the state directory to retry. Bootstrap and paid warming require
 exclusive ownership and must not run beside `serve` or another wallet operation.
+
+Cancellation, a disconnected caller, missing command output or a failed local
+acknowledgment does not prove that a financial operation did nothing. Accepted
+work, signed transactions and possible payment liabilities remain owned by
+x402_treazury across cancellation/restart. Inspect native status and use native
+recovery against that same state before considering a retry; do not manually
+repeat deposits or paid calls because their result is missing. The wrapper adds
+no parallel financial journal, but must preserve the component's necessary native
+journals and must not interpret a timeout or cleared cache as replay authority.
 
 Ctrl-C requests graceful termination and waits for native cleanup. These commands
 and serving shutdown do not introduce a force-kill timeout. If a host/controller
@@ -332,10 +358,18 @@ With all normal deployments stopped, run:
 
 ```sh
 make check
+python3 tests/endpoint_readiness_smoke.py
 make x402_treazury-test
 python3 tests/research_config_smoke.py
 make test
 ```
+
+The focused endpoint-startup check uses networkless containers, local catalogs and
+ephemeral unfunded static keys. It checks delayed readiness, a real native terminal
+endpoint error while a peer remains available, corrected restart without replaying
+old errors, and remote probe cleanup. It performs no research or payment calls and
+mounts no wallet state. Unit tests exercise prolonged waiting/reporting with a fake
+clock, transient versus terminal outcomes, cancellation and helper failure.
 
 The offline research configuration check uses the real image with a disposable,
 unfunded treasury and controlled historical completion marker. It covers mounted

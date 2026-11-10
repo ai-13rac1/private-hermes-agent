@@ -1,6 +1,8 @@
 # Endpoint startup diagnostics without failure deadlines
 
-Status: proposed; design review pending.
+Status: P1 implemented and focused qualification passed; final combined review
+and final evidence commit are pending. Independent read-only design review of
+`65fa7f1` found no blocking findings.
 Baseline: branch `webapp-private-content`, commit `c8cb1e2aa6a94a3f5558d2f4272a8c9b8837f1e6`.
 
 ## Intent and current behavior
@@ -34,6 +36,8 @@ logs (for example retrying SOCKS reachability) do not imply terminal endpoint fa
   probe subprocess so native errors, process replacement/restart and Ctrl-C remain
   observable even while a protocol request is waiting. End only the local probe/log
   helpers on activation failure/cancellation; do not stop or replay treasury work.
+  Closing a control input pipe cancels the remote read-only probe as well, rather
+  than orphaning a Docker exec command after terminating only its local CLI.
 - Emit an initial waiting message and repeat it every 30 seconds while pending.
   That is a reporting cadence, not a readiness or financial-authority deadline.
   Preserve existing protocol transport timeouts; add no overall startup timer.
@@ -67,3 +71,34 @@ wallet bootstrap, funding, paid calls or operator state. Reuse existing focused
 checks and run only affected integration checks. Update maintained guides, reconcile
 prior plans by linking any superseded diagnostic claims, record evidence here, and
 commit coherent completed work. Independent final combined/P1 review is required.
+
+## P1 evidence
+
+- `make check`: 78 unit tests, effective base/Funnel Compose validation and Python
+  compilation passed. New cases cover prolonged pending probes under a fake clock,
+  reporting independent of failure, transient/terminal protocol outcomes, native
+  endpoint errors and observer loss during a pending probe, exit/restart/replacement,
+  cancellation/EOF cleanup, and no registration or repeated preparation on failure.
+- `python3 tests/endpoint_readiness_smoke.py`: passed against real packaged native
+  treasury and Hermes MCP libraries in disposable networkless containers. A gated
+  startup remained pending and then initialized/listed all twelve authenticated
+  endpoints. Cancellation cleaned remote probe processes without stopping native
+  serving. A real unsupported catalog produced the pinned endpoint diagnostic while
+  a healthy peer remained usable. Corrected restart of the same container retained
+  old Docker logs but passed readiness with no stale-error poisoning.
+- Existing complete browser qualification from the preceding state-preservation
+  change remains applicable to unchanged ingress, authentication and network policy.
+  No broad browser/network matrix was repeated for this controller-only change;
+  real endpoint/probe behavior and its modified ownership paths were checked above.
+- No image build was necessary: the native binary/image did not change, and the
+  updated MCP helper is supplied to Hermes by the controller's existing Python
+  command mechanism. Public fixture code is mounted only into disposable tests.
+- `git diff --check` and changed documentation local-link checks passed.
+
+The initial fixture used a missing catalog path, which is a process-wide native
+configuration error rather than the desired per-endpoint failure. The final fixture
+uses a readable catalog with an unsupported contract to establish the intended
+live-peer case. Fixture restarts stop/recreate the namespace-dependent Hermes
+container so it follows the current network namespace. Neither issue required a
+production fallback or deadline. No operator state, wallets, paid API calls,
+financial preparation or live ingress enrollment were used.

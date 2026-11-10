@@ -54,3 +54,33 @@ Component-specific checks and limits are documented in the
 [webapp](webapp.md#verification-and-current-limits),
 [x402_treazury](x402_treazury.md#stop-and-test), and
 [updates and plugins](updates-and-plugins.md) guides.
+
+## Diagnostic messages
+
+Explain the affected operation or capability, its impact, the known cause or
+uncertainty, and a useful next action when established. Messages must make sense
+without decoding implementation stage names or error categories; structured
+fields supplement that explanation. Include safe causes and status information,
+never credentials, raw protocol responses or credential-bearing upstream prose.
+
+Choose severity at the owner that knows the outcome after applicable recovery:
+ERROR for unavailable required service/endpoint functionality, WARN for a terminal
+requested-operation failure or unexpected loss of functionality, INFO for useful
+lifecycle/progress/recovery messages, and DEBUG/TRACE for routine attempts and
+diagnostic detail. An intermediate failure with retry remaining is not a terminal
+operation failure. Elapsed time or repetition alone does not promote severity.
+Scope errors to the affected capability rather than announcing whole-stack failure.
+When outcome is uncertain, say so; do not imply that a payment is safe to repeat.
+
+Endpoint activation follows Docker logs from the serving container's `StartedAt`.
+The pinned x402_treazury revision has no public typed endpoint-readiness signal;
+the wrapper recognizes its two exact terminal endpoint diagnostic messages from
+`deployment.rs` and `deployment/deferred.rs`. This is not a general log-severity
+failure policy: recoverable native ERROR events do not fail activation. Recheck
+those native messages and their semantics when changing the treasury pin, using
+`tests/endpoint_readiness_smoke.py`. Replace this recognition when a native typed
+signal provides equivalent behavior; do not add historical-message compatibility
+parsers. The observer and read-only authenticated probes add no treasury state.
+Closing the controller's input pipe cancels the remote probe, including when the
+controller exits unexpectedly. Protocol waits remain cancellable without an
+additional startup deadline. Reporting cadence is independent of failure policy.

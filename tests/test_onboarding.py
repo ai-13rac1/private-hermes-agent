@@ -323,6 +323,8 @@ class ActivationTests(unittest.TestCase):
         controller.admin = lambda action: controller.events.append(('admin', action))
         controller.wallet_command = lambda action: controller.events.append(('wallet', action))
         controller.client = lambda action, **kwargs: controller.events.append(('client', action)) or subprocess.CompletedProcess([], 0)
+        controller.wait_for_endpoints = lambda: controller.events.append(('client', 'probe')) or ('test-container', 'started', '0')
+        controller.require_instance = lambda instance: None
         return controller
 
     def test_existing_init_only_displays_offline_status(self):
@@ -392,6 +394,19 @@ class ActivationTests(unittest.TestCase):
             controller.activate()
         self.assertIn(('admin', 'activation-failed'), controller.events)
         self.assertEqual(controller.events[-2], ('config', 'disconnect'))
+
+    def test_endpoint_failure_or_cancel_never_registers_clients_or_repeats_preparation(self):
+        for error in (RuntimeError('native endpoint failed'), KeyboardInterrupt()):
+            controller = self.controller()
+            def failed():
+                raise error
+            controller.wait_for_endpoints = failed
+            with self.assertRaises(type(error)):
+                controller.activate()
+            self.assertNotIn(('config', 'connect'), controller.events)
+            self.assertNotIn(('wallet', 'prepare'), controller.events)
+            self.assertIn(('admin', 'activation-failed'), controller.events)
+            self.assertIn(('config', 'disconnect'), controller.events)
 
     def test_unprepared_startup_leaves_hermes_available_without_wallet_commands(self):
         controller = self.controller()

@@ -9,9 +9,45 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import threading
 import time
 from deployment import ROOT, compose, settings
 from provisioning import ensure_storage, initialize_research_config
+
+
+# Native diagnostic contract at pinned 424f36a; generic ERROR logs can recover.
+ENDPOINT_FAILURES = (
+    'MCP endpoint unavailable; catalog startup failed; correct the reported cause and restart',
+    'MCP endpoint tools are unavailable because its tool selection is invalid; correct the configuration and restart',
+)
+
+
+@contextmanager
+def serving_diagnostics(identifier, started_at, root):
+    """Display this serving lifetime's diagnostics without storing another record."""
+    stopped, failures = threading.Event(), []
+    logs = subprocess.Popen(['docker', 'logs', '--follow', '--since', started_at, identifier],
+                            cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    def drain():
+        try:
+            for line in logs.stdout:
+                print(line, end='', file=sys.stderr, flush=True)
+                if not failures and any(message in line for message in ENDPOINT_FAILURES):
+                    failures.append('x402_treazury reported unavailable endpoint functionality; see its native diagnostic above.')
+        finally:
+            if not stopped.is_set() and not failures:
+                failures.append('The research startup log observer stopped; endpoint failure diagnostics are unavailable.')
+    reader = threading.Thread(target=drain)
+    reader.start()
+    try:
+        yield failures
+    finally:
+        stopped.set()
+        if logs.poll() is None:
+            logs.terminate()
+        logs.wait()
+        reader.join()
+        logs.stdout.close()
 
 
 def wallet_compose():
@@ -60,11 +96,71 @@ class Controller:
                            capture_output=True)
         return json.loads(result.stdout)['changed']
 
-    def client(self, action, check=True):
+    def client_arguments(self, action):
         script = (self.root / 'components/x402_treazury/mcp-client.py').read_text()
-        return subprocess.run([*self.command, 'exec', '-T', '--user', '10000:10000', 'hermes',
-                               '/opt/hermes/.venv/bin/python', '-c', script, action],
+        return [*self.command, 'exec', '-T', '--user', '10000:10000', 'hermes',
+                '/opt/hermes/.venv/bin/python', '-c', script, action]
+
+    def client(self, action, check=True):
+        return subprocess.run(self.client_arguments(action),
                               cwd=self.root, text=True, capture_output=True, check=check)
+
+    def serving_instance(self):
+        identifier = self.running('x402_treazury')
+        if not identifier:
+            # A quick native startup failure may precede the live observer.
+            stopped = self.call('ps', '-a', '-q', 'x402_treazury', capture_output=True).stdout.strip()
+            if stopped:
+                started = subprocess.check_output(['docker', 'inspect', stopped, '--format',
+                                                   '{{.State.StartedAt}}'], text=True).strip()
+                subprocess.run(['docker', 'logs', '--since', started, stopped], cwd=self.root, check=True)
+            raise RuntimeError('Research service stopped before MCP activation completed; see its startup diagnostics.')
+        state = subprocess.check_output(['docker', 'inspect', identifier, '--format',
+                                         '{{.State.StartedAt}} {{.RestartCount}}'], text=True).split()
+        return identifier, *state
+
+    def require_instance(self, expected):
+        if self.serving_instance() != expected:
+            raise RuntimeError('Research service restarted or was replaced before MCP activation completed; inspect its logs and retry activation.')
+
+    def wait_for_endpoints(self):
+        instance = self.serving_instance()
+        print('Waiting for all twelve authenticated research MCP endpoints (Ctrl-C leaves Hermes available).', flush=True)
+        next_report = time.monotonic() + 30
+        probe = None
+        with serving_diagnostics(instance[0], instance[1], self.root) as failures:
+            try:
+                while True:
+                    self.require_instance(instance)
+                    if failures:
+                        raise RuntimeError(failures[0])
+                    if probe is None:
+                        # Probe only initialize/list, never research/payment tools.
+                        # Polling keeps native failures observable during protocol waits.
+                        probe = subprocess.Popen([*self.client_arguments('probe'), '--watch-stdin'], cwd=self.root,
+                                                 stdin=subprocess.PIPE,
+                                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    code = probe.poll()
+                    if code == 0:
+                        self.require_instance(instance)
+                        if failures:
+                            raise RuntimeError(failures[0])
+                        return instance
+                    if code is not None:
+                        if code != 75:
+                            raise RuntimeError('Authenticated research MCP initialization/listing failed; endpoints were not connected. See the native startup diagnostics above.')
+                        probe.communicate()
+                        probe = None
+                    now = time.monotonic()
+                    if now >= next_report:
+                        print('Still waiting for all twelve research MCP endpoints (Ctrl-C leaves Hermes available).', flush=True)
+                        next_report = now + 30
+                    time.sleep(1)
+            finally:
+                if probe is not None:
+                    # EOF cancels the remote Python probe too, rather than merely
+                    # killing Docker's local CLI and orphaning its exec process.
+                    probe.communicate()
 
     def disconnect(self):
         if self.configure('disconnect') and self.running('hermes'):
@@ -155,23 +251,10 @@ class Controller:
         try:
             self.configure('token')
             self.call('up', '-d', '--no-deps', 'x402_treazury')
-            print('Waiting for authenticated research MCP initialization (Ctrl-C leaves Hermes available).', flush=True)
-            initial_restarts = None
-            while True:
-                identifier = self.running('x402_treazury')
-                if not identifier:
-                    raise RuntimeError('Research service exited before MCP readiness; inspect its logs.')
-                restarts = subprocess.check_output(['docker', 'inspect', identifier, '--format', '{{.RestartCount}}'], text=True)
-                initial_restarts = int(restarts) if initial_restarts is None else initial_restarts
-                if int(restarts) > initial_restarts:
-                    raise RuntimeError('Research service restarted before MCP readiness; inspect its logs.')
-                probe = self.client('probe', check=False)
-                if probe.returncode == 0:
-                    break
-                if probe.returncode != 75:
-                    raise RuntimeError('Research MCP probe failed; endpoints were not connected.')
-                time.sleep(1)
+            instance = self.wait_for_endpoints()
+            self.require_instance(instance)
             self.configure('connect')
+            self.require_instance(instance)
             self.reload()
             self.admin('connected')
             print('Research services prepared and connected to Hermes.', flush=True)

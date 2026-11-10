@@ -41,6 +41,10 @@ optional Tailscale Funnel. Do not add framework selection or unrelated services.
   reasonably own it. Prefer fewer responsibilities and state transitions, not
   merely fewer files or containers. Separate images are appropriate for genuinely
   separate components; avoid merged setup images just to reduce service counts.
+- Before adding enforcement, check the owning component's existing guarantees.
+  Add a wrapper check only for a concrete invariant those guarantees do not cover;
+  do not mirror native budgets, accounting, readiness or recovery state. Existing
+  limits are not evidence that retaining or adding another limit is necessary.
 - Do not build generic orchestration, adapter registries, lifecycle/recovery
   engines, configuration frameworks or provenance systems for speculative needs.
   Use native Compose behavior where suitable and small explicit helpers where
@@ -55,6 +59,10 @@ optional Tailscale Funnel. Do not add framework selection or unrelated services.
 - Do not introduce arbitrary container resource limits, storage quotas or work
   deadlines. Base safeguards on actual component requirements and observed
   failure modes. Allow for Tor latency and distinguish slow progress from failure.
+  Connection establishment, response inactivity, polling/reporting cadence,
+  signed expiry and test deadlines protect different contracts. Progress must not
+  extend financial authority, and a reporting cadence must not become a failure
+  deadline. Let valid work continue while it makes progress.
 
 ## No prerelease compatibility layer
 
@@ -85,6 +93,11 @@ delete private state as a shortcut to simplifying implementation or tests.
   make an existing wallet invalid or authorize initialization, rotation, payments
   or destructive recovery. Prefer checking actual runtime requirements to adding
   another persisted eligibility marker.
+- Distinguish authoritative state from advisory estimates, reporting projections
+  and disposable caches. Missing optional corroboration or stale derived data must
+  not veto an established outcome or reopen completed work. Repair derived data
+  through its owning component instead of adding agreement checks, certificates
+  or parallel accounting. Conflicting required facts still need scoped diagnosis.
 - Make initialization retry-safe with native persistence and small explicit code:
   atomically publish individual files, save recoverable inputs before derived
   outputs, and reconstruct missing derived files from intact authoritative state.

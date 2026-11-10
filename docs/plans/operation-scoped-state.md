@@ -3,6 +3,8 @@
 Status: complete. P1 implemented in `984a2b1`, validated and independently
 reviewed. Final browser qualification passed; this document records the results.
 Independent read-only design review of `555febd` found no blocking findings.
+[Endpoint startup diagnostics](endpoint-startup-diagnostics.md) subsequently adds
+progress and native error handling without changing preparation eligibility.
 Baseline: branch `webapp-private-content`, commit `5b29ec666804235d912fd1cc6e09746b6b5540da`.
 
 ## Intent and boundaries

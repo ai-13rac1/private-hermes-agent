@@ -1,5 +1,6 @@
 """Run inside Hermes as its user; no Docker or treasury access."""
 import asyncio
+import os
 import sys
 
 
@@ -38,9 +39,27 @@ async def main():
         print('All twelve authenticated MCP endpoints initialized and listed successfully.')
 
 
+async def controlled_probe():
+    """Closing the controller's input pipe cancels only this read-only probe."""
+    task = asyncio.create_task(main())
+    loop = asyncio.get_running_loop()
+    descriptor = sys.stdin.fileno()
+    def disconnected():
+        if not os.read(descriptor, 1):
+            loop.remove_reader(descriptor)
+            task.cancel()
+    loop.add_reader(descriptor, disconnected)
+    try:
+        await task
+    except asyncio.CancelledError:
+        raise GatewayPending() from None
+    finally:
+        loop.remove_reader(descriptor)
+
+
 if __name__ == '__main__':
     try:
-        asyncio.run(main())
+        asyncio.run(controlled_probe() if sys.argv[1:] == ['probe', '--watch-stdin'] else main())
     except Exception as error:
         # Do not print client objects, headers, or raw protocol responses.
         print('MCP operation unavailable (' + type(error).__name__ + ')', file=sys.stderr)

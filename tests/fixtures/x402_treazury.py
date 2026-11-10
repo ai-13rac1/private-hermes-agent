@@ -3,8 +3,22 @@ import json
 import os
 from pathlib import Path
 import secrets
+import socket
 from endpoints import ADDRESS, ENDPOINTS
 
+flags = Path(os.environ.get('RESEARCH_TEST_FLAGS', '/tmp/unused-test-flags'))
+if (flags / 'gate').exists():
+    # Accept TCP before native startup, but leave HTTP pending so cancellation
+    # exercises an outstanding protocol request rather than a quick refusal.
+    pending = socket.socket()
+    pending.bind((ADDRESS, ENDPOINTS['toolbox']))
+    pending.listen()
+    os.mkfifo('/tmp/research-start-gate')
+    print('Fixture waiting for start release.', flush=True)
+    with open('/tmp/research-start-gate') as gate:
+        gate.read()
+    pending.close()
+broken = (flags / 'broken').read_text().strip() if (flags / 'broken').exists() else None
 spec = {
     'openapi': '3.0.3', 'info': {'title': 'Free Tor check', 'version': '1'},
     'paths': {'/api/ip': {'get': {'operationId': 'check_tor_exit',
@@ -26,13 +40,21 @@ base_url="https://check.torproject.org"
 prefix="torcheck"
 allow_http1=true
 '''
+if broken:
+    Path('/tmp/failed-catalog.json').write_text(json.dumps({
+        'paths': {'/read': {'get': {'parameters': [{'name': 'Cookie', 'in': 'header'}]}}},
+    }))
+    config += '''\n[sources.failure]
+spec="/tmp/failed-catalog.json"
+base_url="https://unused.example"
+'''
 for name, port in ENDPOINTS.items():
     config += f'''\n[servers.{name}]
 listen="{ADDRESS}:{port}"
 allowed_hosts=["{ADDRESS}"]
 bearer_token_env="X402_TREAZURY_MCP_TOKEN"
 wallet="fixture"
-sources=["torcheck"]
+sources=["{'failure' if name == broken else 'torcheck'}"]
 '''
 Path('/tmp/x402_treazury-test.toml').write_text(config)
 os.environ['X402_TREAZURY_MCP_TOKEN'] = Path('/run/x402_treazury-auth/token').read_text().strip()
