@@ -73,14 +73,19 @@ Startup runs cached image builds, including treasury, before setup or service
 changes. Use `make build` separately to build ahead of startup if desired.
 
 The image builds unmodified upstream commit
-`4346421a1a4d0d53fc31e246ff6fde27f634a9f6` using its Rust 1.99.1 toolchain and
+`9ca86bdb407152ab1581e14c5d110185d870bb48` using its Rust 1.99.1 toolchain and
 locked dependencies. The renderer changes only the Tor SOCKS endpoint, persistent
 state path, and HTTP Host allowlists. Wallet groups, rotation, funding, payment
-caps, source selection, and tool selection retain upstream policy. Unmatched tool exclusions
-now produce informational diagnostics instead of blocking catalog or endpoint
-publication; invalid selectors, unmatched exact positive selectors and empty final
-inventories still fail. The packaged policy removes the stale `courts_search`
-exclusion; saved operator policies retaining it continue to work.
+caps, source selection, and tool selection retain upstream policy. Provider
+definitions now supply optional advertised pricing hints for initial payer
+selection; live observed offers take precedence, and missing hints do not block
+tools. External pricing discovery follows the catalog Tor/relay policy. Ordinary
+serving schedules independent refill opportunities per group, nominally every
+30–120 seconds, and can rotate low active payers into funded reserves. Restart
+redraws that wait; downtime or pending work can extend it. Explicit bootstrap
+retains prompt allocation of its captured claims. See the pinned upstream
+[wallet rotation guide](https://github.com/mikeperry-tor/x402_treazury/blob/9ca86bdb407152ab1581e14c5d110185d870bb48/docs/wallet-rotation.md)
+for selection and rotation details.
 
 Inspect the packaged default policy offline before funding:
 
@@ -159,7 +164,7 @@ including by an empty group created during an earlier startup. Simply changing
 a name in TOML creates a different group on startup; the old group and its funds
 remain saved but are no longer selected by the renamed references. Renaming a
 group also preserves its historical payer correlation. See the pinned upstream
-[wallet rename guide](https://github.com/mikeperry-tor/x402_treazury/blob/4346421a1a4d0d53fc31e246ff6fde27f634a9f6/docs/wallet-cli.md#rename-a-managed-wallet-group).
+[wallet rename guide](https://github.com/mikeperry-tor/x402_treazury/blob/9ca86bdb407152ab1581e14c5d110185d870bb48/docs/wallet-cli.md#rename-a-managed-wallet-group).
 
 ## Create the wallet and deposit when ready
 
@@ -218,7 +223,7 @@ Preview reports saved metadata and requested policy differences, not live
 balances or cryptographic verification. The upstream `wallet rename` command is
 also available for deliberate offline administration; it requires exclusive store
 ownership and a backup first. This update does not rename groups automatically.
-See the [pinned upstream wallet CLI guide](https://github.com/mikeperry-tor/x402_treazury/blob/4346421a1a4d0d53fc31e246ff6fde27f634a9f6/docs/wallet-cli.md)
+See the [pinned upstream wallet CLI guide](https://github.com/mikeperry-tor/x402_treazury/blob/9ca86bdb407152ab1581e14c5d110185d870bb48/docs/wallet-cli.md)
 for its constraints. Deployment policy remains packaged in the image; renaming a
 saved group alone does not change the configured wallet references.
 
