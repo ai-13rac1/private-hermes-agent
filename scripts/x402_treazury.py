@@ -15,7 +15,7 @@ from deployment import ROOT, maintenance_compose
 from provisioning import initialize_research_config
 
 
-# Native diagnostic contract at pinned da5d5d9; generic ERROR logs can recover.
+# Native diagnostic contract at pinned 39fb372; generic ERROR logs can recover.
 ENDPOINT_FAILURES = (
     'MCP endpoint unavailable; catalog startup failed; correct the reported cause and restart',
     'MCP endpoint tools are unavailable because its tool selection is invalid; correct the configuration and restart',
