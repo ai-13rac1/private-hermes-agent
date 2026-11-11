@@ -78,7 +78,9 @@ def mcp_grants():
 def tunnel(name, local, remote, address):
     present = subprocess.run(['ip', 'link', 'show', name], capture_output=True).returncode == 0
     if not present:
-        run('ip', 'tunnel', 'add', name, 'mode', 'gre', 'local', local, 'remote', remote, 'ttl', '64')
+        # Netlink lets the kernel load ip_gre on demand; the ioctl path of
+        # `ip tunnel add` cannot do that from a rootless container engine.
+        run('ip', 'link', 'add', name, 'type', 'gre', 'local', local, 'remote', remote, 'ttl', '64')
     run('ip', 'addr', 'replace', address, 'dev', name)
     run('ip', 'link', 'set', name, 'mtu', '1400', 'up')
 
@@ -152,6 +154,8 @@ def router():
         for path in [Path(base), *(Path(base) / p for p in dirs + files)]:
             os.chown(path, 101, 102, follow_symlinks=False)
     state.chmod(0o700)
+    # Set the control directory owner here: Podman rejects tmpfs uid and gid options.
+    os.chown('/run/tor-control', 101, 102)
     print('router: firewall installed; starting Tor without network capabilities', flush=True)
     config = '/etc/tor/torrc'
     if os.environ.get('PRIVATE_HERMES_X402_TREAZURY_SOCKS', '0') == '1':
