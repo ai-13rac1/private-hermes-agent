@@ -1,6 +1,8 @@
 # Browser automation and model Python inside the SSH executor
 
-Status: proposed; executor browser tools remain disabled. Follow the
+Status: proposed; shared desktop prerequisites implemented and qualified on
+Docker Desktop ARM64, but browser-specific design and implementation remain
+pending. Executor browser tools remain disabled. Follow the
 [planning workflow](../planning-workflow.md). Planning baseline: branch `main`,
 commit `e33e5ad5f741dc8ae283be32038e3bca25e041fa`.
 Plan path: `docs/plans/browser-use-support.md`.
@@ -25,6 +27,46 @@ lean executor lacks the native desktop dependencies. The optional desktop varian
 now supplies those packages under `COMPUTER_USE_ENABLED`; its computer-use
 qualification does not qualify or relocate the model-written browser harness.
 Executor browser tools remain disabled in both variants.
+
+## Progress inherited from computer use
+
+Reconciled against completed computer-use work through `edd8186` and the same
+packaged Hermes source revision. This is shared prerequisite evidence, not
+acceptance of BU-DESIGN, BU-1 or BU-2:
+
+- The optional Debian desktop image, SSH runner integration and existing
+  `COMPUTER_USE_ENABLED` preference are implemented. Chromium runs with namespace
+  and seccomp sandbox layers, without sudo elevation, writable system mounts or additional
+  container capabilities. Reuse the desktop-only syscall profile; browser work
+  has not demonstrated a need for further capabilities or syscall allowances.
+- ARM64 fixtures passed desktop actions, browser-profile/localStorage/cookie
+  persistence across image switches and restart, SSH dependency failure/recovery,
+  and Tor allowed/forbidden paths, including UID-101 impersonation and outage.
+  These establish a working desktop substrate. They do not qualify harness
+  dependencies, arbitrary model Python, browser sessions or download handling.
+- Authenticated same-origin screenshots and native RFB transport passed origin,
+  ticket, takeover and private-mode browser-network checks. Reuse that transport
+  if a streamed screen is needed. Harness screenshot paths, attachments and
+  downloads still require their own transfer and rendering qualification.
+- Chromium sandbox startup/discovery fixes and a webapp logout-test navigation
+  race were resolved during computer-use qualification. They did not implement
+  browser-harness relocation or enable any browser tool. The native browser CLI
+  and screenshot launcher remain unchanged by this project's source patches.
+
+See the [maintained evidence and limits](../development.md#executor-desktop-qualification).
+Only one active default-profile desktop is qualified; concurrent profile screens
+can collide on native display `:20` and the shared browser profile. Named harness
+sessions must be traced rather than assumed to provide separate desktop profiles.
+Full visual noVNC-pane interaction remains unqualified. Rootless Podman testing
+belongs to its [own plan](rootless-podman.md).
+
+The core design remains necessary: moving Chromium does not move model Python.
+Computer-use investigation also demonstrated native gateway-local CLI/daemon,
+installation and desktop fallback paths that needed explicit refusal. Browser
+design review must trace its own launch/retry/settings paths for equivalent
+fallbacks rather than assume the desktop patch covers them. The next action is
+the exact-revision harness/dependency, launch, session and output audit below,
+followed by fresh BU-DESIGN review before browser implementation.
 
 ## Intended design and preserved boundaries
 
@@ -67,7 +109,9 @@ substantive implementation; obtain a fresh independent read-only design review:
   and AMD64. Reuse the implemented
   [desktop image contract](../configuration.md#optional-executor-desktop), observing
   its [qualification limits](../development.md#executor-desktop-qualification).
-  Qualify the browser-specific image requirements on each target.
+  Qualify the browser-specific image requirements on available targets and record
+  gaps. Preserve AMD64-compatible inputs and launch paths; missing AMD64 runtime
+  qualification does not block this plan's completion or establish AMD64 support.
   Reuse the existing lean/desktop choice; do not add a separate browser executor
   image or duplicate desktop lifecycle owner. Reconcile browser availability with
   that choice rather than introducing another overlapping image preference.
@@ -118,7 +162,10 @@ internal services, DNS, UDP/IPv6 and no direct fallback. Cover missing harness o
 Chromium, invalid display, SSH interruption, Tor loss/recovery, cancellation,
 daemon crash, executor restart/recreation and ordinary shutdown. Repeated setup
 and retries preserve SSH identity, browser profiles and useful completed work.
-Check both architectures; do not infer runtime support from a multiarch manifest.
+Record tested architectures and preserve the ability to qualify AMD64; do not
+infer runtime support from a multiarch manifest or block completion solely on
+unavailable AMD64 runtime coverage. Rootless Podman acceptance remains with its
+own plan.
 Validate the effective Compose model if Compose changes.
 
 Update `docs/architecture.md`, `docs/configuration.md` and
@@ -140,7 +187,8 @@ iframe pointed at the destination URL does not satisfy this design.
 
 Gate BU-FINAL: fresh independent read-only review of the combined revisions,
 native discovery/direct/deferred/delegated execution consumers, maintained docs,
-both intended architectures and allowed/forbidden plus failure/restart evidence.
+tested architecture coverage, preserved AMD64 compatibility, and allowed/forbidden
+plus failure/restart evidence. Record unavailable platform coverage explicitly.
 Resolve material findings before claiming support. After acceptance, preserve
 lasting evidence and limits in maintained guides, resolve plan links and remove
 this plan according to the planning workflow.
