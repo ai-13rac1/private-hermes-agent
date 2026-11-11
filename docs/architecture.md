@@ -61,6 +61,9 @@ inside an application cannot grant a direct uplink.
   skill/operator-declared credential files to remote backends. Keep
   `terminal.credential_files` and skill passthrough declarations under review.
   Code's authorized Hermes tool RPC remains a capability, not a network bypass.
+  The executor's browser profile is excluded from native SSH sync-back archives;
+  it remains in its persistent home mount. Its live socket symlinks must not
+  prevent selected skills/caches from synchronizing through the native mechanism.
 - SSH is key-only, with pinned host identity. Password login, TCP/agent
   forwarding, tunnels, and root login are disabled. The SSH daemon has only
   the capabilities needed for privilege separation; executed code runs as
@@ -86,8 +89,20 @@ inside an application cannot grant a direct uplink.
 - Executor: lean Alpine by default, or a pinned Debian desktop sandbox selected
   by `COMPUTER_USE_ENABLED`. Both have Python, Node, Git, SSH, curl, read-only root
   and separate writable home/workspace. The desktop adds Xvnc/Xfce, Chromium and
-  cua-driver, with no new container capabilities. Base tags and OS packages can
+  cua-driver and an isolated browser-harness environment, with no new container capabilities. Base tags and OS packages can
   change on rebuild; review/pin further when qualifying upgrades.
+
+Browser automation's trusted gateway helper starts an SSH stdio launcher for each
+harness identity. The launcher and native harness daemon live in the executor;
+each model program runs in a separate executor process group. The existing native
+owner-death supervisor covers the gateway's SSH process group. Closing that
+connection stops the remote program and daemon; native session cleanup closes the
+same owner. Program output is data, and screenshot paths are fetched from the
+executor into generated gateway cache files through native bounded transfer.
+No model program, workspace helper or printed path is imported/opened as gateway
+code or a gateway-selected file. Native session bookkeeping may retain its
+gateway-loopback CDP forward; remote Python uses the executor-local endpoint.
+No published endpoint or internal network grant is added.
 
 ### Executor capability requirements
 

@@ -151,6 +151,14 @@ platform and surface limits. Further process-tree/capability qualification belon
 to this plan; these focused SSH experiments do not satisfy G1–G5 or authorize
 topology changes.
 
+Browser-use implementation reuses that executor and desktop profile. The Python
+harness and its SSH-owned session launcher introduce no additional capabilities,
+syscall allowances, published ports or peer grants. The separate browser Chromium
+startup path also contained explicit sandbox-bypass arguments; those are removed
+by the browser patch rather than expanding capabilities. Its runtime qualification
+is tracked in the [browser-use plan](browser-use-support.md); the existing listener
+omission evidence remains applicable and need not be repeated for Python packages.
+
 ## Preserved boundaries and intended behavior
 
 - Keep Hermes/executor mounts, processes and network namespaces separate. Neither

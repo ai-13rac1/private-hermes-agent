@@ -119,6 +119,8 @@ Local ARM64 unpacked images measured 229,682,455 bytes for lean,
 4,380,500,982 bytes for the desktop base and 4,429,795,686 bytes for the adapted
 desktop executor. Download and unpacked sizes are different measurements; these
 local build observations do not establish AMD64 disk or runtime requirements.
+Adding the isolated browser harness brought the local ARM64 adapted executor to
+4,508,949,695 unpacked bytes; the desktop base and lean target are unchanged.
 
 On 2026-11-11, Docker Desktop ARM64 (Engine 29.9.3) passed 92 unit tests,
 effective base/Funnel models, compilation, 12 packaged tool-policy combinations,
@@ -150,6 +152,24 @@ Docker Desktop ARM64 scope with no material findings. The computer-use plan was
 completed after the operator clarified that untested architectures do not block
 completion. Full visual noVNC-pane interaction and additional profile arrangements
 remain outside the qualified scope; concurrent profile screens remain unsupported.
+
+### Browser harness and results
+
+Browser automation reuses this desktop substrate and adds the pinned harness in
+an isolated executor environment. Run `make browser-use-test` for its focused
+disposable placement, sessions, cancellation and result checks. Runtime browser
+qualification passed remote stdlib/child execution, DOM/navigation/type/download,
+named/unnamed tabs, concurrent startup, screenshot staging/native vision, native
+selected-cache round-trip with the browser profile excluded, takeover denial,
+active/startup cancellation, timeout/retry, daemon crash, owner death and actual
+missing-harness refusal/recovery. These fixtures execute the tool as Hermes UID
+10000, matching the gateway: root `docker exec` can create native install locks
+owned by the wrong account and invalidate restart tests. The complete desktop/
+network run also passed image switching and harness Tor outage/recovery. Final
+webapp qualification and review remain tracked in the
+[browser-use plan](plans/browser-use-support.md). The implementation adds no capability, syscall rule,
+published port or internal network grant. The existing three OpenSSH grants and
+desktop-only Chromium user-namespace profile remain the owning requirements.
 
 ## Diagnostic messages
 

@@ -8,7 +8,7 @@
 +# Image exclusions for unsupported executor/native-desktop tools. Renderer
 +# previews instead follow the existing deployment-owned external-content mode.
 +PRIVATE_HERMES_DISABLED_TOOLS = frozenset({
-+    "browser_exec", "browser_cdp", "browser_dialog", "browser_vault", "read_window_below",
++    "browser_cdp", "browser_dialog", "browser_vault", "read_window_below",
 +})
 +PRIVATE_HERMES_PREVIEW_TOOLS = frozenset({
 +    "desktop_preview", "drive_preview", "annotate_preview",
@@ -18,7 +18,7 @@
 +def private_hermes_tool_disabled(name: str) -> bool:
 +    from hermes_bootstrap import PRIVATE_HERMES_EXTERNAL_CONTENT, PRIVATE_HERMES_COMPUTER_USE
 +    return (name in PRIVATE_HERMES_DISABLED_TOOLS or
-+            (name == "computer_use" and not PRIVATE_HERMES_COMPUTER_USE) or
++            (name in {"computer_use", "browser_exec"} and not PRIVATE_HERMES_COMPUTER_USE) or
 +            (name in PRIVATE_HERMES_PREVIEW_TOOLS and
 +             PRIVATE_HERMES_EXTERNAL_CONTENT != "browser_native"))
 +
@@ -41,7 +41,7 @@
          results normalized, every exception returned as ``{"error": ...}``."""
 +        if private_hermes_tool_disabled(name):
 +            reason = ("the required browser/desktop integration is unavailable" if name in PRIVATE_HERMES_DISABLED_TOOLS
-+                      else "computer use requires COMPUTER_USE_ENABLED=true and the desktop executor" if name == "computer_use"
++                      else "desktop tools require COMPUTER_USE_ENABLED=true and the desktop executor" if name in {"computer_use", "browser_exec"}
 +                      else "preview tools require WEBAPP_EXTERNAL_CONTENT=browser_native")
 +            return tool_error(f"Tool {name} is disabled in this deployment: {reason}.")
          entry = self.get_entry(name, scope=scope)

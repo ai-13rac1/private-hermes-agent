@@ -1,0 +1,97 @@
+--- a/tools/browser_use_cli.py
++++ b/tools/browser_use_cli.py
+@@ -274,7 +274,8 @@
+
+ def browser_exec_available() -> bool:
+     """check_fn: browser-harness is importable (a core dependency). Never launches or opens sockets."""
+-    return _find_cli() is not None
++    from hermes_cli.private_browser_use import available
++    return available()
+
+ 
+ def _workspace_dir(task_id: Optional[str]) -> Optional[str]:
+@@ -630,6 +631,9 @@
+     """Stop every harness daemon this process drove (only ``home_key``'s when given), through the
+     harness's own identity-checked ``--reload``; the next browser_exec respawns one on the endpoint
+     it resolves then."""
++    from hermes_cli.private_browser_use import close
++    return close(home_key=home_key)
++
+     with _driven_daemons_lock:
+         daemons = sorted(key for key, home in _driven_daemons.items() if home_key in (None, home))
+         for key in daemons:
+@@ -774,6 +778,9 @@
+ def browser_exec(code: str, session: str = "", timeout_s: int = _DEFAULT_TIMEOUT_S,
+                  task_id: Optional[str] = None, local: bool = False):
+     """Run Python code through the browser-use CLI, and return its output"""
++    from hermes_cli.private_browser_use import execute
++    return execute(code, session, timeout_s, task_id, local)
++
+     from agent.redact import redact_sensitive_text
+     from tools.registry import tool_error, tool_result
+     if not code or not code.strip():
+@@ -969,6 +976,9 @@
+
+ 
+ def _dynamic_schema_overrides() -> dict:
++    from hermes_cli.private_browser_use import schema_overrides
++    return schema_overrides()
++
+     overrides: dict = {"description": _description_header() + _HELPERS_DIGEST}
+     # ``local`` exists ONLY when the user consented to real-profile browsing — everyone
+     # else's schema carries zero extra surface. The caller memoizes on config.yaml mtime,
+--- a/tools/browser_session.py
++++ b/tools/browser_session.py
+@@ -226,6 +226,9 @@
+     can't load, the fresh browser carries ``real_profile_unavailable`` so the first result tells the model it
+     is signed out. The hybrid sidecar passes ``allow_real_profile=False``: the user's cookie jar must not
+     reach an arbitrary internal host the model chose."""
++    # This deployment has one supported local route: the SSH executor.
++    return _create_chromium_session(cache_key)
++
+     fallback_note = None
+     if allow_real_profile:
+         from tools.browser_session_real_profile import real_profile_cdp, real_profile_fallback_note, real_profile_key
+--- a/tools/browser_session_lifecycle.py
++++ b/tools/browser_session_lifecycle.py
+@@ -128,6 +128,8 @@
+
+ def release_session_backend(cache_key: str, session_info: dict[str, Any]) -> None:
+     """Release ``session_info``'s browser BY OBJECT (an unpublished session releases through this alone)."""
++    from hermes_cli.private_browser_use import close
++    close(cache_key=cache_key)
+     _close_cloud_session(session_info)
+     features = session_info.get("features") or {}
+     if features.get("lightpanda"):
+--- a/tools/browser_session_sandbox.py
++++ b/tools/browser_session_sandbox.py
+@@ -110,12 +110,11 @@
+ def _start_chromium(env, user, exe: str, udd: str, child_env: dict) -> tuple[int, Optional[str]]:
+     """Launch detached in the sandbox; returns its sandbox pid and start time (None when unreadable)."""
+     from tools.bot_desktop.browser import SHARED_PROFILE_ARGS
+-    from tools.browser_launcher import CHROMIUM_SANDBOX_BYPASS_ARGS, build_chromium_argv
+-    from tools.environments import streams
+-    # Container: no user namespaces for Chromium's own sandbox, so the bypass flags always apply (this
+-    # host's facts say nothing about the sandbox); the shared-profile flags match the dock's icon.
++    from tools.browser_launcher import build_chromium_argv
++    from tools.environments import streams
++    # The desktop executor permits Chromium user namespaces; retain its sandbox.
+     argv = build_chromium_argv(exe, udd, packaged=False, headed=True, sandbox_bypass=False,
+-                               extra_args=(*SHARED_PROFILE_ARGS, *CHROMIUM_SANDBOX_BYPASS_ARGS))
++                               extra_args=SHARED_PROFILE_ARGS)
+     argv = list(dict.fromkeys(argv))
+     # setsid execs in place (a background child of a non-interactive shell leads no process group), so $! is
+     # Chromium itself, and its start time is fixed from the fork on.
+--- a/tools/environments/ssh.py
++++ b/tools/environments/ssh.py
+@@ -253,7 +253,9 @@
+         # "socket ignored" and some builds exit 2, which failed every sync-back and left a
+         # multi-GB temp tar behind on each retry. Exclude them up front.
+         ssh_cmd = self._build_ssh_command() + [
+-            f"tar cf - --exclude='*.sock' -C / {shlex.quote(rel_base)}"]
++            f"tar cf - --exclude='*.sock' "
++            f"--exclude={shlex.quote(rel_base + '/bot-desktop/browser-profile')} "
++            f"-C / {shlex.quote(rel_base)}"]
+         with open(dest, "wb") as f:
+             result = subprocess.run(ssh_cmd, stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.PIPE, timeout=120, check=False)
+         if result.returncode != 0:

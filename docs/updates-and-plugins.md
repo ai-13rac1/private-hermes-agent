@@ -167,12 +167,12 @@ only after equivalent upstream behavior passes the same backend/browser/network
 qualification, including dependency loss and stale permissions. No runtime bundle
 editing, fallback provider or compatibility reader is installed.
 
-The disabled-desktop-tools patch omits the four unsupported executor browser
+The disabled-desktop-tools patch omits the three unsupported executor browser
 tools listed in the [webapp guide](webapp.md#local-content-previews-and-links),
 along with the unsupported native-client `read_window_below` tool. The early
 bootstrap captures `COMPUTER_USE_ENABLED` before profile dotenv loading;
-`computer_use` is omitted when false and checks actual remote dependencies when
-true. The SSH-computer-use patch enforces executor-only placement, rejects local
+`computer_use` and `browser_exec` are omitted when false and check actual remote
+dependencies when true. The SSH-computer-use patch enforces executor-only placement, rejects local
 CLI/embedded-daemon fallbacks and host installation, and preserves Chromium's
 sandbox at the desktop dock launch. Standard driver permissions are supported;
 other modes fail before a local daemon can be constructed. Native mutation
@@ -207,6 +207,29 @@ runtime to patch. The lean target retains Alpine; the root `.env` preference
 selects the build and native Compose security fragment, not image versions.
 The desktop-only syscall profile's source/license, maintenance and removal
 conditions are in [development](development.md#executor-desktop-qualification).
+The SSH-browser-use patch delegates execution, availability and schema generation
+to the deployment helper before native gateway-local harness code can run. It
+also restricts local session creation to executor Chromium, preserves Chromium's
+sandbox in the automation launch path, and connects native session cleanup to the
+SSH-owned harness. The final Hermes image copies all four patched browser modules
+and the patched SSH environment module. Native SSH sync-back excludes exactly the
+executor's `~/.hermes/bot-desktop/browser-profile` from its bulk archive: this
+unmapped persistent browser state contains Chromium's absolute socket symlinks,
+which otherwise fail native safe tar extraction and block intended cache/skill
+sync-back. Other native mappings and safe extraction remain unchanged; the
+profile stays in executor bind data and backups. Remove this exclusion when
+native SSH archives only the required mapped state or handles this runtime
+profile without breaking safe extraction and selected-file synchronization.
+The desktop executor copies only the public screenshot helper from the same
+official image and builds `/opt/browser-harness` from the minimal locked dependency
+closure in `browser-requirements.txt`. Hashes and versions come from the packaged
+Hermes lock, including its explicit Pillow 13 override; `--no-deps` preserves that
+override instead of resolving the harness's older Pillow pin. Refresh both image
+source pins and this closure together when updating Hermes. No full Hermes runtime
+or profile is installed in the executor. Remove this patch/helper/launcher when
+equivalent native SSH execution, ownership, screenshots and failure behavior pass
+the browser qualification checks. Keep other browser tools excluded until their
+own routes are qualified.
 Remove the SSH patch when equivalent upstream executor-only behavior passes
 these discovery, failure/restart, driver and authenticated-display checks. The
 gateway still needs this project's derived Hermes image and rebuilt web assets;

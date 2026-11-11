@@ -25,7 +25,7 @@ Compose explicitly selects each service's environment variables:
 | `HERMES_DEFAULT_MODEL` | Offline setup, which saves the preferred Hermes default |
 | `TEEP_HOST_PORT` | Compose loopback port publication for teep |
 | `TEEP_SERVE_ARGS` | Compose command arguments for `teep serve` |
-| `COMPUTER_USE_ENABLED` | Executor build/security selection and Hermes's captured desktop tool policy |
+| `COMPUTER_USE_ENABLED` | Executor build/security selection and Hermes's captured computer/browser tool policy |
 | `TS_AUTHKEY` | Optional Tailscale container |
 | `WEBAPP_EXTERNAL_CONTENT` | Deployment validation, Hermes, offline setup and ingress proxy |
 | Funnel enablement, local webapp port and hostname | Deployment workflow and selected ingress components |
@@ -156,12 +156,23 @@ authentication, wallet policy, or network access.
 ## Optional executor desktop
 
 `COMPUTER_USE_ENABLED=false` selects the lean Alpine executor and excludes
-`computer_use`. Set it to exactly `true` in the root `.env` to select the larger
-Debian desktop image and make the tool available when its SSH dependencies are
+`computer_use` and `browser_exec`. Set it to exactly `true` in the root `.env` to select the larger
+Debian desktop image and make those tools available when their SSH dependencies are
 present. Apply with `make down` followed by `make up`; startup builds the selected
 image and recreates affected services. Start a new conversation to refresh the
-advertised tools. A profile can still exclude computer use. Executor browser
-tools remain disabled and `WEBAPP_EXTERNAL_CONTENT` keeps its separate meaning.
+advertised tools. A profile can still exclude either tool. `browser_cdp`,
+`browser_dialog` and `browser_vault` remain disabled. `WEBAPP_EXTERNAL_CONTENT`
+keeps its separate meaning; there is no second preference for browser automation.
+
+Browser automation supports the executor's packaged Chromium only. External CDP,
+cloud browsers, real host profiles and alternate engines fail before execution.
+Its Python harness, daemon, workspace helpers and child processes run as runner
+in the executor. Named sessions have separate tabs, with the same shared browser
+profile/cookies. Workspace files under `/workspace/browser-use/` persist; Python
+variables do not persist between calls. Cancellation or a lost connection can
+leave an already-issued browser action completed; inspect state before retrying.
+Browser downloads use the shared `/workspace/browser-use/downloads` directory;
+named tabs do not provide separate download or cookie authority.
 
 The same executor service, Tor namespace, runner UID/GID 10000, SSH identity and
 home/workspace mounts serve both choices. Neither enables sudo or a writable

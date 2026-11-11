@@ -301,11 +301,11 @@ and social players do not load automatically. They have placeholders and ordinar
 external links. Existing saved social permissions cannot bypass deployment policy.
 Interactive media and in-app browser-native opt-in remain deferred to part 2.
 
-The image disables the unsupported executor browser tools `browser_exec`,
+The image disables the unsupported executor browser tools
 `browser_cdp`, `browser_dialog` and `browser_vault` in every profile/content mode,
 including `browser_native`; stale calls fail before a handler runs.
-`computer_use` is separately governed by `COMPUTER_USE_ENABLED`: off by default,
-available only with the desktop executor's actual SSH dependencies. See
+`computer_use` and `browser_exec` share `COMPUTER_USE_ENABLED`: off by default,
+available only with their actual desktop executor SSH dependencies. See
 [desktop configuration](configuration.md#optional-executor-desktop) and the
 [qualification evidence](development.md#executor-desktop-qualification). Enabling
 it grants no browser-tool or browser-preview permission. Its driver and desktop stay inside
@@ -358,12 +358,13 @@ The stack does not detect or verify the browser's routing, and these browser
 configurations have not been qualified here. Brave's Tor windows lack many of
 Tor Browser's anonymity protections; see [Brave's explanation](https://support.brave.app/hc/en-us/articles/360018121491-What-is-a-Private-Window-with-Tor-Connectivity).
 
-Optional computer use is implemented; its qualification scope is recorded in the
+Optional computer use and browser automation execute inside the SSH executor;
+their qualification scope is recorded in the
 [development guide](development.md#executor-desktop-qualification). Executor
-browser support remains proposed in [browser use](plans/browser-use-support.md).
-Browser support must move
-model-written Python into the executor as well as Chromium; moving only the
-browser does not meet the execution boundary.
+browser implementation and final qualification are tracked in
+[browser use](plans/browser-use-support.md). Browser screenshots are transferred
+into generated gateway cache files for native vision/results. Downloads remain
+executor workspace files, accessed through the existing authenticated file APIs.
 
 HTML/plugin previews show inert source in private modes. Untrusted HTML is never
 parsed or executed there, including nested frames, resource hints, workers,

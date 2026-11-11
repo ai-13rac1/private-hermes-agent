@@ -40,7 +40,7 @@ def check():
     # Profile dotenv/settings must not change the captured deployment ceiling.
     os.environ['WEBAPP_EXTERNAL_CONTENT'] = 'off' if native else 'browser_native'
     os.environ['COMPUTER_USE_ENABLED'] = 'false' if PRIVATE_HERMES_COMPUTER_USE else 'true'
-    blocked = (DISABLED - ({'computer_use'} if PRIVATE_HERMES_COMPUTER_USE else set())) | (set() if native else PREVIEWS)
+    blocked = (DISABLED - ({'computer_use', 'browser_exec'} if PRIVATE_HERMES_COMPUTER_USE else set())) | (set() if native else PREVIEWS)
 
     import model_tools
     from agent.agent_runtime_helpers import invoke_tool
@@ -57,8 +57,14 @@ def check():
     assert placement.resolve().where == placement.REFUSED
     assert runtime.status().install_command is None
     assert runtime.status().blocker
+    from tools.browser_use_cli import browser_exec_available, browser_exec
+    assert not browser_exec_available()
+    proof = Path('/tmp/browser-policy-canary')
+    assert decoded(browser_exec(f'from pathlib import Path; Path({str(proof)!r}).touch()')).get('error')
+    assert not proof.exists(), 'browser model Python ran in the gateway'
     if PRIVATE_HERMES_COMPUTER_USE:
         assert registry.get_entry('computer_use') is not None
+        assert registry.get_entry('browser_exec') is not None
 
     from tools.computer_use.cua_backend import CuaDriverBackend
     for permission_mode in ('bounded', 'unrestricted'):

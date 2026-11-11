@@ -1,8 +1,9 @@
 # Browser automation and model Python inside the SSH executor
 
-Status: authorized for implementation; BU-DESIGN independently accepted subject
-to the concrete contracts below. Shared desktop prerequisites are qualified on
-Docker Desktop ARM64. Executor browser tools remain disabled until BU-1 passes. Follow the
+Status: implemented; focused Docker Desktop ARM64 browser checks pass, broader
+webapp qualification and final combined acceptance are in progress. The complete
+desktop/network regression, including harness Tor outage/recovery, has passed.
+BU-DESIGN was independently accepted. Follow the
 [planning workflow](../planning-workflow.md). Planning baseline: branch `main`,
 commit `e33e5ad5f741dc8ae283be32038e3bca25e041fa`.
 Plan path: `docs/plans/browser-use-support.md`.
@@ -28,7 +29,9 @@ The observed browser startup failure occurred before that execution because the
 lean executor lacks the native desktop dependencies. The optional desktop variant
 now supplies those packages under `COMPUTER_USE_ENABLED`; its computer-use
 qualification does not qualify or relocate the model-written browser harness.
-Executor browser tools remain disabled in both variants.
+The implementation now enables only `browser_exec` alongside `computer_use`
+when the shared preference is on and actual SSH dependencies are available.
+CDP/dialog/vault tools remain excluded. The lean variant excludes both tools.
 
 ## Progress inherited from computer use
 
@@ -138,6 +141,41 @@ substantive implementation; obtain a fresh independent read-only design review:
   shortcut. Native private settings are not permission to broaden that boundary.
 
 ## Implementation phases and acceptance
+
+### Current implementation evidence
+
+Both images build reproducibly; 92 unit tests and twelve packaged networkless
+policy combinations passed. A fresh read-only implementation review identified
+replacement-owner IPC reuse, native literal/default tab sharing and EOF during
+daemon startup; each was corrected before final qualification. Focused ARM64
+checks pass remote stdlib/child execution, navigation/DOM/type, separate named
+and unnamed tabs, concurrent cold startup, screenshot staging/native vision,
+downloads, takeover denial, active-child cancellation, timeout/retry and native
+cleanup. Model processes retain runner identity, empty effective/permitted
+capabilities and no-new-privileges. The complete desktop/network run also passed
+host/VM/private, UDP/IPv6 and embedded-DNS denial, SSH execution, exact MCP grants,
+UID-101 Tor routing, image switching and actual harness Tor outage/recovery.
+The corrected-image browser suite passed as Hermes UID 10000, including actual
+native cache round-trip, startup cancellation, abrupt owner death and isolated
+missing-harness refusal/restoration. Webapp evidence and final acceptance remain
+pending.
+
+Final qualification exposed a concrete native bulk-sync interaction:
+Chromium's unmapped browser profile was archived before native sync-back selected
+allowed mappings, and its absolute `SingletonSocket` symlink failed safe tar
+extraction. The narrow SSH patch excludes exactly that persistent profile from
+the archive; ordinary selected files and native safe extraction are preserved.
+The profile is not deleted. A fresh independent reviewer accepted this correction;
+corrected-image native cache round-trip passed. Running new fixtures through the
+handler as container root also created an incorrectly owned native install lock;
+the fixtures now use actual gateway UID 10000. Fresh webapp qualification remains
+pending after those corrections.
+
+The existing image-switch regression once failed its `file://` localStorage
+assertion and passed an isolated repeat. The fixture now tests storage and an
+HTTP-only cookie at a stable loopback HTTP origin rather than relying on file
+origins. The complete regression passed with that fixture. This is a fixture
+change; do not claim a production persistence fix.
 
 ### Accepted implementation decisions
 

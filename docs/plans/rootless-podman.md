@@ -238,6 +238,8 @@ next to the Docker addresses:
   executor service, UID, mounts, namespace and existing SSH capability grants.
   Qualify both lean and desktop variants on rootless Podman, including the
   desktop-only seccomp profile and Chromium's nested user-namespace sandbox.
+  Include browser-harness execution, SSH owner cleanup and authenticated result
+  transfer when qualifying the desktop variant; they add no new capability grant.
   Docker Desktop ARM64 desktop evidence is not Podman evidence; no sudo or
   additional capabilities are authorized as a compatibility workaround.
 - [Capability reduction](capability-reduction.md): this plan keeps GRE and adds

@@ -235,9 +235,22 @@ asyncio.run(main())
         curl('hermes', 'http://10.203.84.10:8000/health')
         assert execute('executor', 'python3', '-c', uid_probe, user='0:0', check=False).returncode != 0
         print('PASS: Tor outage blocks public egress while local teep/MCP stay available', flush=True)
+        if os.environ.get('COMPUTER_USE_ENABLED', 'false') == 'true':
+            execute('hermes', '/opt/hermes/.venv/bin/python', '-c', '''import json
+from tools.browser_use_cli import browser_exec
+r=json.loads(browser_exec('print("outage-remote")\\nimport urllib.request; urllib.request.urlopen("https://check.torproject.org/api/ip",timeout=5)',session='tor-outage'))
+assert r.get('success') is False and 'outage-remote' in r.get('output',''),r
+''', user='10000:10000')
         compose('up', '-d', '--wait', '--no-deps', '--wait-timeout', '600', 'tor')
         assert eventually(lambda: json.loads(curl('executor', 'https://check.torproject.org/api/ip').stdout))['IsTor'] is True
         print('PASS: Tor restart restores executor public egress through Tor', flush=True)
+        if os.environ.get('COMPUTER_USE_ENABLED', 'false') == 'true':
+            execute('hermes', '/opt/hermes/.venv/bin/python', '-c', '''import json
+from tools.browser_use_cli import browser_exec
+r=json.loads(browser_exec('import json,urllib.request; print(json.load(urllib.request.urlopen("https://check.torproject.org/api/ip",timeout=90))["IsTor"])',session='tor-outage'))
+assert r.get('success') and r.get('output','').strip()=='True',r
+''', user='10000:10000')
+            print('PASS: browser harness observes Tor outage and explicit recovery without direct fallback', flush=True)
         failed = False
     except subprocess.CalledProcessError as error:
         print(error.stdout, error.stderr, flush=True)

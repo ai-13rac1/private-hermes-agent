@@ -25,6 +25,11 @@ RUN install -d -m 0755 -o 10000 -g 10000 /workspace
 COPY --from=webapp-build /opt/hermes/hermes_bootstrap.py /opt/hermes/hermes_bootstrap.py
 COPY --from=webapp-build /opt/hermes/hermes_cli/ /opt/hermes/hermes_cli/
 COPY --from=webapp-build /opt/hermes/tools/registry.py /opt/hermes/tools/registry.py
+COPY --from=webapp-build /opt/hermes/tools/browser_use_cli.py /opt/hermes/tools/browser_use_cli.py
+COPY --from=webapp-build /opt/hermes/tools/browser_session.py /opt/hermes/tools/browser_session.py
+COPY --from=webapp-build /opt/hermes/tools/browser_session_lifecycle.py /opt/hermes/tools/browser_session_lifecycle.py
+COPY --from=webapp-build /opt/hermes/tools/browser_session_sandbox.py /opt/hermes/tools/browser_session_sandbox.py
+COPY --from=webapp-build /opt/hermes/tools/environments/ssh.py /opt/hermes/tools/environments/ssh.py
 COPY --from=webapp-build /opt/hermes/agent/inline_tool_executors.py /opt/hermes/agent/inline_tool_executors.py
 COPY --from=webapp-build /opt/hermes/agent/context_references.py /opt/hermes/agent/context_references.py
 COPY --from=webapp-build /opt/hermes/tools/bot_desktop/ /opt/hermes/tools/bot_desktop/
@@ -36,4 +41,5 @@ COPY components/hermes/external_content.py /opt/hermes/hermes_cli/private_extern
 COPY components/hermes/public_images.py /opt/hermes/hermes_cli/private_public_images.py
 COPY components/hermes/browser_policy.py /opt/hermes/hermes_cli/private_browser_policy.py
 COPY components/hermes/computer_use.py /opt/hermes/hermes_cli/private_computer_use.py
+COPY components/hermes/browser_use.py /opt/hermes/hermes_cli/private_browser_use.py
 ENV HERMES_WEBAPP_DIST=/opt/hermes/apps/desktop/dist-webapp
