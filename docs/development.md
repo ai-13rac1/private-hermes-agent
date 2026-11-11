@@ -131,6 +131,11 @@ profile arrangements are not independently qualified. AMD64 and rootless Podman
 remain unqualified. Simulated HTTPS does not prove live Funnel ingress, and these
 checks do not establish provider attestation or funded settlement.
 
+A fresh independent read-only review accepted combined revision
+`4f003190e91358d9908dda87390f8254dbce2ee0` for the implemented and qualified
+Docker Desktop ARM64 scope with no material findings. This does not pass the
+computer-use plan's remaining platform/surface gates.
+
 ## Diagnostic messages
 
 Explain the affected operation or capability, its impact, the known cause or

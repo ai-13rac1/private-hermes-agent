@@ -313,6 +313,13 @@ native retry, not every startup interruption. The broader CU-FINAL gate is not
 passed; retain this plan until its remaining required coverage and final
 acceptance are resolved.
 
+Final independent read-only review accepted exact combined revision
+`4f003190e91358d9908dda87390f8254dbce2ee0` for the implemented and qualified
+Docker Desktop ARM64 scope, with no material correctness, security or
+unnecessary-complexity findings. It verified the passing missing-binary and
+clean combined webapp evidence and required retaining this plan for the
+outstanding platform/surface coverage. This is scoped acceptance, not CU-FINAL.
+
 ## Implementation phases and acceptance
 
 ### CU-1: executor desktop and structured actions
