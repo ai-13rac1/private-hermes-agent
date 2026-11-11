@@ -38,6 +38,10 @@ def main():
                    for info in entry['addr_info'] if info['scope'] == 'global')
     os.environ['PRIVATE_HERMES_EDGE_IP'] = edge_ip
     rules = [f'-A INPUT -i {edge[0]} -d {edge_ip}/32 -p tcp --dport {port} -m conntrack --ctstate NEW -j ACCEPT']
+    # Podman trial: rootless Podman's port forwarder runs in this namespace and
+    # connects to 10.203.85.3 over loopback. Allow only that local connection.
+    local = f'-s 10.203.85.3/32 -d 10.203.85.3/32 -p tcp --dport {port} -m conntrack --ctstate NEW -j ACCEPT'
+    rules += [f'-A INPUT -i lo {local}', f'-A OUTPUT -o lo {local}']
     if enabled == 'true':
         rules += ['-A INPUT -s 10.203.87.2/32 -d 10.203.87.3/32 -p tcp --dport 8443 -m conntrack --ctstate NEW -j ACCEPT']
     run('iptables-restore', input='\n'.join([

@@ -25,10 +25,12 @@ def main():
     parser.add_argument('--funnel', action='store_true')
     arguments = parser.parse_args()
     project = arguments.project
-    if version(output('docker', 'version', '--format', '{{.Server.Version}}')) < (28, 0, 0):
-        raise SystemExit('Docker Engine 28+ is required for isolated bridge gateway mode.')
-    if version(output('docker', 'compose', 'version', '--short')) < (2, 36, 0):
-        raise SystemExit('Docker Compose 2.36+ is required for this deployment.')
+    # Podman trial: skip the Docker version floors.
+    if 'podman' not in output('docker', '--version').lower():
+        if version(output('docker', 'version', '--format', '{{.Server.Version}}')) < (28, 0, 0):
+            raise SystemExit('Docker Engine 28+ is required for isolated bridge gateway mode.')
+        if version(output('docker', 'compose', 'version', '--short')) < (2, 36, 0):
+            raise SystemExit('Docker Compose 2.36+ is required for this deployment.')
     command = ['docker', 'compose', '-p', project, '-f', 'compose.yaml']
     if arguments.funnel:
         command += ['-f', 'compose.funnel.yaml']

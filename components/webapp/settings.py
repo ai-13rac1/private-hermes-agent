@@ -98,7 +98,10 @@ frontend {name}
     http-request set-header X-Forwarded-For %[src]
     default_backend hermes
 '''
-    text += frontend('localhost', f'${{PRIVATE_HERMES_EDGE_IP}}:{settings.port}', local_hosts, 'http')
+    # Podman trial: rootless Podman's port forwarder connects from inside the
+    # proxy namespace to its first network address, 10.203.85.3.
+    listen = f'${{PRIVATE_HERMES_EDGE_IP}}:{settings.port}\n    bind 10.203.85.3:{settings.port}'
+    text += frontend('localhost', listen, local_hosts, 'http')
     if settings.funnel:
         text += frontend('funnel', '10.203.87.3:8443',
                          authorities(settings.funnel_host, settings.funnel_port, 443), 'https', '10.203.87.2')
