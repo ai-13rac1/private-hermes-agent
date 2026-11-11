@@ -278,6 +278,16 @@ and there is no server image cache. The former CDN-only proxy route is removed.
 
 ### Local content, previews and links
 
+Pasted/typed URLs retain Hermes's URL chips. Submitting a chip sends its
+`@url:` reference text to the model, but this deployment does not automatically
+fetch or attach the page, or append URL-extraction warnings. The model can use
+explicit web research or terminal tools when asked to fetch it. File, folder,
+Git and plugin context references retain native expansion and safety checks.
+This backend policy also applies to CLI context expansion and is independent
+of `WEBAPP_EXTERNAL_CONTENT`. Clicking a chip is a separate user action under
+the preview policy below. Previously stored expanded content/warnings are not
+rewritten or removed from conversation history.
+
 Local/generated images and graphs keep authenticated native file paths. Local
 media retains authenticated playback. A generated file hosted on a public CDN
 is external even when the agent generated it. Shared Markdown, generated-result,
@@ -290,6 +300,41 @@ In private modes, external audio/video, source/poster/subtitle/manifest dependen
 and social players do not load automatically. They have placeholders and ordinary
 external links. Existing saved social permissions cannot bypass deployment policy.
 Interactive media and in-app browser-native opt-in remain deferred to part 2.
+
+The image disables executor browser/desktop tools that are not supported by this
+deployment: `browser_exec`, `browser_cdp`, `browser_dialog`, `browser_vault` and
+`computer_use`. These five names are absent from discovery in every profile and
+content mode, including `browser_native`; stale calls fail before a handler runs.
+
+The separate in-browser tools `desktop_preview`, `drive_preview` and
+`annotate_preview` are available only when `WEBAPP_EXTERNAL_CONTENT=browser_native`.
+Private modes omit all three from discovery and reject stale calls before a
+handler or GUI callback. `browser_native` restores their native preview callbacks
+without enabling any of the five executor tools. The mode gate applies to the
+whole preview tool, including file previews. Operators can still use the UI's
+inert previews and interactive terminal; web extraction, x402_treazury research
+and model SSH execution remain available.
+
+Apply the rebuilt image with `make up` and start a new conversation to refresh
+the model's advertised tools. Saved profiles cannot re-enable image-disabled
+names or relax the captured deployment preview mode. This removes unsupported
+tool entry points, not the authority of trusted administrator/plugin code.
+Native-only `read_window_below` is also disabled in every mode: it requires OS
+window access from the native desktop client and is unsupported in the webapp.
+It is separate from the three browser-preview tools and their mode gate.
+
+**Use `browser_native` only with Tor Browser or Brave Browser's Private Window
+with Tor.** External previews use the viewing browser's connection, outside the
+stack's Tor gateway. Ordinary Brave/private windows do not supply Tor routing.
+The stack does not detect or verify the browser's routing, and these browser
+configurations have not been qualified here. Brave's Tor windows lack many of
+Tor Browser's anonymity protections; see [Brave's explanation](https://support.brave.app/hc/en-us/articles/360018121491-What-is-a-Private-Window-with-Tor-Connectivity).
+
+Executor support remains proposed in the separate
+[computer-use](plans/computer-use-support.md) and
+[browser-use](plans/browser-use-support.md) plans. Browser support must move
+model-written Python into the executor as well as Chromium; moving only the
+browser does not meet the execution boundary.
 
 HTML/plugin previews show inert source in private modes. Untrusted HTML is never
 parsed or executed there, including nested frames, resource hints, workers,

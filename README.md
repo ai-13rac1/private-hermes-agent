@@ -184,8 +184,8 @@ profiles in the Hermes agent profile configuration tools panel.
 
 As with everything else in this stack, all swaps are conducted over Tor. Swaps use independently isolated Tor circuits.
 
-> *NOTE*: There currently is no other way to transfer ZEC out of x402_treazury
-> other than enabling this feature and asking your agent nicely to please
+> *NOTE*: There currently is no way to transfer ZEC out of x402_treazury
+> other than by enabling this feature and politely asking your agent to please
 > send you its remaining ZEC. **Be kind to your agents!**
 
 ## Everyday operation

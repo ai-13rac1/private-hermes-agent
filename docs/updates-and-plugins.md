@@ -166,6 +166,40 @@ only after equivalent upstream behavior passes the same backend/browser/network
 qualification, including dependency loss and stale permissions. No runtime bundle
 editing, fallback provider or compatibility reader is installed.
 
+The disabled-desktop-tools patch omits the five unsupported executor browser and
+computer-use tools listed in the [webapp guide](webapp.md#local-content-previews-and-links),
+along with the unsupported native-client `read_window_below` tool.
+The three separate in-browser preview tools instead follow the early captured
+`WEBAPP_EXTERNAL_CONTENT` mode: available in `browser_native`, unavailable in all
+private modes. Both policies apply to native registration, inline callback
+dispatch and stale registry calls, without rewriting operator settings.
+The final image copies the patched registry and inline-dispatch files from the
+build stage. Revisit the executor exclusions only after the executor-support
+plans qualify each execution path; an upstream browser dependency or desktop
+image alone is not grounds to restore those tools. Remove the patch when an
+equivalent native deployment-owned mechanism is selected and qualified.
+After building Hermes, run `python3 tests/desktop_tools_smoke.py` to check
+discovery, stale calls, native-mode preview callbacks and supported-tool
+preservation in disposable networkless containers. This is not containment
+against trusted plugins executing Python.
+
+The URL-context patch filters URL references before native context expansion
+and reference-count limits. It preserves message/chip text and all other native
+reference handling, but does not fetch pages or add URL-extraction warnings.
+The final image copies the patched `agent/context_references.py`; qualify it
+after building with `python3 tests/context_refs_smoke.py`. Remove the patch if
+upstream supplies an equivalent selected no-fetch policy, with URL-chip and
+non-URL expansion behavior qualified against the packaged revision.
+
+These gateway patches do not require rebuilding the contents of the separate
+official `nousresearch/hermes-sandbox:desktop` executor candidate. A future
+executor can derive from pinned official layers and add SSH/user setup and the
+browser harness. The sandbox image contains no Hermes runtime to patch. The
+gateway still needs this project's derived Hermes image and rebuilt web assets;
+switching to an unmodified official agent image would lose the deployment
+policies. Current Docker caching reuses upstream layers and dependencies even
+when changing Python patches causes the shared webapp build stage to rerun.
+
 The derived image also creates an empty agent-side `/workspace` for native
 session-cwd validation; this is separate from the executor mount. Qualify actual
 browser chat, rather than relying on login/terminal checks alone.

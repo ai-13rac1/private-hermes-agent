@@ -25,6 +25,16 @@ Keep the same `WEBAPP_EXTERNAL_CONTENT=tor_proxied|ask|off|browser_native` setti
 policy authority, consent vocabulary and permission storage. Do not introduce a
 second conflicting switch or a compatibility/migration layer.
 
+Executor browser/computer-use tools are disabled pending separate qualification.
+See [computer-use support](computer-use-support.md) for structured desktop actions
+and [browser-use support](browser-use-support.md) for moving both Chromium and
+model-written Python into the SSH executor. The separate `desktop_preview`,
+`drive_preview` and `annotate_preview` tools target the viewer's renderer and are
+available only in `browser_native`; they are not disabled by the executor policy.
+Preserve that explicit opt-in and private-mode restrictions. This plan must not
+use browser-native previews as evidence of executor isolation or authorize
+model Python execution in Hermes.
+
 The derived image retains official v0.23.0 source
 `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`. Part 1 owns
 `/api/private-content/{policy,consent,image}`, exact browser/external-origin

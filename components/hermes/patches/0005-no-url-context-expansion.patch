@@ -1,0 +1,14 @@
+--- a/agent/context_references.py
++++ b/agent/context_references.py
+@@ -203,7 +203,10 @@
+     message: str, *, cwd: str | Path, context_length: int, url_fetcher: UrlFetcher = None,
+     allowed_root: str | Path | None = None, plugins: bool = True,
+ ) -> ContextReferenceResult:
+-    refs = parse_context_references(message, plugins=plugins)
++    # URL chips remain in the message; fetching their contents requires an
++    # explicit agent tool call. Exclude them before expansion/count limits.
++    refs = [ref for ref in parse_context_references(message, plugins=plugins)
++            if ref.kind != "url"]
+     if not refs:
+         return ContextReferenceResult(message=message, original_message=message)
+     cwd_path = Path(cwd).expanduser().resolve()

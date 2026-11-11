@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""Unsupported-tool exclusion in the packaged image; no network or private mounts.
+
+Build first: docker compose -f compose.yaml build hermes
+Run: python3 tests/desktop_tools_smoke.py
+"""
+import json
+from pathlib import Path
+import subprocess
+import sys
+from types import SimpleNamespace
+
+
+DISABLED = {
+    'browser_exec', 'browser_cdp', 'browser_dialog', 'browser_vault',
+    'computer_use', 'read_window_below',
+}
+
+
+PREVIEWS = {'desktop_preview', 'drive_preview', 'annotate_preview'}
+
+
+def decoded(raw):
+    return json.loads(raw) if isinstance(raw, str) else raw
+
+
+def check():
+    import os
+    home = Path(os.environ['HERMES_HOME'])
+    home.mkdir(parents=True, exist_ok=True)
+    config = {'agent': {'disabled_toolsets': []},
+              'tools': {'tool_search': {'enabled': 'off'}},
+              'toolsets': ['hermes-cli', 'desktop_ui', 'browser', 'computer_use']}
+    saved = home / 'config.yaml'
+    saved.write_text(json.dumps(config))
+    original_config = saved.read_bytes()
+
+    from hermes_bootstrap import PRIVATE_HERMES_EXTERNAL_CONTENT
+    native = PRIVATE_HERMES_EXTERNAL_CONTENT == 'browser_native'
+    # Profile dotenv/settings must not change the captured deployment ceiling.
+    os.environ['WEBAPP_EXTERNAL_CONTENT'] = 'off' if native else 'browser_native'
+    blocked = DISABLED | (set() if native else PREVIEWS)
+
+    import model_tools
+    from agent.agent_runtime_helpers import invoke_tool
+    from agent.inline_tool_executors import INLINE_TOOL_EXECUTORS
+    from agent.tool_executor import _ToolCallRef, _resolve_sequential_dispatch
+    from tools import desktop_ui, tool_search
+    from tools.registry import registry
+
+    assert not blocked.intersection(registry.get_all_tool_names())
+    assert not blocked.intersection(INLINE_TOOL_EXECUTORS)
+    definitions = model_tools.get_tool_definitions(
+        enabled_toolsets=config['toolsets'], quiet_mode=True,
+        skip_tool_search_assembly=True)
+    names = {d['function']['name'] for d in definitions}
+    assert not blocked.intersection(names), names
+    assert {'read_terminal', 'close_terminal', 'focus_pane'} <= names, names
+    assert PREVIEWS.intersection(names) == (PREVIEWS if native else set()), names
+    assert all(registry.get_entry(n) for n in ('terminal', 'web_search', 'web_extract'))
+    for name in blocked:
+        search = decoded(tool_search.dispatch_tool_search(
+            {'queries': [name]}, current_tool_defs=definitions))
+        assert not blocked.intersection(search['tools']), search
+        described = decoded(tool_search.dispatch_tool_describe(
+            {'names': [name]}, current_tool_defs=definitions))
+        assert name not in described.get('tools', {}), described
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError('unsupported handler or GUI callback invoked')
+
+    events, preview_calls = [], []
+    desktop_ui.set_emitter((lambda sid, event, payload: events.append(event)) if native else forbidden)
+
+    def preview_callback(*args, **kwargs):
+        preview_calls.append((args, kwargs))
+        return json.dumps({'success': True, 'text': 'fixture preview'})
+    agent = SimpleNamespace(
+        session_id='fixture', valid_tool_names=names | blocked, quiet_mode=False,
+        enabled_toolsets=config['toolsets'], disabled_toolsets=[],
+        _memory_manager=None, _context_engine_tool_names=set(),
+        read_preview_callback=preview_callback if native else forbidden,
+        drive_preview_callback=preview_callback if native else forbidden,
+        read_window_below_callback=forbidden,
+        read_terminal_callback=lambda **kw: json.dumps({'text': 'fixture terminal'}),
+    )
+    for name in sorted(blocked):
+        # Saved profiles and late scoped/plugin overrides cannot register the name.
+        for scope in (None, str(home / 'profiles' / 'other')):
+            registry.register(name=name, toolset='desktop_ui', schema={'name': name},
+                              handler=forbidden, scope=scope, override=True)
+            assert registry.get_entry(name, scope=scope) is None
+        for action in ('open', 'read', 'close') if name == 'desktop_preview' else ('capture',):
+            args = {'action': action, 'url': 'https://example.test/',
+                    'code': "raise AssertionError('model code executed')"}
+            direct = decoded(registry.dispatch(name, args))
+            assert 'disabled in this deployment' in direct.get('error', ''), direct
+            ref = _ToolCallRef(name, args, 'fixture', 'fixture-call', [])
+            sequential = decoded(_resolve_sequential_dispatch(agent, ref, []).execute(args))
+            concurrent = decoded(invoke_tool(
+                agent, name, args, 'fixture', pre_tool_block_checked=True,
+                skip_tool_request_middleware=True, skip_tool_execution_middleware=True))
+            assert sequential.get('error'), sequential
+            assert concurrent.get('error'), concurrent
+            bridged = decoded(model_tools.handle_function_call(
+                'tool_call', {'calls': [{'name': name, 'arguments': args}]},
+                enabled_toolsets=config['toolsets'], disabled_toolsets=[]))
+            assert name not in bridged.get('tools', {}), bridged
+            assert 'error' in json.dumps(bridged).lower(), bridged
+
+    # In browser_native all preview entry points must work, independently of
+    # the executor browser-tool exclusions. Native UI callbacks need no desktop image.
+    if native:
+        for name, actions in {'desktop_preview': ('open', 'read', 'close'),
+                              'drive_preview': ('elements',),
+                              'annotate_preview': ('hold',)}.items():
+            for action in actions:
+                args = {'action': action, 'url': 'https://example.test/'}
+                ref = _ToolCallRef(name, args, 'fixture', 'fixture-call', [])
+                for raw in (_resolve_sequential_dispatch(agent, ref, []).execute(args),
+                            invoke_tool(agent, name, args, 'fixture', pre_tool_block_checked=True,
+                                        skip_tool_request_middleware=True, skip_tool_execution_middleware=True)):
+                    result = decoded(raw)
+                    assert not result.get('error'), result
+                    assert result.get('success') or result.get('text') == 'fixture preview', result
+        assert events == ['preview.open'] * 2 + ['preview.close'] * 2, events
+        assert len(preview_calls) == 6, preview_calls
+    else:
+        assert not events and not preview_calls
+
+    # The same native paths still reach an available GUI callback.
+    ref = _ToolCallRef('read_terminal', {}, 'fixture', 'fixture-call', [])
+    assert decoded(_resolve_sequential_dispatch(agent, ref, []).execute({}))['text'] == 'fixture terminal'
+    assert decoded(invoke_tool(agent, 'read_terminal', {}, 'fixture',
+                              pre_tool_block_checked=True, skip_tool_request_middleware=True,
+                              skip_tool_execution_middleware=True))['text'] == 'fixture terminal'
+    assert saved.read_bytes() == original_config, 'operator config was modified'
+    print(f"PASS: disabled desktop/browser tools, native dispatch and preserved tools mode={PRIVATE_HERMES_EXTERNAL_CONTENT!r}")
+
+
+def main():
+    if '--inside' in sys.argv:
+        check()
+        return
+    fixture = Path(__file__).resolve()
+    for mode in ('tor_proxied', 'ask', 'off', 'browser_native', '', 'invalid'):
+        subprocess.run([
+            'docker', 'run', '--rm', '--network', 'none', '--cap-drop', 'ALL',
+            '-e', f'WEBAPP_EXTERNAL_CONTENT={mode}', '-e', 'HERMES_HOME=/tmp/desktop-tools-test',
+            '--mount', f'type=bind,source={fixture},target=/tmp/desktop_tools_smoke.py,readonly',
+            '--entrypoint', '/opt/hermes/.venv/bin/python',
+            'private-hermes-agent:local', '/tmp/desktop_tools_smoke.py', '--inside',
+        ], check=True)
+
+
+if __name__ == '__main__':
+    main()

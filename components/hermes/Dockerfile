@@ -24,6 +24,9 @@ FROM upstream
 RUN install -d -m 0755 -o 10000 -g 10000 /workspace
 COPY --from=webapp-build /opt/hermes/hermes_bootstrap.py /opt/hermes/hermes_bootstrap.py
 COPY --from=webapp-build /opt/hermes/hermes_cli/ /opt/hermes/hermes_cli/
+COPY --from=webapp-build /opt/hermes/tools/registry.py /opt/hermes/tools/registry.py
+COPY --from=webapp-build /opt/hermes/agent/inline_tool_executors.py /opt/hermes/agent/inline_tool_executors.py
+COPY --from=webapp-build /opt/hermes/agent/context_references.py /opt/hermes/agent/context_references.py
 COPY --from=webapp-build /opt/hermes/apps/desktop/dist-webapp/ /opt/hermes/apps/desktop/dist-webapp/
 COPY components/hermes/external_content.py /opt/hermes/hermes_cli/private_external_content.py
 COPY components/hermes/public_images.py /opt/hermes/hermes_cli/private_public_images.py

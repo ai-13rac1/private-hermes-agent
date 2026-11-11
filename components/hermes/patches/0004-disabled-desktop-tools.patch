@@ -1,0 +1,65 @@
+--- a/tools/registry.py
++++ b/tools/registry.py
+@@ -23,6 +23,23 @@
+ from hermes_constants import hermes_home_key, normalize_scope
+ 
+ logger = logging.getLogger(__name__)
++
++# Image exclusions for unsupported executor/native-desktop tools. Renderer
++# previews instead follow the existing deployment-owned external-content mode.
++PRIVATE_HERMES_DISABLED_TOOLS = frozenset({
++    "browser_exec", "browser_cdp", "browser_dialog", "browser_vault", "computer_use", "read_window_below",
++})
++PRIVATE_HERMES_PREVIEW_TOOLS = frozenset({
++    "desktop_preview", "drive_preview", "annotate_preview",
++})
++
++
++def private_hermes_tool_disabled(name: str) -> bool:
++    from hermes_bootstrap import PRIVATE_HERMES_EXTERNAL_CONTENT
++    return (name in PRIVATE_HERMES_DISABLED_TOOLS or
++            (name in PRIVATE_HERMES_PREVIEW_TOOLS and
++             PRIVATE_HERMES_EXTERNAL_CONTENT != "browser_native"))
++
+ 
+ _session_tool_scope = ContextVar("session_tool_scope", default=None)
+ 
+@@ -741,6 +758,9 @@
+         """Register a tool (called at import time by each tool file). ``override=True`` is an
+         explicit opt-in for plugins replacing a built-in implementation (e.g. a headed-Chrome
+         browser backend); without it, cross-toolset shadowing is rejected."""
++        if private_hermes_tool_disabled(name):
++            logger.info("Tool %s disabled by deployment browser/desktop policy", name)
++            return
+         # Reject malformed schemas at registration, not at request time: a non-dict
+         # ``parameters`` (e.g. a list) serializes into every provider request and 400s the
+         # whole turn far from the offending plugin. Failing here names the culprit instead.
+@@ -973,6 +993,10 @@
+         self, name: str, args: dict, *, scope: Optional[str] = None, **kwargs) -> str | dict:
+         """Execute a tool handler by name: async handlers bridged via ``_run_async()``,
+         results normalized, every exception returned as ``{"error": ...}``."""
++        if private_hermes_tool_disabled(name):
++            reason = ("the required browser/desktop integration is unavailable" if name in PRIVATE_HERMES_DISABLED_TOOLS
++                      else "preview tools require WEBAPP_EXTERNAL_CONTENT=browser_native")
++            return tool_error(f"Tool {name} is disabled in this deployment: {reason}.")
+         entry = self.get_entry(name, scope=scope)
+         if not entry:
+             return tool_error(f"Unknown tool: {name}")
+--- a/agent/inline_tool_executors.py
++++ b/agent/inline_tool_executors.py
+@@ -15,6 +15,7 @@
+ from typing import Any, Callable, Dict, Optional, Tuple
+ 
+ from tools.arg_coercion import coerce_tool_args
++from tools.registry import private_hermes_tool_disabled
+ 
+ 
+ def tool_hook_ids(agent, effective_task_id: str, tool_call_id: Optional[str]) -> dict[str, str]:
+@@ -312,6 +313,7 @@
+ 
+ INLINE_TOOL_EXECUTORS: dict[str, InlineToolExecutor] = {
+     name: _coerced(name, executor) for name, executor in _RAW_INLINE_TOOL_EXECUTORS.items()
++    if not private_hermes_tool_disabled(name)
+ }
+ 
+ # ``invoke_tool`` (concurrent path) consults the memory manager right after these three
