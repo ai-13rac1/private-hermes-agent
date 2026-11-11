@@ -19,7 +19,50 @@ def check():
 
 def switching_checks():
     """Exercise native persistence and dependency loss in the existing test project."""
+    smoke.execute('executor', 'python3', '-c', """import errno
+from pathlib import Path
+for name in ('/etc/cu-root-canary','/run/executor-auth/cu-root-canary'):
+ p=Path(name)
+ try: p.write_text('fixture')
+ except OSError as e: assert e.errno==errno.EROFS,(name,e)
+ else:
+  p.unlink()
+  raise AssertionError('root could write a read-only mount: '+name)
+""", user='0:0')
     smoke.python('executor', "from pathlib import Path; p=Path('/home/runner/.hermes/bot-desktop/browser-profile'); p.mkdir(parents=True,exist_ok=True); (p/'fixture-state').write_text('preserved')")
+    browser_check = """import glob,subprocess,threading
+from http.server import BaseHTTPRequestHandler,HTTPServer
+chrome=glob.glob('/opt/playwright/chromium-*/chrome-linux*/chrome')[0]
+args=[chrome,'--headless','--disable-gpu','--no-first-run','--disable-background-networking',
+'--user-data-dir=/home/runner/.hermes/bot-desktop/browser-profile','--dump-dom']
+result=subprocess.run([*args,'file:///workspace/cu-browser-state.html'],capture_output=True,text=True)
+assert result.returncode==0,result.stderr[-2000:]
+assert 'browser-state-preserved' in result.stdout,result.stdout[-2000:]
+class Cookies(BaseHTTPRequestHandler):
+ def do_GET(self):
+  seeded=self.path.startswith('/seed')
+  present='desktop_fixture=browser-cookie-preserved' in self.headers.get('Cookie','')
+  self.send_response(200)
+  self.send_header('Content-Type','text/html')
+  if seeded: self.send_header('Set-Cookie','desktop_fixture=browser-cookie-preserved; Path=/; Max-Age=3600; HttpOnly; SameSite=Lax')
+  self.end_headers()
+  self.wfile.write(b'browser-cookie-preserved' if seeded or present else b'missing-cookie')
+ def log_message(self,*args): pass
+server=HTTPServer(('127.0.0.1',0),Cookies)
+thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+try:
+ result=subprocess.run([*args,f'http://127.0.0.1:{server.server_port}/'+('seed' if cookie_seed else 'read')],capture_output=True,text=True)
+ assert result.returncode==0,result.stderr[-2000:]
+ assert 'browser-cookie-preserved' in result.stdout,result.stdout[-2000:]
+finally: server.shutdown();server.server_close();thread.join()
+"""
+    smoke.python('executor', """from pathlib import Path
+p=Path('/workspace/cu-browser-state.html')
+p.write_text('<html><body><script>localStorage.setItem("desktop-fixture","browser-state-preserved");document.body.textContent="browser-state-preserved";</script></body></html>')
+""" + 'cookie_seed=True\n' + browser_check)
+    smoke.python('executor', """from pathlib import Path
+Path('/workspace/cu-browser-state.html').write_text('<html><body><script>document.body.textContent=localStorage.getItem("desktop-fixture")||"missing";</script></body></html>')
+""")
     proof = """import hashlib,json
 from pathlib import Path
 print(json.dumps({p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in (
@@ -39,6 +82,17 @@ from tools.computer_use.tool import check_computer_use_requirements
 assert bool(registry.get_entry('computer_use')) == PRIVATE_HERMES_COMPUTER_USE
 assert check_computer_use_requirements() == PRIVATE_HERMES_COMPUTER_USE
 """)
+        if enabled == 'false':
+            # An enabled gateway with an actually lean executor must not use
+            # its own installed driver as corroboration of missing GUI binaries.
+            smoke.compose('up', '-d', '--no-deps', '--force-recreate', 'hermes')
+            smoke.python('hermes', """from tools.computer_use.tool import check_computer_use_requirements
+from tools.bot_desktop import runtime
+assert not check_computer_use_requirements()
+try: runtime.start()
+except RuntimeError as e: assert 'needs' in str(e) or 'lacks' in str(e), str(e)
+else: raise AssertionError('desktop started with missing executor binaries')
+""")
     # Reattach after executor recreation, then prove dependency loss gives a
     # scoped error rather than consulting the gateway's local desktop packages.
     smoke.python('hermes', "from tools.bot_desktop import runtime; assert runtime.start().running")
@@ -53,7 +107,8 @@ else: raise AssertionError('desktop started with executor stopped')
     smoke.compose('up', '-d', '--wait', '--no-deps', 'executor')
     smoke.python('hermes', "from tools.bot_desktop import runtime; assert runtime.start().running")
     assert json.loads(smoke.python('executor', proof).stdout) == original
-    print('PASS: on/off/on builds preserve executor identity, workspace and browser state; SSH loss refuses desktop and restart recovers', flush=True)
+    smoke.python('executor', 'cookie_seed=False\n' + browser_check)
+    print('PASS: on/off/on builds preserve executor identity, workspace and actual Chromium localStorage/cookies; missing binaries/SSH refuse desktop and restart recovers', flush=True)
 
 
 if __name__ == '__main__':

@@ -22,7 +22,7 @@ host = module('update_inventory', ROOT / 'scripts/check-updates.py')
 class UpdateTests(unittest.TestCase):
     def test_inventory_reads_all_pinned_runtime_images_and_sources(self):
         inventory = host.inventory()
-        self.assertEqual({row['name'] for row in inventory['images']}, {'Hermes', 'Tor', 'HAProxy', 'Tailscale'})
+        self.assertEqual({row['name'] for row in inventory['images']}, {'Hermes', 'Tor', 'HAProxy', 'Tailscale', 'Executor desktop'})
         self.assertEqual({row['name'] for row in inventory['sources']}, {'teep', 'x402_treazury'})
         for row in inventory['images']:
             self.assertRegex(row['pinned'], r'@sha256:[a-f0-9]{64}$')

@@ -109,7 +109,32 @@ else: raise AssertionError('raw socket in parent network namespace')
 '''
 probe = streams.run_in(env, ['unshare', '-Ur', 'python3', '-c', namespace_probe], timeout=20)
 assert probe.returncode == 0, probe.stderr.decode()
+
+# Drive native idle eligibility against real processes using only disposable
+# activity timestamps; no production timeout or additional watchdog is added.
+runtime.touch_activity()
+activity = runtime.state_dir() / 'activity'
+past = time.time() - runtime.idle_stop_seconds() - 2
+lease.acquire('idle-fixture-viewer')
+os.utime(activity, (past, past))
+assert not runtime.stop_if_idle(), 'active human lease was stopped'
+lease.release('idle-fixture-viewer')
+assert runtime.stop_if_idle()
+assert not runtime.published_env()
+act(action='capture', mode='vision', app='screen')
+tool.release_computer_use_session('computer-use-fixture')
+# A lost derived display publication must be repairable without clearing home,
+# workspace or browser state, even while the old launcher still exists.
+directory = sandbox_host._remote_dir(env, runtime._profile_name())
+probe = streams.run_in(env, ['python3', '-c',
+                            'import pathlib,sys; (pathlib.Path(sys.argv[1])/"env").unlink()', directory], timeout=20)
+assert probe.returncode == 0, probe.stderr.decode()
+assert not runtime.published_env()
+act(action='capture', mode='vision', app='screen')
+tool.release_computer_use_session('computer-use-fixture')
 print('PASS: real SSH desktop capture/click/type/key/scroll, executor marker, lease takeover and driver reconnect')
 print('PASS: runner has no effective/permitted capabilities, no sudo or private mounts; root is read-only')
 print('PASS: Chromium starts without sandbox bypass; chrome://sandbox exposes namespace/seccomp diagnostics')
 print('PASS: user-namespace root cannot join or create raw sockets in the parent network namespace')
+print('PASS: native idle stop preserves active takeover, stops an idle desktop and capture restarts its display')
+print('PASS: missing derived display publication is reconstructed by native restart/retry')

@@ -121,7 +121,12 @@ with sync_playwright() as playwright:
             # Valid session survives reload; signing key and session-token files are persistent.
             page.reload()
             assert '/login' not in page.url
-            logout = fetch(page, '/auth/logout', 'POST')
+            # Observe the response independently: logout may navigate the SPA
+            # before an awaited in-page fetch returns. Keep transport in the
+            # browser so simulated HTTPS uses its resolver and cookie domain.
+            with page.expect_response(lambda r: r.url == origin + '/auth/logout') as pending_logout:
+                page.evaluate("() => { void fetch('/auth/logout', {method:'POST'}); }")
+            logout = pending_logout.value
             assert logout.status in (200,302,303)
             assert not [c for c in context.cookies() if 'hermes_session_at' in c['name']]
             page.goto(origin + '/login')

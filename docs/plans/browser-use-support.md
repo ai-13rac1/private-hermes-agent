@@ -21,7 +21,10 @@ with a path-loaded launcher. Bot Desktop can put Chromium inside the SSH
 executor, but that does not move the Python harness or its daemon there.
 `bot_desktop.placement: terminal` alone therefore does not meet this plan.
 The observed browser startup failure occurred before that execution because the
-current executor lacks the native desktop dependencies.
+lean executor lacks the native desktop dependencies. The optional desktop variant
+now supplies those packages under `COMPUTER_USE_ENABLED`; its computer-use
+qualification does not qualify or relocate the model-written browser harness.
+Executor browser tools remain disabled in both variants.
 
 ## Intended design and preserved boundaries
 
@@ -64,7 +67,9 @@ substantive implementation; obtain a fresh independent read-only design review:
   and AMD64. Reuse the desktop image contract from
   [computer use](computer-use-support.md) if it has passed CU-1; otherwise qualify
   the same required executor-image work here without assuming that plan ran.
-  Do not maintain two executor images or duplicate desktop lifecycle owners.
+  Reuse the existing lean/desktop choice; do not add a separate browser executor
+  image or duplicate desktop lifecycle owner. Reconcile browser availability with
+  that choice rather than introducing another overlapping image preference.
 - Trace CLI and harness-daemon execution, named sessions, workspace overrides,
   profile paths, cloud/CDP/sidecar/real-profile routes, retries and cancellation.
   Choose the smallest supported route and explicitly reject the rest. A local

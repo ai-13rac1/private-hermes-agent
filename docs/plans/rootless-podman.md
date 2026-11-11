@@ -234,6 +234,12 @@ next to the Docker addresses:
 
 ## Relation to other plans
 
+- [Computer use](computer-use-support.md): the optional desktop uses the same
+  executor service, UID, mounts, namespace and existing SSH capability grants.
+  Qualify both lean and desktop variants on rootless Podman, including the
+  desktop-only seccomp profile and Chromium's nested user-namespace sandbox.
+  Docker Desktop ARM64 desktop evidence is not Podman evidence; no sudo or
+  additional capabilities are authorized as a compatibility workaround.
 - [Capability reduction](capability-reduction.md): this plan keeps GRE and adds
   no capability. Its network evidence answers parts of that plan's P1. If that
   plan changes the topology, the Podman overlay and P3 checks must be redone for

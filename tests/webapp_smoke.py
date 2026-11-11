@@ -89,6 +89,9 @@ def run_suite():
             smoke.compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '600')
             assert not smoke.compose('ps', '-q', 'tailscale').stdout.strip(), 'Real Tailscale must never start in tests'
             wait_ready()
+            if os.environ.get('COMPUTER_USE_ENABLED', 'false') == 'true':
+                subprocess.run([browser_python, str(ROOT / 'tests/computer_use_browser.py'),
+                                str(folder / 'password')], check=True)
             assert not smoke.compose('ps', '-q', 'x402_treazury').stdout.strip(), 'Unprepared research service must not start'
             smoke.python('hermes', "from hermes_cli.config import load_config,load_env; assert not any(k.startswith('x402_treazury_') for k in load_config().get('mcp_servers',{})); assert not load_env().get('X402_TREAZURY_MCP_TOKEN')")
             print('PASS: fresh authenticated Hermes webapp starts without wallet or research MCP registration', flush=True)
@@ -168,6 +171,10 @@ print(base64.b64encode(p.read_bytes()).decode())
                 subprocess.run([os.environ.get('WEBAPP_BROWSER_PYTHON', sys.executable),
                                 str(ROOT / 'tests/private_content_browser.py'), str(folder / 'password'),
                                 content_mode], check=True)
+                if os.environ.get('COMPUTER_USE_ENABLED', 'false') == 'true':
+                    for screen_origin in ('http://127.0.0.1:19120', 'https://webapp-test.example.ts.net:10000'):
+                        subprocess.run([browser_python, str(ROOT / 'tests/computer_use_browser.py'),
+                                        str(folder / 'password'), 'capture', screen_origin], check=True)
             # One live ask document crosses gateway restart and a policy change.
             os.environ['WEBAPP_EXTERNAL_CONTENT'] = 'ask'
             values['external_content'] = 'ask'

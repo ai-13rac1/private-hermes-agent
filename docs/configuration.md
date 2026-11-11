@@ -180,6 +180,12 @@ make home-installed binary dependencies incompatible across switches. Preserve
 their files and repair the affected environment deliberately rather than deleting
 the home, workspace or SSH keys. This is one shared executor, not per-bot isolation.
 
+Qualification covers the default profile with one active desktop. The pinned
+native SSH helper uses display `:20` for each profile and shares the runner's
+browser profile; do not run concurrent profile screens, which can interrupt one
+another. Per-profile desktop multiplexing remains unqualified and is not supplied
+by this option.
+
 Qualification status and remaining platform/surface checks are recorded in the
 [computer-use plan](plans/computer-use-support.md) and
 [development guide](development.md#executor-desktop-qualification).

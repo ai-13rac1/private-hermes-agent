@@ -1,7 +1,8 @@
 # Computer use inside the SSH executor
 
-Status: CU-1 implementation independently reviewed for Docker Desktop ARM64;
-remaining lifecycle/platform checks and CU-2 are pending. Default remains disabled. Follow the
+Status: implemented with passing Docker Desktop ARM64 qualification and
+independent code review. Remaining platform/surface coverage keeps CU-FINAL
+pending. Default remains disabled. Follow the
 [planning workflow](../planning-workflow.md).
 Planning baseline: branch `main`, commit
 `e33e5ad5f741dc8ae283be32038e3bca25e041fa`. Plan path: `docs/plans/computer-use-support.md`.
@@ -273,8 +274,44 @@ passed, as did 92 unit tests and effective Compose/compilation checks. A fresh
 independent CU-1 review of the implementation working snapshot found no material
 correctness, security or unnecessary-complexity findings and accepted a coherent
 commit scoped to Docker Desktop ARM64. AMD64, rootless Podman, authenticated
-webapp CU-2 and remaining missing-dependency/idle/interruption checks are not
-accepted by that review and remain pending. Lean regression is running separately.
+webapp CU-2 and remaining missing-dependency/idle/interruption checks were not
+accepted by that phase review. The subsequent lean `make test`
+regression passed. Further focused checks passed native idle eligibility/stop,
+preservation of active takeover, automatic display restart on capture, and
+reconstruction after loss of derived display publication. This simulates lost
+publication, not every possible startup interruption.
+
+A fresh combined read-only review of commits through `337ac5e` plus the subsequent
+working snapshot found no material code/security/complexity defects. Local
+Chromium screen checks passed authenticated screenshots/RFB pixels, wrong-origin
+rejection, one-use/30-second expiry, view-only and stale-viewer input denial,
+positive human input in the executor, stop/restart and no external HTTP requests.
+Cookie logout retains native established-socket and issued-ticket lifetimes;
+this is documented in [webapp operations](../webapp.md), with credential rotation
+and gateway recreation for access revocation. Cross-process takeover revokes
+input but does not promise immediate closure of the old watch socket.
+
+The combined browser suite then exposed an existing test's in-page logout fetch
+racing the SPA's expected navigation. The fixture now observes the browser's
+logout response independently of page navigation and retains the existing
+cookie/response assertions; simulated HTTPS stays in Chromium's fixture resolver.
+Runtime authentication is unchanged. The subsequent clean combined regression
+passed all 24 existing content cases and eight Chromium screen content-mode/
+ingress cases, plus the focused transport, DNS/preconnect, stale-consent,
+Tor-retrieval and credential/ingress checks. The final focused desktop run also
+passed enabled-gateway/lean-executor missing-binary refusal, root-write rejection
+on read-only mounts, and actual Chromium localStorage/HTTP-only-cookie persistence
+across on/off/on builds and restart. See
+[maintained qualification evidence](../development.md#executor-desktop-qualification).
+
+Qualification covers one active default-profile screen. Native SSH uses display
+`:20` per profile and one runner browser profile; concurrent profile screens can
+interrupt one another. Do not add desktop multiplexing machinery to this change.
+Full visual noVNC-pane interaction, other profile arrangements, AMD64 and
+rootless Podman remain unqualified. The lost-publication fixture demonstrates
+native retry, not every startup interruption. The broader CU-FINAL gate is not
+passed; retain this plan until its remaining required coverage and final
+acceptance are resolved.
 
 ## Implementation phases and acceptance
 

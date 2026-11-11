@@ -27,7 +27,8 @@ The checker reads the repository pins and reports:
 - `error`: metadata could not be checked, including anonymous rate limits.
   The command exits nonzero and does not report the component as current.
 
-Hermes/Tor use their `latest` image channels, Tailscale uses `stable`, and
+Hermes/Tor use their `latest` image channels, the optional executor desktop uses
+its `desktop` channel, Tailscale uses `stable`, and
 HAProxy stays on the pinned reference's version channel. Unpinned build-base
 tags are listed separately: there is no recorded digest to compare for those.
 The command changes no pins, installs no packages, and pulls no image layers.

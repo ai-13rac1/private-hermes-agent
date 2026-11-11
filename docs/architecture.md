@@ -117,6 +117,13 @@ needs user-namespace syscalls allowed by the desktop seccomp profile; those are
 distinct from capability grants. A non-root process can gain capabilities within
 a new child user namespace without acquiring authority over the parent-owned
 executor network namespace. Qualify parent-namespace restrictions separately.
+Actual ARM64 SSH desktop qualification found UID 10000, empty effective,
+permitted, inheritable and ambient sets, and `NoNewPrivs=1` for Xvnc, xfwm4,
+xfdesktop, xfce4-panel and cua-driver. The listener's capability bounding set is
+not a claim that every child retains those effective privileges. Chromium's own
+diagnostics reported namespace, PID/network-namespace and seccomp-BPF sandbox
+layers enabled; nested user-namespace root was unable to rejoin the parent-owned
+network namespace or create a raw socket in it.
 Keep effective/permitted capability evidence for runner processes distinct from
 the root listener's grants and from namespace-local browser sandbox capabilities.
 See [development checks](development.md#executor-desktop-qualification) and the

@@ -79,10 +79,10 @@ OpenSSH, its account model or privilege-separation setup; do not repeat this
 investigation merely because another GUI package is added.
 
 The optional desktop build uses Debian rather than Alpine. Run the packaged
-policy checks with `python3 tests/desktop_tools_smoke.py`. Build the selected
-images with `COMPUTER_USE_ENABLED=true python3 scripts/stack.py build`, then use
-`python3 tests/computer_use_smoke.py` for real desktop actions over SSH together
-with the existing Tor/forbidden-path checks. `--desktop-only` runs the GUI portion
+policy checks with `python3 tests/desktop_tools_smoke.py`. Run
+`make computer-use-test` to build the selected images and test real desktop
+actions over SSH together with the existing Tor/forbidden-path checks.
+`python3 tests/computer_use_smoke.py --desktop-only` runs the GUI portion
 while diagnosing an affected failure. These fixtures use disposable state,
 ephemeral Teep host ports, dummy credentials and no inference or payments.
 Serialize them with other fixed-subnet tests and keep the normal stack down.
@@ -106,6 +106,30 @@ capabilities, SSH failure/restart behavior and persistent state. Podman and othe
 CPU targets require their own evidence; source/manifest inspection is insufficient.
 Implementation, runtime qualification and final independent acceptance are tracked
 in the [computer-use plan](plans/computer-use-support.md).
+
+On 2026-11-11, Docker Desktop ARM64 (Engine 29.9.3) passed 92 unit tests,
+effective base/Funnel models, compilation, 12 packaged tool-policy combinations,
+lean and desktop SSH/network checks, UID-101 Tor routing/outage/recovery and
+desktop capture/click/type/key/scroll. Focused checks also passed native idle
+eligibility/stop, human takeover preservation, display restart, lost derived
+publication repair, enabled-gateway/lean-executor dependency refusal, SSH outage
+and restart, actual root-write rejection on the system/identity mounts, and
+on/off/on preservation of SSH identity, workspace, Chromium localStorage and an
+HTTP-only fixture cookie. These use no real accounts or funds.
+
+The combined webapp run passed the existing 24 content cases (Chromium, Firefox,
+WebKit; four modes; local and simulated HTTPS), plus Chromium screen capture/RFB
+pixels on both ingress fixtures in all four modes. Screen checks exercised
+wrong-origin, one-use and expired tickets, watch/stale-viewer input denial,
+positive takeover input, stop/restart, native cookie-logout lifetimes and no
+external HTTP requests from viewing. The existing logout test now observes its
+browser response without awaiting a fetch across SPA navigation. DNS/preconnect,
+stale consent, Tor retrieval and credential/ingress failure checks also passed.
+The GUI tests cover one active default-profile screen and programmatic native
+display transport; full visual interaction with the native noVNC pane and other
+profile arrangements are not independently qualified. AMD64 and rootless Podman
+remain unqualified. Simulated HTTPS does not prove live Funnel ingress, and these
+checks do not establish provider attestation or funded settlement.
 
 ## Diagnostic messages
 

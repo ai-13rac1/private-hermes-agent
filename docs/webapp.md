@@ -311,6 +311,29 @@ available only with the desktop executor's actual SSH dependencies. See
 browser-tool or browser-preview permission. Its driver and desktop stay inside
 the executor; gateway-local driver fallback and package installation are refused.
 
+With the optional desktop enabled, the native Bot Screen APIs carry screenshots
+and RFB pixels over authenticated same-origin connections and the existing SSH
+stream. Viewing those pixels does not make the viewing browser fetch the desktop's
+websites, and does not require `browser_native`. The separate browser interactive
+terminal still runs in Hermes with administrative authority; a terminal opened
+inside the executor's screen runs as runner in the executor.
+
+Native takeover leases fence computer-use tools and viewer input, not arbitrary
+code running as runner. Screens and browser profiles share the executor account.
+Only entrust logins and other desktop state to an agent and operators allowed to
+read them. A second viewer's takeover revokes the previous viewer's input; do not
+rely on immediate closure of the previous watch connection across processes.
+
+Cookie logout clears browser login cookies and blocks new authenticated HTTP
+grants. Native already-open WebSockets and issued display tickets can outlive it;
+display tickets remain single-use with a 30-second expiry. Closing the browser or
+stopping the screen ends that viewing connection but does not revoke all existing
+administrative RPC connections. To revoke access, stop the stack and apply
+`make webapp-rotate` followed by `make up`, which reprovisions credentials and
+recreates Hermes. Credential-file rotation alone is not applied to a running
+gateway. This retains native authentication behavior without adding a parallel
+session-revocation service.
+
 The separate in-browser tools `desktop_preview`, `drive_preview` and
 `annotate_preview` are available only when `WEBAPP_EXTERNAL_CONTENT=browser_native`.
 Private modes omit all three from discovery and reject stale calls before a

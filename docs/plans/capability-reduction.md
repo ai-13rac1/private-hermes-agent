@@ -140,8 +140,14 @@ user-namespace kernel paths. Child-namespace capabilities are not parent-network
 namespace authority. Keep lean on the engine default: this syscall allowance is
 not itself a capability reduction that justifies changing the lean default.
 Browser/GUI/driver/model processes must have no effective/permitted capabilities
-in the executor's original user namespace. Runtime process-tree and network
-qualification remain tracked in [computer use](computer-use-support.md); these
+in the executor's original user namespace. ARM64 runtime checks found Xvnc,
+xfwm4, xfdesktop, xfce4-panel and cua-driver at UID 10000 with empty effective,
+permitted, inheritable and ambient sets and `NoNewPrivs=1`. Chromium reported
+namespace and seccomp sandbox layers enabled. Nested user-namespace root could
+neither join the parent-owned network namespace nor create raw sockets there;
+UID 101 still used Tor and failed during its outage, then recovered through Tor.
+Further platform/process-tree qualification remains tracked in
+[computer use](computer-use-support.md); these
 focused SSH experiments do not satisfy G1–G5 or authorize topology changes.
 
 ## Preserved boundaries and intended behavior

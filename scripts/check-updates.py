@@ -14,6 +14,7 @@ def inventory(root=ROOT):
                        (root / 'components/hermes/Dockerfile').read_text(), re.M).group(1)
     images = [{'name': 'Hermes', 'pinned': hermes, 'channel': 'nousresearch/hermes-agent:latest'}]
     for name, component, channel in [('Tor', 'network', 'dockurr/tor:latest'),
+                                      ('Executor desktop', 'executor', 'nousresearch/hermes-sandbox:desktop'),
                                       ('HAProxy', 'webapp/proxy', None),
                                       ('Tailscale', 'tailscale', 'tailscale/tailscale:stable')]:
         path = root / 'components' / (component + '.Dockerfile' if '/' in component else component + '/Dockerfile')
