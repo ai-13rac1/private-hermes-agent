@@ -1,9 +1,11 @@
 # Computer use inside the SSH executor
 
-Status: proposed; no desktop dependencies or computer-use capability enabled by
-this plan. Follow the [planning workflow](../planning-workflow.md).
+Status: implementation authorized; CU-DESIGN review and focused experiments are
+in progress. No capability has yet been enabled. Follow the
+[planning workflow](../planning-workflow.md).
 Planning baseline: branch `main`, commit
 `e33e5ad5f741dc8ae283be32038e3bca25e041fa`. Plan path: `docs/plans/computer-use-support.md`.
+Implementation baseline: branch `computer-use-support`, commit `d5287db`.
 
 ## Intent and current behavior
 
@@ -11,7 +13,8 @@ Enable structured desktop actions entirely inside the existing SSH executor.
 The user requested this future design alongside disabling unsupported executor
 browser and computer-use tools. In-browser previews separately follow
 `WEBAPP_EXTERNAL_CONTENT` and are available only in `browser_native`. This plan
-does not authorize executing these phases or removing the executor exclusions.
+is now authorized for implementation by the user; exclusions may change only
+with the associated qualification below.
 
 The selected Hermes v0.23.0 source is
 `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, packaged by
@@ -185,6 +188,51 @@ Podman support and its plan gates remain pending.
 Gate CU-DESIGN: fresh independent read-only review of the selected design, exact
 image/source pins, affected consumers and focused experiments before substantive
 implementation. Resolve material findings before dependent work.
+
+### Selected implementation and design evidence
+
+Use independent Dockerfile targets `executor-false` (existing Alpine) and
+`executor-true` (the pinned desktop index), selected directly by Compose from
+`COMPUTER_USE_ENABLED`. Keep the existing executor image tag and service so
+existing fixture consumers continue to use the selected build. Native Compose
+`extends` may select the corresponding security options from a small root
+Compose fragment; no extra running service or host selection framework is needed.
+
+Independent read-only review of `d5287db` conditionally accepted this approach,
+with four material upstream paths to correct before enabling: Chromium's dock
+launch explicitly passes `sandbox_bypass=True`; replay-safe MCP errors can invoke
+a gateway-local CLI driver; nonstandard driver permission modes create a local
+embedded daemon; and refused display placement can still advertise/install host
+packages or fall back to a host RFB socket. Use standard driver permission mode,
+reject unsupported modes before daemon construction, refuse local CLI fallback,
+and enforce SSH-only placement across tool and display paths. Preserve native
+approval/lease semantics and outcome-unknown handling; do not replay mutations.
+
+A networkless ARM64 Docker Desktop experiment with the pinned desktop image
+confirmed Debian 13.7, Python 3.13.16, Node 26.11.1 and cua-driver 0.28.2.
+Chromium failed with `No usable sandbox` under the existing default seccomp
+policy; `unshare -Ur` was denied. A diagnostic with seccomp disabled isolated
+the cause; disabling seccomp is not a deployment solution. The published
+[Playwright seccomp profile](https://github.com/microsoft/playwright/blob/ae935a43d9e376e4759548f6b3c6905c7b282333/utils/docker/seccomp_profile.json)
+allowed a sandboxed headless Chromium `about:blank` render with the executor's
+existing SETUID/SETGID/SYS_CHROOT bounding set, non-root user, read-only root and
+`no-new-privileges`. No capabilities were added. This is an early compatibility
+experiment, not full browser sandbox, GUI, SSH or network qualification.
+
+The desktop target therefore requires a tracked, pinned seccomp profile allowing
+the user-namespace syscalls needed by Chromium, following Playwright's published
+profile. Apply it only to the desktop executor; lean retains the engine default.
+This adds syscall-profile maintenance and exposes user-namespace kernel paths to
+executor code. It does not grant authority over the parent network namespace or
+remove its firewall; verify those boundaries with allowed/forbidden runtime
+checks. Reconcile the profile with engine upgrades and qualify Podman separately.
+Keep its upstream source/license and removal conditions in maintained docs.
+
+Host Teep currently occupies `127.0.0.1:8337`. Existing disposable fixtures
+already publish Teep on an ephemeral port. For normal operation use the existing
+`TEEP_HOST_PORT` preference to select a free port; do not silently omit publication,
+change the internal inference route or select the host Teep as fallback.
+No port-selection framework is needed.
 
 ## Implementation phases and acceptance
 
