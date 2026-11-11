@@ -167,15 +167,15 @@ You can also give the agent a general-purpose cryptocurrency wallet by uncomment
 the `[servers.toolbox.swap_control]` stanza at the bottom of `config/x402_treazury/research_desk.toml`.
 
 This gives your agent **full control over their ZEC wallet**: they can send and
-recieve shielded ZEC using single-use shielded addresses, create incoming exact
-swap addresses on Near Intents for any supported cryptocurrency, and execute
-Near Intents swaps of any amount to any cryptocurrency destination address
-supported by Near Intents.
+receive shielded ZEC using single-use shielded addresses, create
+exact-input-amount cryptocurrency addresses on Near Intents for any supported
+cryptocurrency, and execute Near Intents swaps of any amount to any
+cryptocurrency destination address supported by Near Intents.
 
 **This allows your Hermes agent to conduct arbitrary cryptocurrency activity**.
 The default outgoing limit is 0.5 ZEC, but if you leave that commented, there is
 no outgoing limit other than whatever ZEC you send to your agent's wallet. Send
-and recieve swap tools can be enabed independently.
+and receive swap tools can be enabled independently.
 
 These tools are available on the `x402_treazury_toolbox` MCP endpoint, which
 also contains tools to perform arbitrary x402 raw calls by default, even without
@@ -183,6 +183,10 @@ this swap option enabled. You can give this toolbox endpoint to select agent
 profiles in the Hermes agent profile configuration tools panel.
 
 As with everything else in this stack, all swaps are conducted over Tor. Swaps use independently isolated Tor circuits.
+
+> *NOTE*: There currently is no other way to transfer ZEC out of x402_treazury
+> other than enabling this feature and asking your agent nicely to please
+> send you its remaining ZEC. **Be kind to your agents!**
 
 ## Everyday operation
 
