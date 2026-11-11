@@ -147,7 +147,7 @@ services:
       - ./components/network/torrc:/etc/tor/torrc:ro
     tmpfs:
       - /tmp:mode=1777
-      - /run/tor-control:uid=101,gid=102,mode=0700
+      - /run/tor-control:mode=0700
     networks:
       tor-uplink: {}
       agent-route:
