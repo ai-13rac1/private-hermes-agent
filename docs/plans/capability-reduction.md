@@ -146,9 +146,10 @@ permitted, inheritable and ambient sets and `NoNewPrivs=1`. Chromium reported
 namespace and seccomp sandbox layers enabled. Nested user-namespace root could
 neither join the parent-owned network namespace nor create raw sockets there;
 UID 101 still used Tor and failed during its outage, then recovered through Tor.
-Further platform/process-tree qualification remains tracked in
-[computer use](computer-use-support.md); these
-focused SSH experiments do not satisfy G1–G5 or authorize topology changes.
+The [development guide](../development.md#executor-desktop-qualification) records
+platform and surface limits. Further process-tree/capability qualification belongs
+to this plan; these focused SSH experiments do not satisfy G1–G5 or authorize
+topology changes.
 
 ## Preserved boundaries and intended behavior
 

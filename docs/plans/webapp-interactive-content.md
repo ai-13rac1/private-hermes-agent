@@ -25,9 +25,11 @@ Keep the same `WEBAPP_EXTERNAL_CONTENT=tor_proxied|ask|off|browser_native` setti
 policy authority, consent vocabulary and permission storage. Do not introduce a
 second conflicting switch or a compatibility/migration layer.
 
-Executor browser/computer-use tools are disabled pending separate qualification.
-See [computer-use support](computer-use-support.md) for structured desktop actions
-and [browser-use support](browser-use-support.md) for moving both Chromium and
+Structured desktop actions are available through the implemented
+[optional executor desktop](../configuration.md#optional-executor-desktop), with
+[documented qualification limits](../development.md#executor-desktop-qualification).
+Executor browser tools remain disabled pending
+[browser-use support](browser-use-support.md), which must move both Chromium and
 model-written Python into the SSH executor. The separate `desktop_preview`,
 `drive_preview` and `annotate_preview` tools target the viewer's renderer and are
 available only in `browser_native`; they are not disabled by the executor policy.

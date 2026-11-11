@@ -104,8 +104,21 @@ must not grant control of the parent network namespace or bypass Tor. Verify
 those forbidden paths and the actual Chromium sandbox layers, alongside runner
 capabilities, SSH failure/restart behavior and persistent state. Podman and other
 CPU targets require their own evidence; source/manifest inspection is insufficient.
-Implementation, runtime qualification and final independent acceptance are tracked
-in the [computer-use plan](plans/computer-use-support.md).
+The optional desktop implementation is complete for the qualified scope below.
+The stack has only been runtime-qualified on ARM64; AMD64 qualification is not a
+completion prerequisite. The pinned desktop image includes Linux AMD64 and ARM64,
+Compose imposes no ARM64 restriction, and Chromium discovery retains its AMD64
+paths alongside the added ARM64 path. This preserves the ability to qualify AMD64
+without claiming that it has passed. Rootless Podman qualification belongs to the
+[rootless Podman plan](plans/rootless-podman.md).
+
+The image choice avoids a substantial download and disk footprint when desktop
+tools are unused. On 2026-11-11, the pinned desktop index reported compressed
+downloads of 1,192,327,731 bytes (ARM64) and 1,203,999,297 bytes (AMD64).
+Local ARM64 unpacked images measured 229,682,455 bytes for lean,
+4,380,500,982 bytes for the desktop base and 4,429,795,686 bytes for the adapted
+desktop executor. Download and unpacked sizes are different measurements; these
+local build observations do not establish AMD64 disk or runtime requirements.
 
 On 2026-11-11, Docker Desktop ARM64 (Engine 29.9.3) passed 92 unit tests,
 effective base/Funnel models, compilation, 12 packaged tool-policy combinations,
@@ -133,8 +146,10 @@ checks do not establish provider attestation or funded settlement.
 
 A fresh independent read-only review accepted combined revision
 `4f003190e91358d9908dda87390f8254dbce2ee0` for the implemented and qualified
-Docker Desktop ARM64 scope with no material findings. This does not pass the
-computer-use plan's remaining platform/surface gates.
+Docker Desktop ARM64 scope with no material findings. The computer-use plan was
+completed after the operator clarified that untested architectures do not block
+completion. Full visual noVNC-pane interaction and additional profile arrangements
+remain outside the qualified scope; concurrent profile screens remain unsupported.
 
 ## Diagnostic messages
 

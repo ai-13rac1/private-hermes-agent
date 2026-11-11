@@ -186,8 +186,7 @@ browser profile; do not run concurrent profile screens, which can interrupt one
 another. Per-profile desktop multiplexing remains unqualified and is not supplied
 by this option.
 
-Qualification status and remaining platform/surface checks are recorded in the
-[computer-use plan](plans/computer-use-support.md) and
+Qualification evidence and platform/surface limitations are recorded in the
 [development guide](development.md#executor-desktop-qualification).
 
 ## Host inference access

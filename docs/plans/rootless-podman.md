@@ -234,7 +234,7 @@ next to the Docker addresses:
 
 ## Relation to other plans
 
-- [Computer use](computer-use-support.md): the optional desktop uses the same
+- [Optional desktop](../configuration.md#optional-executor-desktop): it uses the same
   executor service, UID, mounts, namespace and existing SSH capability grants.
   Qualify both lean and desktop variants on rootless Podman, including the
   desktop-only seccomp profile and Chromium's nested user-namespace sandbox.

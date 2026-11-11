@@ -64,9 +64,10 @@ Resolve these with exact packaged-source and disposable runtime evidence before
 substantive implementation; obtain a fresh independent read-only design review:
 
 - Select and pin the compatible harness/Python/Chromium image inputs on ARM64
-  and AMD64. Reuse the desktop image contract from
-  [computer use](computer-use-support.md) if it has passed CU-1; otherwise qualify
-  the same required executor-image work here without assuming that plan ran.
+  and AMD64. Reuse the implemented
+  [desktop image contract](../configuration.md#optional-executor-desktop), observing
+  its [qualification limits](../development.md#executor-desktop-qualification).
+  Qualify the browser-specific image requirements on each target.
   Reuse the existing lean/desktop choice; do not add a separate browser executor
   image or duplicate desktop lifecycle owner. Reconcile browser availability with
   that choice rather than introducing another overlapping image preference.
@@ -146,10 +147,10 @@ this plan according to the planning workflow.
 
 ## Related plans, deferrals and rollback
 
-The [computer-use plan](computer-use-support.md) owns structured driver actions
-and can be implemented independently of browser Python relocation. Share its
-executor desktop work rather than making structured computer use depend on the
-browser harness. Reconcile the [capability-reduction plan](capability-reduction.md)
+The implemented [optional desktop](../configuration.md#optional-executor-desktop)
+provides structured driver actions independently of browser Python relocation.
+Reuse its executor desktop rather than introducing another desktop lifecycle.
+Reconcile the [capability-reduction plan](capability-reduction.md)
 for image/startup changes, without executing its unrelated phases.
 
 `desktop_preview`, `drive_preview` and `annotate_preview` target the viewer's

@@ -307,8 +307,8 @@ including `browser_native`; stale calls fail before a handler runs.
 `computer_use` is separately governed by `COMPUTER_USE_ENABLED`: off by default,
 available only with the desktop executor's actual SSH dependencies. See
 [desktop configuration](configuration.md#optional-executor-desktop) and the
-[qualification status](plans/computer-use-support.md). Enabling it grants no
-browser-tool or browser-preview permission. Its driver and desktop stay inside
+[qualification evidence](development.md#executor-desktop-qualification). Enabling
+it grants no browser-tool or browser-preview permission. Its driver and desktop stay inside
 the executor; gateway-local driver fallback and package installation are refused.
 
 With the optional desktop enabled, the native Bot Screen APIs carry screenshots
@@ -358,9 +358,10 @@ The stack does not detect or verify the browser's routing, and these browser
 configurations have not been qualified here. Brave's Tor windows lack many of
 Tor Browser's anonymity protections; see [Brave's explanation](https://support.brave.app/hc/en-us/articles/360018121491-What-is-a-Private-Window-with-Tor-Connectivity).
 
-Optional computer-use implementation and remaining qualification are tracked in
-[computer use](plans/computer-use-support.md). Executor browser support remains
-proposed in [browser use](plans/browser-use-support.md). Browser support must move
+Optional computer use is implemented; its qualification scope is recorded in the
+[development guide](development.md#executor-desktop-qualification). Executor
+browser support remains proposed in [browser use](plans/browser-use-support.md).
+Browser support must move
 model-written Python into the executor as well as Chromium; moving only the
 browser does not meet the execution boundary.
 
