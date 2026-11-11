@@ -1,18 +1,20 @@
 # Browser automation and model Python inside the SSH executor
 
-Status: proposed; shared desktop prerequisites implemented and qualified on
-Docker Desktop ARM64, but browser-specific design and implementation remain
-pending. Executor browser tools remain disabled. Follow the
+Status: authorized for implementation; BU-DESIGN independently accepted subject
+to the concrete contracts below. Shared desktop prerequisites are qualified on
+Docker Desktop ARM64. Executor browser tools remain disabled until BU-1 passes. Follow the
 [planning workflow](../planning-workflow.md). Planning baseline: branch `main`,
 commit `e33e5ad5f741dc8ae283be32038e3bca25e041fa`.
 Plan path: `docs/plans/browser-use-support.md`.
+Implementation baseline: branch `browser-use-support`, commit `0a97899`.
 
 ## Intent and current behavior
 
 Provide browser automation without executing model-written Python beside Hermes
 state. The user requested this design and interim disabling of unsupported
-browser/desktop tools. This plan is not authorization to execute its phases or
-remove the interim exclusions.
+browser/desktop tools. The user has now authorized implementation. Reuse the
+single `COMPUTER_USE_ENABLED` preference for computer and browser tools; do not
+add a browser-specific preference. Remove exclusions only for qualified routes.
 
 Selected Hermes v0.23.0 source:
 `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`; see the derived image in
@@ -136,6 +138,49 @@ substantive implementation; obtain a fresh independent read-only design review:
   shortcut. Native private settings are not permission to broaden that boundary.
 
 ## Implementation phases and acceptance
+
+### Accepted implementation decisions
+
+A fresh read-only BU-DESIGN reviewer inspected the exact packaged Hermes source
+and the SHA-256-verified locked browser-harness 0.1.13 wheel. Design acceptance
+requires the following scoped implementation and runtime evidence:
+
+- Initially enable only `browser_exec`; keep `browser_cdp`, `browser_dialog` and
+  `browser_vault` excluded. Native raw CDP/dialog routes use gateway connections
+  and a gateway supervisor; exposing them is separate work. The harness's CDP
+  helper already runs within executor Python and needs no separate endpoint.
+- Package a minimal isolated harness environment in the desktop executor. The
+  wheel requires Python >=3.11; its metadata supports the existing Python 3.13.
+  Hermes's Python >=3.14 dependency marker does not require another interpreter.
+  Use the packaged lock's transitive versions/hashes, including its explicit
+  Pillow 13 override, without installing the full Hermes runtime in the executor.
+- Delegate the browser tool early to a narrow deployment helper. One persistent
+  SSH stdio launcher per harness identity owns the native daemon and runs each
+  model program in a separate executor process group. Serialize calls per identity,
+  separate child output from control messages, and use the existing native
+  owner-death supervisor for the local SSH process group. EOF/timeout/interruption
+  stops the affected remote execution and daemon; never replay uncertain actions.
+  Already-issued Chromium actions may have completed and must be reported as such.
+- Use explicit remote display/CDP/runtime/workspace/telemetry values before harness
+  imports, with `BH_REQUIRE_EXISTING_DAEMON=1` after serialized daemon startup.
+  Workspace `.env` and `agent_helpers.py` remain executor code/data. Use native
+  dedicated named tabs; do not prepend the redundant own-tab program that changes
+  traceback lines and leaves an extra tab outside daemon ownership.
+- Retain native browser-session and desktop approval/takeover/idle ownership.
+  Reject cloud/CDP override/real-profile/alternate-engine routes before launching;
+  constrain the local creation path to sandbox Chromium. Remove explicit browser
+  sandbox-bypass extra arguments found in `browser_session_sandbox`, as the prior
+  desktop patch only corrected the dock launch. Read CDP addressing inside the
+  executor; never pass the gateway's forwarded endpoint to remote Python.
+- Hook native per-session cleanup to close its harness owner: Chromium death alone
+  does not stop this harness daemon. Refresh native session activity while an
+  execution is active so the idle janitor cannot reap valid ongoing work.
+- Transfer screenshot candidates only from the executor through native bounded
+  file transfer to a generated Hermes cache destination. Never stat/open a printed
+  path on the gateway. Preserve native screenshot helpers, redaction and vision
+  attachment; downloads remain executor workspace files accessible through the
+  existing authenticated remote file APIs. Qualify those consumers and malicious
+  path cases rather than adding another download service.
 
 ### BU-1: isolated harness and browser route
 
