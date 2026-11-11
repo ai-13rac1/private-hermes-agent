@@ -1,7 +1,7 @@
 # Computer use inside the SSH executor
 
-Status: implementation authorized; CU-DESIGN review and focused experiments are
-in progress. No capability has yet been enabled. Follow the
+Status: CU-1 implementation independently reviewed for Docker Desktop ARM64;
+remaining lifecycle/platform checks and CU-2 are pending. Default remains disabled. Follow the
 [planning workflow](../planning-workflow.md).
 Planning baseline: branch `main`, commit
 `e33e5ad5f741dc8ae283be32038e3bca25e041fa`. Plan path: `docs/plans/computer-use-support.md`.
@@ -45,7 +45,9 @@ runtime or Podman qualification was performed:
   ARM64 `private-hermes-executor:local` image reported an unpacked size of
   229,682,455 bytes. These are different measurements: the desktop download
   alone exceeds five times the existing unpacked executor. The desktop's
-  unpacked footprint and the final adapted image sizes remain unmeasured.
+  unpacked footprint was initially unmeasured. Subsequent local ARM64 inspection
+  measured 4,380,500,982 bytes for the pinned desktop base and 4,429,795,686 bytes
+  for the adapted executor; these are local build observations, not AMD64 sizes.
 - The pinned Hermes checkout's `docker/sandbox-desktop.Dockerfile` describes a
   glibc-based `nikolaik/python-nodejs:python3.13-nodejs26` base, TigerVNC, Xfce
   components, Playwright Chromium, Pillow and cua-driver 0.28.2. It grants `pn`
@@ -219,9 +221,12 @@ existing SETUID/SETGID/SYS_CHROOT bounding set, non-root user, read-only root an
 `no-new-privileges`. No capabilities were added. This is an early compatibility
 experiment, not full browser sandbox, GUI, SSH or network qualification.
 
-The desktop target therefore requires a tracked, pinned seccomp profile allowing
-the user-namespace syscalls needed by Chromium, following Playwright's published
-profile. Apply it only to the desktop executor; lean retains the engine default.
+The desktop target therefore requires a tracked seccomp profile allowing the
+user-namespace syscalls needed by Chromium. A fresh independent review of the
+`5f0e47d` design rejected vendoring Playwright's historical full profile: it
+unnecessarily allowed io_uring and omitted modern clone3 ENOSYS behavior. Use the
+modern Moby baseline at `7b5ccfab2d6b4e0aa64c6cce401a2705788eafeb` with exactly
+one added allow rule for `clone`, `setns`, and `unshare`; retain its license. Apply it only to the desktop executor; lean retains the engine default.
 This adds syscall-profile maintenance and exposes user-namespace kernel paths to
 executor code. It does not grant authority over the parent network namespace or
 remove its firewall; verify those boundaries with allowed/forbidden runtime
@@ -233,6 +238,43 @@ already publish Teep on an ephemeral port. For normal operation use the existing
 `TEEP_HOST_PORT` preference to select a free port; do not silently omit publication,
 change the internal inference route or select the host Teep as fallback.
 No port-selection framework is needed.
+
+### Current qualification and capability findings
+
+Focused ARM64 Docker Desktop checks currently pass actual SSH desktop capture,
+click, type, key and scroll actions, including a unique workspace marker created
+by typing into an executor terminal. The driver refused unsupported background
+typing; the fixture followed its explicit foreground escalation through separate
+native approval rather than weakening the production policy. Takeover refuses
+agent captures and release/reconnect restores them. Chromium's own sandbox page
+reports layer-1 namespace, PID/network namespaces and seccomp-BPF enabled with
+no bypass flags. GUI/driver processes have UID 10000, empty effective/permitted/
+inheritable/ambient sets and `NoNewPrivs=1`; namespace-local root cannot rejoin the
+parent-owned network namespace or open raw sockets there. On/off/on image builds
+preserve SSH public identity and workspace/browser-profile state hashes; missing
+SSH refuses startup and executor restart recovers. These are focused checks, not
+CU-FINAL acceptance or qualification of other targets.
+
+Removing each listener grant independently reproduced native OpenSSH failures:
+`SYS_CHROOT` at pre-authentication chroot, `SETUID` at setresuid and `SETGID` at
+setgroups. All three permit key-only runner login in the tested configuration.
+No capability was added for desktop software. Exact configuration, errors and
+limits are recorded permanently in
+[architecture](../architecture.md#executor-capability-requirements),
+[development](../development.md#executor-desktop-qualification), and the
+[capability-reduction plan](capability-reduction.md#executor-evidence-from-computer-use-implementation).
+The new syscall allowance is not itself a capability reduction and remains
+scoped to the desktop variant. The broader capability-reduction gates are pending.
+
+The combined disposable network run passed allowed/forbidden destinations, UID-101
+Tor routing, Tor outage denial and restart recovery with desktop actions and
+image switching. The 12 networkless content-mode/desktop-policy combinations
+passed, as did 92 unit tests and effective Compose/compilation checks. A fresh
+independent CU-1 review of the implementation working snapshot found no material
+correctness, security or unnecessary-complexity findings and accepted a coherent
+commit scoped to Docker Desktop ARM64. AMD64, rootless Podman, authenticated
+webapp CU-2 and remaining missing-dependency/idle/interruption checks are not
+accepted by that review and remain pending. Lean regression is running separately.
 
 ## Implementation phases and acceptance
 

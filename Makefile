@@ -16,6 +16,7 @@ down:
 	python3 scripts/stack.py down
 
 test: check
+	docker compose -f compose.yaml build hermes executor
 	python3 scripts/preflight.py private-hermes-test
 	python3 -u tests/smoke.py
 
@@ -44,7 +45,7 @@ webapp-credentials:
 webapp-rotate:
 	python3 scripts/webapp-credentials.py --rotate
 webapp-test: check
-	docker compose -f compose.yaml build hermes webapp-proxy
+	docker compose -f compose.yaml build hermes executor webapp-proxy
 	python3 scripts/preflight.py private-hermes-webapp-test --funnel
 	python3 -u tests/webapp_smoke.py
 

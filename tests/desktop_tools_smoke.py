@@ -35,11 +35,12 @@ def check():
     saved.write_text(json.dumps(config))
     original_config = saved.read_bytes()
 
-    from hermes_bootstrap import PRIVATE_HERMES_EXTERNAL_CONTENT
+    from hermes_bootstrap import PRIVATE_HERMES_EXTERNAL_CONTENT, PRIVATE_HERMES_COMPUTER_USE
     native = PRIVATE_HERMES_EXTERNAL_CONTENT == 'browser_native'
     # Profile dotenv/settings must not change the captured deployment ceiling.
     os.environ['WEBAPP_EXTERNAL_CONTENT'] = 'off' if native else 'browser_native'
-    blocked = DISABLED | (set() if native else PREVIEWS)
+    os.environ['COMPUTER_USE_ENABLED'] = 'false' if PRIVATE_HERMES_COMPUTER_USE else 'true'
+    blocked = (DISABLED - ({'computer_use'} if PRIVATE_HERMES_COMPUTER_USE else set())) | (set() if native else PREVIEWS)
 
     import model_tools
     from agent.agent_runtime_helpers import invoke_tool
@@ -47,6 +48,33 @@ def check():
     from agent.tool_executor import _ToolCallRef, _resolve_sequential_dispatch
     from tools import desktop_ui, tool_search
     from tools.registry import registry
+
+    from tools.bot_desktop import placement, runtime
+    # This fixture has no SSH executor: enabling the preference cannot use the
+    # gateway's installed browser/driver as evidence of remote availability.
+    from tools.computer_use.tool import check_computer_use_requirements
+    assert not check_computer_use_requirements()
+    assert placement.resolve().where == placement.REFUSED
+    assert runtime.status().install_command is None
+    assert runtime.status().blocker
+    if PRIVATE_HERMES_COMPUTER_USE:
+        assert registry.get_entry('computer_use') is not None
+
+    from tools.computer_use.cua_backend import CuaDriverBackend
+    for permission_mode in ('bounded', 'unrestricted'):
+        try:
+            CuaDriverBackend(permission_mode=permission_mode)
+        except ValueError as error:
+            assert 'standard driver permissions only' in str(error)
+        else:
+            raise AssertionError('local embedded driver mode accepted')
+    from tools.computer_use.cua_backend_session import _CuaDriverSession
+    try:
+        _CuaDriverSession._call_tool_via_cli(None, 'get_window_state', {}, 1)
+    except RuntimeError as error:
+        assert 'gateway-local CLI fallback is disabled' in str(error)
+    else:
+        raise AssertionError('local driver fallback accepted')
 
     assert not blocked.intersection(registry.get_all_tool_names())
     assert not blocked.intersection(INLINE_TOOL_EXECUTORS)
@@ -135,7 +163,7 @@ def check():
                               pre_tool_block_checked=True, skip_tool_request_middleware=True,
                               skip_tool_execution_middleware=True))['text'] == 'fixture terminal'
     assert saved.read_bytes() == original_config, 'operator config was modified'
-    print(f"PASS: disabled desktop/browser tools, native dispatch and preserved tools mode={PRIVATE_HERMES_EXTERNAL_CONTENT!r}")
+    print(f"PASS: desktop/browser policy and native dispatch mode={PRIVATE_HERMES_EXTERNAL_CONTENT!r} computer_use={PRIVATE_HERMES_COMPUTER_USE}")
 
 
 def main():
@@ -143,10 +171,11 @@ def main():
         check()
         return
     fixture = Path(__file__).resolve()
-    for mode in ('tor_proxied', 'ask', 'off', 'browser_native', '', 'invalid'):
+    for mode, enabled in [(m, e) for m in ('tor_proxied', 'ask', 'off', 'browser_native', '', 'invalid') for e in ('false', 'true')]:
         subprocess.run([
             'docker', 'run', '--rm', '--network', 'none', '--cap-drop', 'ALL',
             '-e', f'WEBAPP_EXTERNAL_CONTENT={mode}', '-e', 'HERMES_HOME=/tmp/desktop-tools-test',
+            '-e', f'COMPUTER_USE_ENABLED={enabled}',
             '--mount', f'type=bind,source={fixture},target=/tmp/desktop_tools_smoke.py,readonly',
             '--entrypoint', '/opt/hermes/.venv/bin/python',
             'private-hermes-agent:local', '/tmp/desktop_tools_smoke.py', '--inside',

@@ -198,17 +198,20 @@ services:
         ipv4_address: 10.203.82.3
 
   executor:
+    extends:
+      file: compose.executor.yaml
+      service: executor-${COMPUTER_USE_ENABLED-false}
     image: private-hermes-executor:local
     build:
       context: .
       dockerfile: components/executor/Dockerfile
+      target: executor-${COMPUTER_USE_ENABLED-false}
     network_mode: service:executor-net
     depends_on:
       setup: {condition: service_completed_successfully}
       executor-net: {condition: service_healthy}
     cap_drop: [ALL]
     cap_add: [SETUID, SETGID, SYS_CHROOT]
-    security_opt: [no-new-privileges:true]
     read_only: true
     environment:
       ANONYMIZED_TELEMETRY: "false"
@@ -395,6 +398,7 @@ services:
       - ./components/hermes/ssh-client.conf:/etc/ssh/ssh_config.d/99-private-hermes.conf:ro
       - ./components/hermes/resolv.conf:/etc/resolv.conf:ro
     environment:
+      COMPUTER_USE_ENABLED: ${COMPUTER_USE_ENABLED-false}
       WEBAPP_EXTERNAL_CONTENT: ${WEBAPP_EXTERNAL_CONTENT-tor_proxied}
       HERMES_UID: "10000"
       HERMES_GID: "10000"

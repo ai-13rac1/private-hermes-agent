@@ -1,0 +1,9 @@
+# Native Compose inheritance only; these definitions are not separate executors.
+# The lean executor keeps the engine's default syscall policy.
+services:
+  executor-false:
+    security_opt: [no-new-privileges:true]
+  executor-true:
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./components/executor/seccomp-desktop.json

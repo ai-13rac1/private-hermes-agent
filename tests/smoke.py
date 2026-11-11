@@ -217,12 +217,27 @@ asyncio.run(main())
         assert curl('executor', 'http://10.203.84.10:8000', check=False).returncode != 0
         print('PASS: selected MCP streaming port works; unselected port and executor MCP access blocked', flush=True)
 
+        if os.environ.get('COMPUTER_USE_ENABLED', 'false') == 'true':
+            import computer_use_smoke
+            computer_use_smoke.check()
+            computer_use_smoke.switching_checks()
+
+        # Host-controlled fixture launch only: model code never receives sudo.
+        uid_probe = "import os; os.setgroups([]); os.setgid(101); os.setuid(101); os.execvp('curl',['curl','--noproxy','*','-fsS','--connect-timeout','3','--max-time','35','https://check.torproject.org/api/ip'])"
+        uid_result = execute('executor', 'python3', '-c', uid_probe, user='0:0')
+        assert json.loads(uid_result.stdout)['IsTor'] is True
+        print('PASS: executor UID 101 still uses Tor', flush=True)
+
         compose('stop', 'tor')
         for service in ('hermes', 'executor'):
             assert curl(service, 'https://check.torproject.org/api/ip', check=False).returncode != 0
         curl('hermes', 'http://10.203.83.3:8337/health')
         curl('hermes', 'http://10.203.84.10:8000/health')
+        assert execute('executor', 'python3', '-c', uid_probe, user='0:0', check=False).returncode != 0
         print('PASS: Tor outage blocks public egress while local teep/MCP stay available', flush=True)
+        compose('up', '-d', '--wait', '--no-deps', '--wait-timeout', '600', 'tor')
+        assert eventually(lambda: json.loads(curl('executor', 'https://check.torproject.org/api/ip').stdout))['IsTor'] is True
+        print('PASS: Tor restart restores executor public egress through Tor', flush=True)
         failed = False
     except subprocess.CalledProcessError as error:
         print(error.stdout, error.stderr, flush=True)

@@ -166,15 +166,22 @@ only after equivalent upstream behavior passes the same backend/browser/network
 qualification, including dependency loss and stale permissions. No runtime bundle
 editing, fallback provider or compatibility reader is installed.
 
-The disabled-desktop-tools patch omits the five unsupported executor browser and
-computer-use tools listed in the [webapp guide](webapp.md#local-content-previews-and-links),
-along with the unsupported native-client `read_window_below` tool.
+The disabled-desktop-tools patch omits the four unsupported executor browser
+tools listed in the [webapp guide](webapp.md#local-content-previews-and-links),
+along with the unsupported native-client `read_window_below` tool. The early
+bootstrap captures `COMPUTER_USE_ENABLED` before profile dotenv loading;
+`computer_use` is omitted when false and checks actual remote dependencies when
+true. The SSH-computer-use patch enforces executor-only placement, rejects local
+CLI/embedded-daemon fallbacks and host installation, and preserves Chromium's
+sandbox at the desktop dock launch. Standard driver permissions are supported;
+other modes fail before a local daemon can be constructed. Native mutation
+outcome-unknown/no-replay behavior remains intact.
 The three separate in-browser preview tools instead follow the early captured
 `WEBAPP_EXTERNAL_CONTENT` mode: available in `browser_native`, unavailable in all
 private modes. Both policies apply to native registration, inline callback
 dispatch and stale registry calls, without rewriting operator settings.
-The final image copies the patched registry and inline-dispatch files from the
-build stage. Revisit the executor exclusions only after the executor-support
+The final image copies the patched registry, inline-dispatch, desktop/driver,
+display RPC and display WebSocket files from the build stage. Revisit the executor exclusions only after the executor-support
 plans qualify each execution path; an upstream browser dependency or desktop
 image alone is not grounds to restore those tools. Remove the patch when an
 equivalent native deployment-owned mechanism is selected and qualified.
@@ -191,10 +198,16 @@ after building with `python3 tests/context_refs_smoke.py`. Remove the patch if
 upstream supplies an equivalent selected no-fetch policy, with URL-chip and
 non-URL expansion behavior qualified against the packaged revision.
 
-These gateway patches do not require rebuilding the contents of the separate
-official `nousresearch/hermes-sandbox:desktop` executor candidate. A future
-executor can derive from pinned official layers and add SSH/user setup and the
-browser harness. The sandbox image contains no Hermes runtime to patch. The
+The optional desktop executor derives from the separately pinned
+`nousresearch/hermes-sandbox:desktop` layers and adds OpenSSH and runner setup,
+removing the candidate's passwordless sudo grant. Its tmpfs directory setup runs
+at startup without adding CHOWN or other capabilities. It contains no Hermes
+runtime to patch. The lean target retains Alpine; the root `.env` preference
+selects the build and native Compose security fragment, not image versions.
+The desktop-only syscall profile's source/license, maintenance and removal
+conditions are in [development](development.md#executor-desktop-qualification).
+Remove the SSH patch when equivalent upstream executor-only behavior passes
+these discovery, failure/restart, driver and authenticated-display checks. The
 gateway still needs this project's derived Hermes image and rebuilt web assets;
 switching to an unmodified official agent image would lose the deployment
 policies. Current Docker caching reuses upstream layers and dependencies even

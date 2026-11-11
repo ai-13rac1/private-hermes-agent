@@ -69,6 +69,44 @@ Component-specific checks and limits are documented in the
 [x402_treazury](x402_treazury.md#stop-and-test), and
 [updates and plugins](updates-and-plugins.md) guides.
 
+## Executor desktop qualification
+
+The [architecture guide](architecture.md#executor-capability-requirements) records
+OpenSSH capability-removal experiments and their exact failure reasons. The
+three existing listener grants are demonstrated requirements for that tested
+configuration, not desktop grants. Repeat the affected evidence when replacing
+OpenSSH, its account model or privilege-separation setup; do not repeat this
+investigation merely because another GUI package is added.
+
+The optional desktop build uses Debian rather than Alpine. Run the packaged
+policy checks with `python3 tests/desktop_tools_smoke.py`. Build the selected
+images with `COMPUTER_USE_ENABLED=true python3 scripts/stack.py build`, then use
+`python3 tests/computer_use_smoke.py` for real desktop actions over SSH together
+with the existing Tor/forbidden-path checks. `--desktop-only` runs the GUI portion
+while diagnosing an affected failure. These fixtures use disposable state,
+ephemeral Teep host ports, dummy credentials and no inference or payments.
+Serialize them with other fixed-subnet tests and keep the normal stack down.
+
+The desktop executor uses a checked-in Moby seccomp baseline from commit
+`7b5ccfab2d6b4e0aa64c6cce401a2705788eafeb`, with one added allow rule for
+`clone`, `setns`, and `unshare`. Source:
+[default.json](https://github.com/moby/profiles/blob/7b5ccfab2d6b4e0aa64c6cce401a2705788eafeb/seccomp/default.json);
+license: `components/executor/seccomp-LICENSE`. The profile is selected only for
+the desktop variant by native Compose inheritance in `compose.executor.yaml`.
+It retains the baseline's `clone3` ENOSYS behavior and does not allow io_uring.
+Playwright's older published full profile was rejected because it changed those
+unrelated syscall contracts. Reconcile the baseline with engine updates. Remove
+the custom profile when a selected native engine policy permits the qualified
+Chromium sandbox without weakening unrelated syscall restrictions.
+
+Enabling user namespaces exposes additional kernel paths to executor code; it
+must not grant control of the parent network namespace or bypass Tor. Verify
+those forbidden paths and the actual Chromium sandbox layers, alongside runner
+capabilities, SSH failure/restart behavior and persistent state. Podman and other
+CPU targets require their own evidence; source/manifest inspection is insufficient.
+Implementation, runtime qualification and final independent acceptance are tracked
+in the [computer-use plan](plans/computer-use-support.md).
+
 ## Diagnostic messages
 
 Explain the affected operation or capability, its impact, the known cause or

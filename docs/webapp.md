@@ -301,16 +301,21 @@ and social players do not load automatically. They have placeholders and ordinar
 external links. Existing saved social permissions cannot bypass deployment policy.
 Interactive media and in-app browser-native opt-in remain deferred to part 2.
 
-The image disables executor browser/desktop tools that are not supported by this
-deployment: `browser_exec`, `browser_cdp`, `browser_dialog`, `browser_vault` and
-`computer_use`. These five names are absent from discovery in every profile and
-content mode, including `browser_native`; stale calls fail before a handler runs.
+The image disables the unsupported executor browser tools `browser_exec`,
+`browser_cdp`, `browser_dialog` and `browser_vault` in every profile/content mode,
+including `browser_native`; stale calls fail before a handler runs.
+`computer_use` is separately governed by `COMPUTER_USE_ENABLED`: off by default,
+available only with the desktop executor's actual SSH dependencies. See
+[desktop configuration](configuration.md#optional-executor-desktop) and the
+[qualification status](plans/computer-use-support.md). Enabling it grants no
+browser-tool or browser-preview permission. Its driver and desktop stay inside
+the executor; gateway-local driver fallback and package installation are refused.
 
 The separate in-browser tools `desktop_preview`, `drive_preview` and
 `annotate_preview` are available only when `WEBAPP_EXTERNAL_CONTENT=browser_native`.
 Private modes omit all three from discovery and reject stale calls before a
 handler or GUI callback. `browser_native` restores their native preview callbacks
-without enabling any of the five executor tools. The mode gate applies to the
+without enabling executor browser or computer-use tools. The mode gate applies to the
 whole preview tool, including file previews. Operators can still use the UI's
 inert previews and interactive terminal; web extraction, x402_treazury research
 and model SSH execution remain available.
@@ -330,9 +335,9 @@ The stack does not detect or verify the browser's routing, and these browser
 configurations have not been qualified here. Brave's Tor windows lack many of
 Tor Browser's anonymity protections; see [Brave's explanation](https://support.brave.app/hc/en-us/articles/360018121491-What-is-a-Private-Window-with-Tor-Connectivity).
 
-Executor support remains proposed in the separate
-[computer-use](plans/computer-use-support.md) and
-[browser-use](plans/browser-use-support.md) plans. Browser support must move
+Optional computer-use implementation and remaining qualification are tracked in
+[computer use](plans/computer-use-support.md). Executor browser support remains
+proposed in [browser use](plans/browser-use-support.md). Browser support must move
 model-written Python into the executor as well as Chromium; moving only the
 browser does not meet the execution boundary.
 

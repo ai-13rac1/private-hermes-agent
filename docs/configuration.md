@@ -25,6 +25,7 @@ Compose explicitly selects each service's environment variables:
 | `HERMES_DEFAULT_MODEL` | Offline setup, which saves the preferred Hermes default |
 | `TEEP_HOST_PORT` | Compose loopback port publication for teep |
 | `TEEP_SERVE_ARGS` | Compose command arguments for `teep serve` |
+| `COMPUTER_USE_ENABLED` | Executor build/security selection and Hermes's captured desktop tool policy |
 | `TS_AUTHKEY` | Optional Tailscale container |
 | `WEBAPP_EXTERNAL_CONTENT` | Deployment validation, Hermes, offline setup and ingress proxy |
 | Funnel enablement, local webapp port and hostname | Deployment workflow and selected ingress components |
@@ -152,6 +153,37 @@ Use `auto` in place of `off` to restore Hermes Tool Search. Tool discovery setti
 control model presentation; they do not enable disabled tools or change MCP
 authentication, wallet policy, or network access.
 
+## Optional executor desktop
+
+`COMPUTER_USE_ENABLED=false` selects the lean Alpine executor and excludes
+`computer_use`. Set it to exactly `true` in the root `.env` to select the larger
+Debian desktop image and make the tool available when its SSH dependencies are
+present. Apply with `make down` followed by `make up`; startup builds the selected
+image and recreates affected services. Start a new conversation to refresh the
+advertised tools. A profile can still exclude computer use. Executor browser
+tools remain disabled and `WEBAPP_EXTERNAL_CONTENT` keeps its separate meaning.
+
+The same executor service, Tor namespace, runner UID/GID 10000, SSH identity and
+home/workspace mounts serve both choices. Neither enables sudo or a writable
+system filesystem. The desktop alone selects a maintained seccomp profile needed
+by Chromium's own sandbox; it adds no container capabilities. Desktop processes
+start on demand through native SSH streams, with native idle shutdown. Standard
+cua-driver permissions and native approvals apply; modes that would create a
+gateway-local driver, including approval-bypass mode, fail with a scoped reason.
+Desktop dependencies are built into images, never repaired by runtime installers.
+
+Switching off preserves browser state under the executor home
+(`data/executor/home/.hermes/bot-desktop/browser-profile`) and all workspace data;
+include them in backups. Cookies and logins are available to executor code, so
+use only accounts entrusted to the agent. Alpine/glibc and runtime changes can
+make home-installed binary dependencies incompatible across switches. Preserve
+their files and repair the affected environment deliberately rather than deleting
+the home, workspace or SSH keys. This is one shared executor, not per-bot isolation.
+
+Qualification status and remaining platform/surface checks are recorded in the
+[computer-use plan](plans/computer-use-support.md) and
+[development guide](development.md#executor-desktop-qualification).
+
 ## Host inference access
 
 See [updates and plugins](updates-and-plugins.md) for the version-check/update
@@ -230,6 +262,12 @@ address is fixed to IPv4 loopback; changing `TEEP_HOST_PORT` changes only the ho
 port. Recreate Teep after changing it. This uses Docker's port publication on
 Teep's existing direct uplink, with no additional bridge service, network,
 capabilities, or changes to the isolated namespace firewall rules.
+
+If another host process already listens on 8337, set `TEEP_HOST_PORT` to an unused
+port such as `18337` before starting the stack. A collision prevents Docker from
+starting Teep with its configured publication; there is no silent port change,
+omitted endpoint or fallback to the host process. The disposable integration
+fixtures use ephemeral host ports and leave an existing host Teep alone.
 
 Hermes continues to use `10.203.83.3:8337` internally. The executor cannot reach
 Teep, and neither isolated namespace gains access to host/VM addresses through

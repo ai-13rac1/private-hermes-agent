@@ -14,6 +14,29 @@ spec.loader.exec_module(init_config)
 
 
 class OperatorConfigurationTests(unittest.TestCase):
+    def test_computer_use_selects_one_executor_and_scoped_syscall_policy(self):
+        models = {}
+        for enabled in ('false', 'true'):
+            result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', 'config', '--format', 'json'],
+                                    cwd=ROOT, env=dict(os.environ, COMPUTER_USE_ENABLED=enabled),
+                                    text=True, capture_output=True, check=True)
+            services = json.loads(result.stdout)['services']
+            executor = services['executor']
+            self.assertFalse({'executor-false', 'executor-true'} & services.keys())
+            self.assertEqual(executor['build']['target'], 'executor-' + enabled)
+            self.assertEqual(services['hermes']['environment']['COMPUTER_USE_ENABLED'], enabled)
+            self.assertTrue(executor['read_only'])
+            self.assertEqual(set(executor['cap_add']), {'SETUID', 'SETGID', 'SYS_CHROOT'})
+            self.assertIn('no-new-privileges:true', executor['security_opt'])
+            self.assertEqual(any(x.startswith('seccomp=') for x in executor['security_opt']), enabled == 'true')
+            models[enabled] = executor
+        for key in ('volumes', 'network_mode', 'cap_add', 'cap_drop', 'tmpfs', 'image'):
+            self.assertEqual(models['false'][key], models['true'][key], key)
+        result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', 'config', '--quiet'],
+                                cwd=ROOT, env=dict(os.environ, COMPUTER_USE_ENABLED='invalid'),
+                                capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+
     def seed(self, root):
         (root / '.env.example').write_text('VENICE_API_KEY=\n')
         defaults = root / 'components/network'

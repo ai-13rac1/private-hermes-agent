@@ -38,7 +38,7 @@ def main_unlocked():
     parser.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.action == 'build':
-        run(maintenance_compose(all_ingress=True) + ['--profile', '*', 'build'])
+        run(maintenance_compose(all_ingress=True, executor_build=True) + ['--profile', '*', 'build'])
         return
     if args.action == 'down':
         all_command = maintenance_compose(all_ingress=True)
@@ -53,7 +53,7 @@ def main_unlocked():
         run(['docker', 'compose', '-f', 'compose.yaml', '-f', 'compose.funnel.yaml', *args.arguments])
         return
     if args.action == 'compose' and maintenance_command(args.arguments):
-        run(maintenance_compose(all_ingress=True) + args.arguments)
+        run(maintenance_compose(all_ingress=True, executor_build=args.arguments[:1] == ['build']) + args.arguments)
         return
     config = settings()
     command = compose(config)

@@ -83,9 +83,44 @@ inside an application cannot grant a direct uplink.
   with Go 1.26. It runs as UID 10002, read-only except temporary files, without
   `--offline`, `--force`, or debug tags. Upstream's default attestation policy
   (including allowed failures) is preserved. Health is not proof of attestation.
-- Executor: Alpine with Python, Node, Git, SSH, and curl; read-only root with
-  separate writable home/workspace. Base tags and OS packages can change on
-  rebuild; review/pin further when qualifying upgrades.
+- Executor: lean Alpine by default, or a pinned Debian desktop sandbox selected
+  by `COMPUTER_USE_ENABLED`. Both have Python, Node, Git, SSH, curl, read-only root
+  and separate writable home/workspace. The desktop adds Xvnc/Xfce, Chromium and
+  cua-driver, with no new container capabilities. Base tags and OS packages can
+  change on rebuild; review/pin further when qualifying upgrades.
+
+### Executor capability requirements
+
+On 2026-11-11, disposable networkless Docker Desktop ARM64 experiments tested
+the optional Debian 13 desktop executor's OpenSSH listener with all capabilities
+dropped, then selectively restoring `SETUID`, `SETGID`, and `SYS_CHROOT`.
+Key-only login to runner UID 10000 succeeded with those three. Removing each
+independently reproduced a native failure:
+
+| Removed capability | Observed authentication failure | Responsibility |
+| --- | --- | --- |
+| `SYS_CHROOT` | `chroot("/run/sshd"): Operation not permitted [preauth]` | OpenSSH's pre-authentication privilege separation |
+| `SETUID` | `setresuid 997: Operation not permitted [preauth]` | Drop to the image's unprivileged SSH account, then create runner sessions |
+| `SETGID` | `setgroups: Operation not permitted [preauth]` | Clear supplementary groups during privilege separation/session setup |
+
+The test used the pinned desktop base index
+`c7d8607d076f26a64e0bd6828f74e1764af43fe3281368188459bb693bfa7567`,
+Debian OpenSSH `1:10.0p1-7+deb13u4`, a root listener, generated fixture keys,
+`UsePAM=no`, read-only root, writable `/run` and `/tmp`, and
+`no-new-privileges`. No host network, external connection or real credentials
+were involved. This establishes why the current listener retains these grants;
+it does not establish every alternative SSH design's minimum or qualify Alpine,
+AMD64 or Podman by inference. UID 997 is image-specific.
+
+Desktop software adds no container capability requirement. Its Chromium sandbox
+needs user-namespace syscalls allowed by the desktop seccomp profile; those are
+distinct from capability grants. A non-root process can gain capabilities within
+a new child user namespace without acquiring authority over the parent-owned
+executor network namespace. Qualify parent-namespace restrictions separately.
+Keep effective/permitted capability evidence for runner processes distinct from
+the root listener's grants and from namespace-local browser sandbox capabilities.
+See [development checks](development.md#executor-desktop-qualification) and the
+[capability reduction plan](plans/capability-reduction.md).
 
 Additional Hermes controls were reviewed: `HERMES_WRITE_SAFE_ROOT` guards
 selected file tools but not arbitrary shell code; Python `code_execution.mode:

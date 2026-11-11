@@ -2,6 +2,7 @@
 from contextlib import redirect_stdout
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -19,10 +20,18 @@ import private_files
 from x402_treazury import Controller, operation_lock
 
 BAD = dict(WEBAPP_EXTERNAL_CONTENT='invalid', TEEP_HOST_PORT='invalid', TEEP_SERVE_ARGS='"',
-           TAILSCALE_FUNNEL_ENABLED='invalid', WEBAPP_BIND='invalid', WEBAPP_PORT='invalid')
+           TAILSCALE_FUNNEL_ENABLED='invalid', WEBAPP_BIND='invalid', WEBAPP_PORT='invalid',
+           COMPUTER_USE_ENABLED='invalid')
 
 
 class MaintenanceScopeTests(unittest.TestCase):
+    def test_executor_build_preserves_desktop_selection_despite_bad_ingress_settings(self):
+        with patch.dict(os.environ, dict(BAD, COMPUTER_USE_ENABLED='true')):
+            command = deployment.maintenance_compose(all_ingress=True, executor_build=True)
+            result = subprocess.run([*command, '--env-file', '/dev/null', 'config', '--format', 'json'],
+                                    cwd=ROOT, check=True, capture_output=True, text=True)
+        self.assertEqual(json.loads(result.stdout)['services']['executor']['build']['target'], 'executor-true')
+
     def test_maintenance_model_parses_bad_unrelated_settings_and_includes_funnel(self):
         with patch.dict(os.environ, BAD):
             command = deployment.maintenance_compose(all_ingress=True)

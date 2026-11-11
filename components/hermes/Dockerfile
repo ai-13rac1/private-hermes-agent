@@ -27,8 +27,13 @@ COPY --from=webapp-build /opt/hermes/hermes_cli/ /opt/hermes/hermes_cli/
 COPY --from=webapp-build /opt/hermes/tools/registry.py /opt/hermes/tools/registry.py
 COPY --from=webapp-build /opt/hermes/agent/inline_tool_executors.py /opt/hermes/agent/inline_tool_executors.py
 COPY --from=webapp-build /opt/hermes/agent/context_references.py /opt/hermes/agent/context_references.py
+COPY --from=webapp-build /opt/hermes/tools/bot_desktop/ /opt/hermes/tools/bot_desktop/
+COPY --from=webapp-build /opt/hermes/tools/computer_use/ /opt/hermes/tools/computer_use/
+COPY --from=webapp-build /opt/hermes/tui_gateway/methods_display.py /opt/hermes/tui_gateway/methods_display.py
+COPY --from=webapp-build /opt/hermes/hermes_cli/web_routers/display.py /opt/hermes/hermes_cli/web_routers/display.py
 COPY --from=webapp-build /opt/hermes/apps/desktop/dist-webapp/ /opt/hermes/apps/desktop/dist-webapp/
 COPY components/hermes/external_content.py /opt/hermes/hermes_cli/private_external_content.py
 COPY components/hermes/public_images.py /opt/hermes/hermes_cli/private_public_images.py
 COPY components/hermes/browser_policy.py /opt/hermes/hermes_cli/private_browser_policy.py
+COPY components/hermes/computer_use.py /opt/hermes/hermes_cli/private_computer_use.py
 ENV HERMES_WEBAPP_DIST=/opt/hermes/apps/desktop/dist-webapp

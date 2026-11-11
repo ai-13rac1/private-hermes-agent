@@ -107,6 +107,43 @@ qualify supervision/shutdown. The general smoke override bypasses native Hermes
 startup; use production entrypoints for lifecycle claims. No new runtime
 qualification has been performed for this proposal.
 
+### Executor evidence from computer-use implementation
+
+The user requested that this work minimize capabilities as it qualifies the
+optional desktop. On 2026-11-11, networkless Docker Desktop ARM64 experiments
+against the pinned desktop-derived executor tested each existing SSH grant
+independently. With root listener, fixture keys, `UsePAM=no`, read-only root,
+writable `/run` and `/tmp`, `no-new-privileges` and all other capabilities dropped:
+
+| Omitted grant | Reproduced native failure |
+| --- | --- |
+| `SYS_CHROOT` | `chroot("/run/sshd"): Operation not permitted [preauth]` |
+| `SETUID` | `setresuid 997: Operation not permitted [preauth]` |
+| `SETGID` | `setgroups: Operation not permitted [preauth]` |
+| None of those three | Key-only SSH login returned runner UID 10000 |
+
+Desktop base index:
+`c7d8607d076f26a64e0bd6828f74e1764af43fe3281368188459bb693bfa7567`;
+Debian OpenSSH `1:10.0p1-7+deb13u4`. These results establish the existing
+root-listener contract for that tested image, not Alpine/AMD64/Podman coverage or
+a proof that a different account/key model could not work. Preserve the current
+listener grants unless a concrete alternative is separately designed and
+qualified; do not repeat capability omission experiments without a changed
+owning contract. Permanent rationale is in
+[architecture](../architecture.md#executor-capability-requirements) and
+[development](../development.md#executor-desktop-qualification).
+
+The desktop's Chromium sandbox needs namespace syscalls denied by Docker's
+default seccomp policy. A desktop-only profile based on pinned modern Moby policy
+adds `clone`, `setns`, `unshare`; this adds no container capabilities but exposes
+user-namespace kernel paths. Child-namespace capabilities are not parent-network
+namespace authority. Keep lean on the engine default: this syscall allowance is
+not itself a capability reduction that justifies changing the lean default.
+Browser/GUI/driver/model processes must have no effective/permitted capabilities
+in the executor's original user namespace. Runtime process-tree and network
+qualification remain tracked in [computer use](computer-use-support.md); these
+focused SSH experiments do not satisfy G1–G5 or authorize topology changes.
+
 ## Preserved boundaries and intended behavior
 
 - Keep Hermes/executor mounts, processes and network namespaces separate. Neither

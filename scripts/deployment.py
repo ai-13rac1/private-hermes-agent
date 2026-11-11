@@ -23,7 +23,7 @@ def compose(config, all_ingress=False):
     return command
 
 
-def maintenance_compose(all_ingress=False):
+def maintenance_compose(all_ingress=False, executor_build=False):
     # These operations must not start ingress, inference or the agent with
     # placeholders. Actual treasury policy remains in its mounted configuration.
     # Compose still interpolates unused services and publications.
@@ -31,6 +31,10 @@ def maintenance_compose(all_ingress=False):
                       WEBAPP_BIND='127.0.0.1', WEBAPP_PORT='9120', WEBAPP_USERNAME='admin',
                       TAILSCALE_FUNNEL_HOST='', TAILSCALE_FUNNEL_PORT='443',
                       TAILSCALE_HOSTNAME='private-hermes', TEEP_HOST_PORT='8337', TEEP_SERVE_ARGS='')
+    if not executor_build:
+        # Saved-state inspection/shutdown do not select or build an executor.
+        # An invalid optional desktop preference must not block those operations.
+        os.environ['COMPUTER_USE_ENABLED'] = 'false'
     command = ['docker', 'compose', '-f', 'compose.yaml']
     if all_ingress:
         command += ['-f', 'compose.funnel.yaml']

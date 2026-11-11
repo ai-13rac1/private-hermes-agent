@@ -12,13 +12,17 @@
  
 --- a/hermes_bootstrap.py
 +++ b/hermes_bootstrap.py
-@@ -23,6 +23,9 @@
+@@ -23,6 +23,13 @@
  import socket
  import sys
  import time
 +
 +# Capture the deployment input before native profile dotenv loading.
 +PRIVATE_HERMES_EXTERNAL_CONTENT = os.environ.get("WEBAPP_EXTERNAL_CONTENT")
++_private_computer_use = os.environ.get("COMPUTER_USE_ENABLED", "false")
++if _private_computer_use not in ("true", "false"):
++    raise ValueError("COMPUTER_USE_ENABLED must be exactly true or false")
++PRIVATE_HERMES_COMPUTER_USE = _private_computer_use == "true"
  
  _IS_WINDOWS = sys.platform == "win32"
  _bootstrap_applied = False

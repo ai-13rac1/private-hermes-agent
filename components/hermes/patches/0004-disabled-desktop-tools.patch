@@ -1,6 +1,6 @@
 --- a/tools/registry.py
 +++ b/tools/registry.py
-@@ -23,6 +23,23 @@
+@@ -23,6 +23,24 @@
  from hermes_constants import hermes_home_key, normalize_scope
  
  logger = logging.getLogger(__name__)
@@ -8,7 +8,7 @@
 +# Image exclusions for unsupported executor/native-desktop tools. Renderer
 +# previews instead follow the existing deployment-owned external-content mode.
 +PRIVATE_HERMES_DISABLED_TOOLS = frozenset({
-+    "browser_exec", "browser_cdp", "browser_dialog", "browser_vault", "computer_use", "read_window_below",
++    "browser_exec", "browser_cdp", "browser_dialog", "browser_vault", "read_window_below",
 +})
 +PRIVATE_HERMES_PREVIEW_TOOLS = frozenset({
 +    "desktop_preview", "drive_preview", "annotate_preview",
@@ -16,8 +16,9 @@
 +
 +
 +def private_hermes_tool_disabled(name: str) -> bool:
-+    from hermes_bootstrap import PRIVATE_HERMES_EXTERNAL_CONTENT
++    from hermes_bootstrap import PRIVATE_HERMES_EXTERNAL_CONTENT, PRIVATE_HERMES_COMPUTER_USE
 +    return (name in PRIVATE_HERMES_DISABLED_TOOLS or
++            (name == "computer_use" and not PRIVATE_HERMES_COMPUTER_USE) or
 +            (name in PRIVATE_HERMES_PREVIEW_TOOLS and
 +             PRIVATE_HERMES_EXTERNAL_CONTENT != "browser_native"))
 +
@@ -34,12 +35,13 @@
          # Reject malformed schemas at registration, not at request time: a non-dict
          # ``parameters`` (e.g. a list) serializes into every provider request and 400s the
          # whole turn far from the offending plugin. Failing here names the culprit instead.
-@@ -973,6 +993,10 @@
+@@ -973,6 +993,11 @@
          self, name: str, args: dict, *, scope: Optional[str] = None, **kwargs) -> str | dict:
          """Execute a tool handler by name: async handlers bridged via ``_run_async()``,
          results normalized, every exception returned as ``{"error": ...}``."""
 +        if private_hermes_tool_disabled(name):
 +            reason = ("the required browser/desktop integration is unavailable" if name in PRIVATE_HERMES_DISABLED_TOOLS
++                      else "computer use requires COMPUTER_USE_ENABLED=true and the desktop executor" if name == "computer_use"
 +                      else "preview tools require WEBAPP_EXTERNAL_CONTENT=browser_native")
 +            return tool_error(f"Tool {name} is disabled in this deployment: {reason}.")
          entry = self.get_entry(name, scope=scope)
