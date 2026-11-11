@@ -16,9 +16,10 @@ disabled by default.
 Funding swaps use Zcash on isolated Tor circuits with a unique shielded refund
 address for each swap. The main remaining funding linkability is correlation of
 swap timing and amounts against the overall volume of ZEC-to-Base USDC swaps.
-The risk is highest during the coordinated consecutive initial funding swaps at
-startup and decreases as subsequent swaps occur independently with wallet
-rotation. Wallet keys stay with x402_treazury; Hermes receives tool access rather
+Closely spaced initial swaps are easier to correlate. First-use deferred funding
+can spread those swaps out, but initial API calls share a payer and delayed funding
+does not erase earlier links. Later swaps occur independently with rotation.
+Wallet keys stay with x402_treazury; Hermes receives tool access rather
 than those keys.
 
 The main `compose.yaml` includes one x402_treazury serving process in
@@ -29,7 +30,7 @@ loopback access without a source patch. Serving and Hermes MCP registration
 begin after staged preparation; the local Hermes webapp works before a wallet
 is created or funded.
 
-| Hermes MCP name | Local port | Wallet |
+| Hermes MCP name | Local port | Intended wallet group |
 | --- | --- | --- |
 | x402_treazury_toolbox | 3010 | general |
 | x402_treazury_web | 3011 | general |
@@ -46,7 +47,9 @@ is created or funded.
 
 Wallet pools group requests by potential payer linkability: general research,
 personal context, health context, and financial interests. They are upstream
-payment policies, not separate MCP access-control identities.
+payment policies, not separate MCP access-control identities. New defaults initially
+route all groups through `general`; the table describes each group after its first
+positive credit. Paid metadata relays retain `general` throughout.
 
 New Hermes profiles expose enabled tools directly with Hermes Tool Search off.
 The packaged treasury policy keeps `discover_on_demand = true` on all endpoints
@@ -73,7 +76,7 @@ Startup runs cached image builds, including treasury, before setup or service
 changes. Use `make build` separately to build ahead of startup if desired.
 
 The image builds unmodified upstream commit
-`9ca86bdb407152ab1581e14c5d110185d870bb48` using its Rust 1.99.1 toolchain and
+`da5d5d93d8ecc0d3bc3643440f296e9ee66b49de` using its Rust 1.99.1 toolchain and
 locked dependencies. The renderer changes only the Tor SOCKS endpoint, persistent
 state path, and HTTP Host allowlists. Wallet groups, rotation, funding, payment
 caps, source selection, and tool selection retain upstream policy. Provider
@@ -84,8 +87,33 @@ serving schedules independent refill opportunities per group, nominally every
 30–120 seconds, and can rotate low active payers into funded reserves. Restart
 redraws that wait; downtime or pending work can extend it. Explicit bootstrap
 retains prompt allocation of its captured claims. See the pinned upstream
-[wallet rotation guide](https://github.com/mikeperry-tor/x402_treazury/blob/9ca86bdb407152ab1581e14c5d110185d870bb48/docs/wallet-rotation.md)
+[wallet rotation guide](https://github.com/mikeperry-tor/x402_treazury/blob/da5d5d93d8ecc0d3bc3643440f296e9ee66b49de/docs/wallet-rotation.md)
 for selection and rotation details.
+
+New packaged policy has `[wallet_bootstrap]` with `bootstrap_group = "general"`
+and `deferred_groups = ["personal", "health", "financial"]`. Preparation funds
+only general's initial $2–3 small reserve, plus fees and bridge costs. Eventual
+initial inventory across four groups is $8–12 nominal; ongoing relay costs and
+replacement funding need additional capital. These are allocation ranges, not a
+ZEC deposit guarantee or live funding qualification.
+
+Until a deferred group has any positive initial credit, its API calls use general's
+payer and $1 cap, including health calls. A validated API invocation, even a free
+response or cache hit, activates that group's funding without waiting for swaps;
+its first allocation opportunity follows an independent 30–120-second wait.
+After first positive credit, future API calls permanently use its own payer/cap
+(health: $0.50); depletion does not restore general routing. Paid metadata relays
+for catalogs, pricing, help and discovery always use general under this policy,
+overriding `relay_fallback.wallet`, and do not activate deferred funding. This
+shared payer links those payments; separate groups cannot undo earlier links or
+hide sensitive request content from providers.
+
+Saved TOML is preserved. Without `[wallet_bootstrap]`, explicit preparation still
+captures every declared managed group. Omitted small reserve bounds now use the
+native $2–3 default even in saved policies; explicit bounds remain unchanged.
+To keep separate API groups from the outset, omit the entire table. When reducing
+or renaming groups, update its group references along with wallet/source/listener
+references. These edits neither move funds nor erase preparation history.
 
 Inspect the packaged default policy offline before funding:
 
@@ -152,7 +180,8 @@ wallet declaration and source/listener reference in the TOML:
 ```sh
 make down
 python3 scripts/stack.py compose run --rm --no-deps --entrypoint /usr/local/bin/x402_treazury x402_treazury-admin wallet rename general research
-# Rename [wallets.general] to [wallets.research] and update its references.
+# Rename [wallets.general] to [wallets.research] and update source/listener
+# references plus wallet_bootstrap.bootstrap_group/deferred_groups as applicable.
 python3 scripts/stack.py compose run --rm --no-deps --entrypoint /usr/local/bin/x402_treazury x402_treazury-admin wallet preview --json
 make up
 ```
@@ -164,7 +193,7 @@ including by an empty group created during an earlier startup. Simply changing
 a name in TOML creates a different group on startup; the old group and its funds
 remain saved but are no longer selected by the renamed references. Renaming a
 group also preserves its historical payer correlation. See the pinned upstream
-[wallet rename guide](https://github.com/mikeperry-tor/x402_treazury/blob/9ca86bdb407152ab1581e14c5d110185d870bb48/docs/wallet-cli.md#rename-a-managed-wallet-group).
+[wallet rename guide](https://github.com/mikeperry-tor/x402_treazury/blob/da5d5d93d8ecc0d3bc3643440f296e9ee66b49de/docs/wallet-cli.md#rename-a-managed-wallet-group).
 
 ## Create the wallet and deposit when ready
 
@@ -223,7 +252,7 @@ Preview reports saved metadata and requested policy differences, not live
 balances or cryptographic verification. The upstream `wallet rename` command is
 also available for deliberate offline administration; it requires exclusive store
 ownership and a backup first. This update does not rename groups automatically.
-See the [pinned upstream wallet CLI guide](https://github.com/mikeperry-tor/x402_treazury/blob/9ca86bdb407152ab1581e14c5d110185d870bb48/docs/wallet-cli.md)
+See the [pinned upstream wallet CLI guide](https://github.com/mikeperry-tor/x402_treazury/blob/da5d5d93d8ecc0d3bc3643440f296e9ee66b49de/docs/wallet-cli.md)
 for its constraints. Deployment policy remains packaged in the image; renaming a
 saved group alone does not change the configured wallet references.
 
@@ -247,7 +276,9 @@ Hermes activation directly. Otherwise it runs, in order:
 1. Disconnect the managed Hermes research MCP clients and gracefully stop an
    existing serving owner, if any.
 2. Run `wallet bootstrap --json`, waiting for ZEC receipt/spendability and the
-   native managed funding claims. This can spend ZEC under the configured policy.
+   native managed funding claims: only `bootstrap_group` when `[wallet_bootstrap]`
+   is present, otherwise every declared managed group. This can spend ZEC under
+   the configured policy; existing accepted jobs retain their native ownership.
 3. Run `catalog warm` over Tor. Configured paid relay fallback can spend USDC.
    Native command success establishes phase completion; printed summaries are
    diagnostics, not a second schema/source-count eligibility gate.

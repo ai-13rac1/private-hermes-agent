@@ -25,6 +25,8 @@ def run_suite():
         assert production['base_rpc_policy']['fallback_defaults']
         assert {name: entry['listen'] for name, entry in production['servers'].items()} == {
             name: f'{ADDRESS}:{port}' for name, port in ENDPOINTS.items()}
+        assert production['wallet_bootstrap'] == {'bootstrap_group': 'general',
+                                                  'deferred_groups': ['personal', 'health', 'financial']}
         assert set(production['wallets']) == {'general', 'personal', 'health', 'financial'}
         for wallet, names in {
             'general': ('toolbox', 'web', 'science', 'shopping', 'world'),
@@ -34,7 +36,7 @@ def run_suite():
         }.items():
             assert all(production['servers'][name]['wallet'] == wallet for name in names)
         identity = json.loads(subprocess.check_output(command + ['build-info'], text=True))
-        assert identity['source_revision'] == '9ca86bdb407152ab1581e14c5d110185d870bb48'
+        assert identity['source_revision'] == 'da5d5d93d8ecc0d3bc3643440f296e9ee66b49de'
         assert identity['source_dirty'] is False
         gate = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'python3',
                                'private-hermes-x402_treazury:local', '-c',

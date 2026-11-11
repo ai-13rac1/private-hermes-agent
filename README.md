@@ -54,9 +54,14 @@ This keeps research tools available without relying on direct website browsing.
 
 Funding swaps use Zcash, unique shielded refund addresses, and isolated Tor
 circuits. The main remaining funding linkability is correlation by timing and
-amount among ZEC-to-Base USDC swaps. This is greatest during the consecutive
-initial funding swaps at startup; subsequent swaps occur independently as
-wallets rotate. See the [x402_treazury guide](docs/x402_treazury.md) for funding,
+amount among Near Intents Base USDC swaps. Closely spaced funding swaps are
+easier to correlate. x402_treazury makes effort to schedule swaps early and
+decouple their execution from prior transactions, but this unlinkability
+ultimately depends upon the incoming volume of Base USDC swaps coming from Near
+Intents over the course of your usage. After an initial single bootstrap wallet
+phase, the provided configuration uses four distinct sets of rotating USDC
+wallets, with usage assigned by x402 API endpoint topic. These wallets rotate
+independently. See the [x402_treazury guide](docs/x402_treazury.md) for funding,
 wallet groups, and operation.
 
 ## Get started
@@ -126,13 +131,20 @@ treasury and back it up before depositing ZEC:
 make x402_treazury-init
 ```
 
-The `config/x402_treazury/research_desk.toml` file specifies four wallets
-initially funded with a randomized amount from $2-4. This means that you need to
-deposit at least $16 in ZEC to ensure all four wallets are funded. You can
-reduce this requirement by changing the config file to use fewer wallets. Removing the endpoints by themselves will not eliminate the wallet funding
-requirement; instead you must remove wallet definitions and then either remove those endpoints or point them at different wallets.
+The provided `research_desk.toml` uses a `[wallet_boostrap]` stanza that
+prepares only `general` initially, with a randomized $2-3 USDC allocation plus
+Zcash fees and bridge costs. If you just want to try out some light x402 usage,
+an initial funding of $5 worth of ZEC is plenty. For continued usage, ~$20
+worth of ZEC will fully fund all four wallet groups in a staggered fashion,
+triggered by the first use of an API call from each group.
 
-For example, changing all endpoints to use the `general` wallet and removing `personal`, `health`, and `financial` wallets will reduce the ZEC needed to fund the research desk down to ~$5, at the cost of associating all of your usage together under a single rotating USDC wallet.
+If you remove the `[wallet_bootstrap]` stanza, preparation funds all declared
+managed groups at during the following `make x402_treazury-prepare` step; this
+prevents any of the other wallet group's API calls from ever being funded by the
+initial shared bootstrap wallet, but the immediate consecutive nature of these
+swaps likely makes them easy to correlate on the Base blockchain. It also will
+make the prepare step take much longer before you can get going, and require
+~$12 worth of ZEC to fund these wallets, before you are able to use all APIs.
 
 After adjusting your wallet selection and funding the displayed shielded receive
 address with sufficient ZEC, ensure the stack is up (`make up`), then run:
@@ -141,16 +153,13 @@ address with sufficient ZEC, ensure the stack is up (`make up`), then run:
 make x402_treazury-prepare
 ```
 
-Preparation funds the API wallets, warms provider catalogs, and connects research
-tools without restarting Hermes. It can spend ZEC and USDC under the configured
-policy and may wait for spendable funds while the webapp remains available.
-It first runs a cached build of the treasury image; build failure leaves existing
-research services and preparation history untouched.
-Use `make x402_treazury-status` to inspect saved status.
+Preparation funds the selected bootstrap wallets, warms provider catalogs, and
+connects research tools without restarting Hermes. It can spend ZEC and USDC
+under the configured policy and will wait for spendable funds while the webapp
+remains available, but the agent will be unable to use any x402_treazury APIs
+until funding and catalog warming complete.
 
-Live ZEC receipt, managed USDC funding, and funded catalog preparation remain
-unqualified in this deployment wrapper; local fixture tests do not establish
-those financial outcomes. See [remaining live qualification](docs/x402_treazury.md#pending-live-qualification).
+Use `make x402_treazury-status` to inspect current wallet funding status (this also works while the stack is down).
 
 ## Everyday operation
 

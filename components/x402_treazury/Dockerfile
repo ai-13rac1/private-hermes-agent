@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM rust:1.99.1-bookworm AS build
-ARG X402_REV=9ca86bdb407152ab1581e14c5d110185d870bb48
+ARG X402_REV=da5d5d93d8ecc0d3bc3643440f296e9ee66b49de
 RUN apt-get update && apt-get install -y --no-install-recommends clang libclang-dev cmake pkg-config python3 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src

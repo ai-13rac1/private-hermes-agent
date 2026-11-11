@@ -2,6 +2,7 @@
 """Exercise editable policy with the real image, offline and unfunded."""
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 import subprocess
@@ -103,7 +104,20 @@ def main():
             # bootstrap, warm, serve, funded operations or network run here.
             execute('python3', '-c', "import sys; sys.path.insert(0,'/opt'); import onboarding as o; o.write_record({'schema':1,'treasury_id':o.wallet(),'completed':['bootstrap','catalogs']})")
             assert inspect()['prepared']
-            changed = original.replace('wallets.general', 'wallets.research').replace('wallet = "general"', 'wallet = "research"')
+            # Saved policies without bootstrap routing remain valid; applying
+            # new defaults must not overwrite that operator choice or history.
+            ordinary = re.sub(r'(?ms)^\[wallet_bootstrap\]\n.*?(?=^\[)', '', original)
+            assert ordinary != original
+            publish(ordinary)
+            assert policy().get('wallet_bootstrap') is None
+            assert inspect()['prepared']
+            assert execute('x402_treazury', 'wallet', 'addresses').stdout == addresses
+            initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
+            assert path.read_text() == ordinary
+            publish(original)
+            assert policy()['wallet_bootstrap']['bootstrap_group'] == 'general'
+            assert inspect()['prepared']
+            changed = original.replace('wallets.general', 'wallets.research').replace('wallet = "general"', 'wallet = "research"').replace('bootstrap_group = "general"', 'bootstrap_group = "research"')
             publish(changed)
             assert policy()['servers']['web']['wallet'] == 'research'
             assert inspect()['prepared']
