@@ -119,16 +119,18 @@ class ShutdownTests(unittest.TestCase):
             auth_path.parent.mkdir(parents=True)
             credentials = {'password_hash':hash_password('test-only-password'),'secret':'s'*64}
             auth_path.write_text(json.dumps(credentials))
-            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render') as render, patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run, patch.object(stack,'Controller'), patch.object(stack,'initialize_setup') as provision, patch.object(stack, 'initialize_research_config') as seed:
+            with patch.object(sys,'argv',['stack.py','up']), patch.object(stack,'ROOT',root), patch.object(stack,'settings',return_value=Settings.read(values())), patch.object(stack,'render') as render, patch.object(stack,'stop_funnel') as disable, patch.object(stack,'run') as run, patch.object(stack,'Controller'), patch.object(stack,'initialize_setup') as provision, patch.object(stack, 'initialize_research_config') as seed, patch.object(stack, 'report_research_config_diff') as diff:
                 events = []
                 run.side_effect = lambda command: events.append(command)
+                diff.side_effect = lambda *args: events.append(['config-diff'])
                 provision.side_effect = lambda command: events.append(['offline-setup'])
                 stack.main()
                 commands = [call.args[0] for call in run.call_args_list]
                 provision.assert_called_once()
                 build = next(c for c in commands if c[-1] == 'build')
                 self.assertEqual(build[-3:], ['--profile', 'x402_treazury', 'build'])
-                self.assertLess(events.index(build), events.index(['offline-setup']))
+                self.assertLess(events.index(build), events.index(['config-diff']))
+                self.assertLess(events.index(['config-diff']), events.index(['offline-setup']))
                 gateway = next(i for i,c in enumerate(commands) if '--force-recreate' in c and c[-1]=='hermes')
                 self.assertLess(events.index(['offline-setup']), events.index(commands[gateway]))
                 self.assertTrue(any('--force-recreate' in c and 'webapp-proxy' in c for c in commands))
@@ -168,7 +170,7 @@ class ShutdownTests(unittest.TestCase):
             with patch.object(sys, 'argv', ['stack.py', 'up']), patch.object(stack, 'ROOT', root), \
                     patch.object(stack, 'settings', return_value=selected), patch.object(stack, 'render'), \
                     patch.object(stack, 'initialize_setup') as setup, patch.object(stack, 'Controller'), \
-                    patch.object(stack, 'initialize_research_config'), \
+                    patch.object(stack, 'initialize_research_config'), patch.object(stack, 'report_research_config_diff'), \
                     patch.object(stack, 'run') as run:
                 stack.main()
                 setup.assert_called_once()

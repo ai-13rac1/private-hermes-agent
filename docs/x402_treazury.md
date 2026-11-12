@@ -136,6 +136,27 @@ not create this file before the image exists. Initialization never replaces an
 existing file; image updates also leave your edits intact. Compare new packaged
 defaults with your saved policy when upgrading.
 
+`make up` and `make x402_treazury-prepare` display a unified diff after building
+the treasury image and seeding any missing policy, before setup or activation.
+The diff runs from the image's rendered default to your saved configuration,
+so deployment path adjustments are already accounted for. It includes intentional
+customization as well as differences introduced by pin updates; it is not a
+comparison against your previous image. Differences are advisory and never
+replace your policy or require preparation to be repeated. If automatic comparison
+fails, the command reports that failure and continues with normal validation.
+
+To inspect separately:
+
+```sh
+make x402_treazury-config-diff
+```
+
+This command uses the currently built local image; run `make build` first to
+compare against a changed source pin. It does not build, seed configuration,
+start services, or mount wallet data. Differences return success; missing
+configuration or an unavailable image fails visibly. The output contains saved
+configuration values, so review it before sharing logs.
+
 The directory is bind-mounted read-only into serving and the policy-aware admin
 and initialization/preparation jobs. The saved-wallet inspection job has no policy
 bind mount. You can edit the host file before wallet initialization or later.

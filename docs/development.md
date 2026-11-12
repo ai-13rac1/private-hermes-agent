@@ -30,6 +30,11 @@ explicitly for source/configuration qualification.
 Research policy is seeded from the built image by `make x402_treazury-config`,
 managed startup or new-wallet creation; see
 [research configuration](x402_treazury.md#edit-the-research-configuration).
+Startup and explicit preparation compare saved policy with the rendered default
+after building/seeding, before setup or activation. Comparison uses a networkless
+image container without private mounts; failures are reported as advisory.
+The standalone `make x402_treazury-config-diff` performs the same comparison
+without builds or seeding, and reports inspection failures with a nonzero exit.
 Saved-wallet commands do not initialize unrelated state. New-wallet creation
 prepares only its Tor/network host inputs. Add new settings explicitly using
 `.env.example`; image/source pins remain in Compose and Dockerfiles.

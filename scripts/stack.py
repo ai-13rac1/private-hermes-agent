@@ -8,7 +8,7 @@ import sys
 from deployment import ROOT, compose, render, settings, maintenance_compose, maintenance_command
 from auth import validate
 from x402_treazury import Controller, operation_lock
-from provisioning import initialize_setup, initialize_research_config
+from provisioning import initialize_setup, initialize_research_config, report_research_config_diff
 
 
 def run(command, **kwargs):
@@ -79,6 +79,7 @@ def main_unlocked():
         # A changed bind-mounted credential file does not itself recreate a
         # completed container. Always apply current settings before startup.
         initialize_research_config(command, ROOT)
+        report_research_config_diff(command, ROOT)
         initialize_setup(command)
         infrastructure = ['tor', 'agent-net', 'executor-net', 'executor', 'teep']
         run(command + ['up', '-d', '--wait', '--no-deps', *infrastructure])

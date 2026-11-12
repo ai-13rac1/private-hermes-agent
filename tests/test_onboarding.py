@@ -329,6 +329,9 @@ class ActivationTests(unittest.TestCase):
         seed = patch('x402_treazury.initialize_research_config')
         self.seed = seed.start()
         self.addCleanup(seed.stop)
+        diff = patch('x402_treazury.report_research_config_diff')
+        self.diff = diff.start()
+        self.addCleanup(diff.stop)
 
     def controller(self):
         controller = Controller(['docker', 'compose'])
@@ -418,6 +421,7 @@ class ActivationTests(unittest.TestCase):
                         raise subprocess.CalledProcessError(1, list(args))
                 controller.call = build
                 self.seed.side_effect = lambda *args: controller.events.append(('seed-policy',))
+                self.diff.side_effect = lambda *args: controller.events.append(('config-diff',))
                 with patch.object(sys, 'argv', ['x402_treazury.py', 'prepare']), \
                         patch.object(x402_treazury, 'Controller', return_value=controller), \
                         patch.object(x402_treazury, 'operation_lock', return_value=contextlib.nullcontext()):
@@ -427,7 +431,7 @@ class ActivationTests(unittest.TestCase):
                         self.assertEqual(controller.events, [('build', 'x402_treazury')])
                     else:
                         x402_treazury.main()
-                        self.assertEqual(controller.events[:2], [('build', 'x402_treazury'), ('seed-policy',)])
+                        self.assertEqual(controller.events[:3], [('build', 'x402_treazury'), ('seed-policy',), ('config-diff',)])
 
     def test_prepare_retries_activation_without_repeating_completed_wallet_work(self):
         controller = self.controller()

@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 from deployment import ROOT, maintenance_compose
-from provisioning import initialize_research_config
+from provisioning import initialize_research_config, research_config_diff, report_research_config_diff
 
 
 # Native diagnostic contract at pinned 39fb372; generic ERROR logs can recover.
@@ -234,6 +234,7 @@ class Controller:
         # Finish the cached build before inspection, disconnection or wallet work.
         self.call('build', 'x402_treazury')
         initialize_research_config(self.command, self.root)
+        report_research_config_diff(self.command, self.root)
         if self.inspect()['prepared']:
             self.activate()
             return
@@ -284,11 +285,14 @@ class Controller:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('init', 'status', 'prepare', 'config'))
+    parser.add_argument('action', choices=('init', 'status', 'prepare', 'config', 'config-diff'))
     args = parser.parse_args()
     # Only treasury and existing Hermes control RPC are used here. Actual treasury
     # policy is validated by its own admin/job, not unrelated ingress settings.
     controller = Controller(maintenance_compose())
+    if args.action == 'config-diff':
+        research_config_diff(controller.command, ROOT)
+        return
     if args.action == 'config':
         initialize_research_config(controller.command, ROOT)
         print('Research policy is available at config/x402_treazury/research_desk.toml; existing policy was preserved.')
@@ -306,6 +310,6 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (RuntimeError, subprocess.CalledProcessError, KeyboardInterrupt) as error:
+    except (OSError, ValueError, KeyError, RuntimeError, subprocess.CalledProcessError, KeyboardInterrupt) as error:
         print(str(error) or 'Interrupted; wallet journals were retained.', file=sys.stderr)
         sys.exit(1)

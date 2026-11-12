@@ -116,6 +116,11 @@ Funnel is disabled by default and requires explicit enrollment and activation.
 Edit `config/x402_treazury/research_desk.toml` to adjust wallet funding policy,
 payment caps, source/tool selections, or instructions.
 
+`make up` and `make x402_treazury-prepare` display differences from the packaged
+defaults, including intentional customizations, without replacing your policy.
+Run `make x402_treazury-config-diff` to inspect them separately; see
+[research configuration](docs/x402_treazury.md#edit-the-research-configuration).
+
 You can restore this file to the defaults by removing it: `make x402_treazury-config`
 and `make x402_treazury-init` below will create this file if missing; both commands
 preserves an existing file. You can also edit the `config/x402_treazury/research_desk.toml`

@@ -36,7 +36,9 @@ browser-use-test: check
 storage-test: check
 	python3 -u tests/storage_smoke.py
 
-.PHONY: x402_treazury-init x402_treazury-status x402_treazury-prepare x402_treazury-config
+.PHONY: x402_treazury-init x402_treazury-status x402_treazury-prepare x402_treazury-config x402_treazury-config-diff
+x402_treazury-config-diff:
+	python3 scripts/x402_treazury.py config-diff
 x402_treazury-config:
 	python3 scripts/x402_treazury.py config
 x402_treazury-init:
