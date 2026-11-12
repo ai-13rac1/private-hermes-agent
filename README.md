@@ -22,6 +22,129 @@ the stack's Tor gateway, and active external content is blocked. You can use
 a normal browser with these protections; deliberate external link clicks
 still use your browser's connection.
 
+## NEAR HACKATHON
+
+This project was built for NEAR HACKATHON. The hackathon period for code is
+2026-10-19 to 2026-11-14 (rule Q-001 in the
+[hackathon rules](https://nearhackathon.com/HACKATHON.md)). By default, Hermes sends its model requests to
+NEAR AI through TEE Proof (teep). teep verifies the NEAR AI enclave before a
+prompt leaves the stack, and blocks the request if an enforced check fails.
+Checks marked `ALLOWED` are reported and do not block.
+
+### How the project uses NEAR
+
+- **NEAR AI inference.** By default, Hermes sends its model requests to the NEAR
+  AI model `z-ai/glm-5.3-flash` through teep's `neardirect` provider.
+  - Before teep sends a prompt, it checks the attestation evidence of the NEAR
+    AI model server: the Intel TDX quote, the NVIDIA GPU attestation, the
+    signing key, and the software supply chain.
+  - teep encrypts the message content of each request to the key that the
+    enclave attested.
+  - If an enforced check fails, teep blocks the request and does not send the
+    prompt.
+- **NEAR Intents.** x402_treazury swaps shielded Zcash to Base USDC through NEAR
+  Intents, to fund the rotating wallets that pay for research APIs. Steps 6
+  and 7 below show this; step 7 needs ZEC.
+  - x402_treazury uses NEAR Intents and can optionally give the agent the
+    ability to send and receive any cryptocurrency that NEAR Intents supports,
+    using single-use shielded Zcash addresses and NEAR Intents swaps. This is
+    off by default; see [Living Dangerously: Full wallet access](#living-dangerously-full-wallet-access).
+  - The agent asks to pay; x402_treazury holds the keys and applies the
+    spending caps. Wallet files and spending keys stay in a separate container.
+    Each wallet group has a payment cap, and the optional swap tools have a
+    default outgoing limit of 0.5 ZEC.
+  - Paid research APIs give the agent a way to avoid the CAPTCHAs, 503s and
+    429s that websites give Tor users and agents.
+- **Built in the hackathon period:** the Compose stack that routes Hermes through teep to
+  NEAR AI by default, and that runs x402_treazury's NEAR Intents funding from
+  `make` targets. teep's NEAR AI attestation checks and x402_treazury's NEAR
+  Intents swap code existed before the hackathon period; see
+  [Work done in the hackathon and baseline](#work-done-in-the-hackathon-and-baseline).
+
+### Hackathon tracks
+
+The team picks the tracks. The project fits these:
+
+- `privacy`: AI inference on NEAR AI Cloud, with TEE attestation checked by
+  TEE Proof before each prompt is sent.
+- `security`: spending caps, keys in a separate container from the agent, and
+  enforced TEE attestation checks.
+- `agents`: an agent that pays for research APIs from wallets funded through
+  NEAR Intents.
+
+### Try it
+
+The steps need a NEAR AI API key from https://cloud.near.ai and the
+requirements in [Get started](#get-started).
+
+1. Run `make init`, then set `NEARAI_API_KEY` in `.env`.
+   - You see a new `.env` and `config/webapp/password`.
+2. Run `make up`. The first run builds the images and can take several minutes.
+   - The output ends with "Research preparation pending" and "Hermes is
+     available". Paid research is optional (step 6).
+3. Open http://127.0.0.1:9120, log in as `admin` with the password from
+   `config/webapp/password`, and ask a question.
+   - You see an answer. Step 4 shows the count of requests that teep sent to
+     NEAR AI.
+4. Open http://127.0.0.1:8337/.
+   - You see the TEE Proof dashboard: the NEAR AI enclave, its "factors passed"
+     score, its three tiers, and in Traffic the count of E2EE and Plaintext
+     requests.
+5. Run
+   `python3 scripts/stack.py compose exec teep teep verify neardirect --model z-ai/glm-5.3-flash --log-level error`.
+   - You see each attestation factor, whether it passed, and whether teep
+     enforces it (`ENFORCED`) or only reports it (`ALLOWED`).
+   - The last line gives the score. On 2026-11-14 it was
+     `Score: 28/33 passed, 0 skipped, 5 failed (0 enforced, 5 allowed), 6 n/a`.
+   - The 5 failed checks are `ALLOWED`: teep reports them and does not block
+     the request. They are `tee_boot_config`, `cpu_gpu_chain`,
+     `measured_model_weights`, `cpu_id_registry` and `sigstore_verification`.
+     `teep help factors` explains each one.
+6. Optional: run `make x402_treazury-init`.
+   - You see a shielded ZEC receive address. No funds are needed yet.
+7. Optional, needs ZEC: send ZEC to that address, then run
+   `make x402_treazury-prepare`.
+   - x402_treazury swaps the ZEC to Base USDC through NEAR Intents and funds
+     the first research wallet. See
+     [Paid Research APIs](#paid-research-apis-and-cryptocurreny-wallet) for
+     amounts and steps.
+
+### Work done in the hackathon and baseline
+
+- **This repository:** every commit is dated 2026-11-08 or later
+  (`git log --format=%ad --date=short | sort | head -1`). The hackathon work is
+  the stack in this repository: the Compose files, the Tor gateway, the SSH executor, the authenticated
+  webapp and Funnel ingress, the default NEAR AI route through teep, and the
+  x402_treazury integration. The components in the baseline list below existed
+  before.
+- **Baseline:** these libraries existed before the hackathon period, and the
+  stack uses them.
+  - [Hermes Agent](https://github.com/NousResearch/hermes-agent) (MIT, Nous
+    Research): the agent and webapp. The stack builds from the official
+    v0.23.0 image with local patches in `components/hermes/`.
+  - [TEE Proof (teep)](https://github.com/13rac1/teep) (AGPL-3.0): the
+    attestation proxy, a project of this team. Its repository was created on
+    2026-03-20, and its NEAR AI provider dates from 2026-03.
+  - [x402_treazury](https://github.com/mikeperry-tor/x402_treazury)
+    (AGPL-3.0): the research tools and wallets, a project of this team. Its
+    NEAR Intents swap code dates from 2026-10-02. Later NEAR funding changes
+    are from the hackathon period, for example `40e914c8` and `d69ce29b` (2026-10-29).
+  - Tor, HAProxy, Tailscale, Alpine and Debian images, as pinned in
+    `components/`.
+- **teep changes in the hackathon period:** on 2026-11-11, teep `789918e`
+  blocked the NEAR AI requests in our test: `sigstore_verification` was
+  enforced, and the Sigstore lookup for one image that NEAR AI runs returned
+  HTTP 404. The enclave's compose file names that image by its platform
+  manifest digest; the transparency log has the signature under the digest of
+  the image index.
+  - With [13rac1/teep#191](https://github.com/13rac1/teep/pull/191), teep
+    reports that failure and still sends the request: `sigstore_verification`
+    is ALLOWED for NEAR AI until teep can follow an index to its platform
+    manifest. teep still enforces `compose_binding`: the compose file must
+    match the hardware measurement.
+  - The stack pins a teep `main` commit that has this change
+    (`components/teep/Dockerfile`).
+
 ## Components and the problems they solve
 
 - **Hermes Agent v0.23.1** provides chat, tool use, skills, and subagent orchestration.
