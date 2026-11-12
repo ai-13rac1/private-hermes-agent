@@ -360,9 +360,8 @@ Tor Browser's anonymity protections; see [Brave's explanation](https://support.b
 
 Optional computer use and browser automation execute inside the SSH executor;
 their qualification scope is recorded in the
-[development guide](development.md#executor-desktop-qualification). Executor
-browser implementation and final qualification are tracked in
-[browser use](plans/browser-use-support.md). Browser screenshots are transferred
+[development guide](development.md#executor-desktop-qualification), including
+[browser result checks](development.md#browser-harness-and-results). Browser screenshots are transferred
 into generated gateway cache files for native vision/results. Downloads remain
 executor workspace files, accessed through the existing authenticated file APIs.
 

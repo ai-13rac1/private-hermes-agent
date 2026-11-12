@@ -1,8 +1,9 @@
 # Browser automation and model Python inside the SSH executor
 
-Status: implemented; focused Docker Desktop ARM64 browser checks pass, broader
-webapp qualification and final combined acceptance are in progress. The complete
-desktop/network regression, including harness Tor outage/recovery, has passed.
+Status: implemented and qualified on Docker Desktop ARM64; final combined
+independent acceptance is pending. The complete browser, desktop/network and
+webapp regressions have passed, including harness Tor outage/recovery,
+native cache sync, missing-harness recovery and actual Chromium sandbox layers.
 BU-DESIGN was independently accepted. Follow the
 [planning workflow](../planning-workflow.md). Planning baseline: branch `main`,
 commit `e33e5ad5f741dc8ae283be32038e3bca25e041fa`.
@@ -65,13 +66,10 @@ sessions must be traced rather than assumed to provide separate desktop profiles
 Full visual noVNC-pane interaction remains unqualified. Rootless Podman testing
 belongs to its [own plan](rootless-podman.md).
 
-The core design remains necessary: moving Chromium does not move model Python.
-Computer-use investigation also demonstrated native gateway-local CLI/daemon,
-installation and desktop fallback paths that needed explicit refusal. Browser
-design review must trace its own launch/retry/settings paths for equivalent
-fallbacks rather than assume the desktop patch covers them. The next action is
-the exact-revision harness/dependency, launch, session and output audit below,
-followed by fresh BU-DESIGN review before browser implementation.
+The implementation moves Python as well as Chromium, rejects native gateway-local
+and external-route fallbacks, and preserves native session, approval and output
+contracts through the reviewed route below. The next action is final independent
+acceptance against the passing runtime evidence and maintained guides.
 
 ## Intended design and preserved boundaries
 
@@ -157,8 +155,8 @@ host/VM/private, UDP/IPv6 and embedded-DNS denial, SSH execution, exact MCP gran
 UID-101 Tor routing, image switching and actual harness Tor outage/recovery.
 The corrected-image browser suite passed as Hermes UID 10000, including actual
 native cache round-trip, startup cancellation, abrupt owner death and isolated
-missing-harness refusal/restoration. Webapp evidence and final acceptance remain
-pending.
+missing-harness refusal/restoration. Webapp qualification passed; final independent
+acceptance remains pending.
 
 Final qualification exposed a concrete native bulk-sync interaction:
 Chromium's unmapped browser profile was archived before native sync-back selected
@@ -168,8 +166,11 @@ the archive; ordinary selected files and native safe extraction are preserved.
 The profile is not deleted. A fresh independent reviewer accepted this correction;
 corrected-image native cache round-trip passed. Running new fixtures through the
 handler as container root also created an incorrectly owned native install lock;
-the fixtures now use actual gateway UID 10000. Fresh webapp qualification remains
-pending after those corrections.
+the fixtures now use actual gateway UID 10000. Fresh webapp qualification passed
+after those corrections: all 24 existing content cases, eight screen and eight
+browser-result mode/ingress cases, and the remaining auth/restart/privacy/failure
+fixtures passed. A focused check also verified actual automation Chromium's
+sandbox layers. Final review acceptance remains pending.
 
 The existing image-switch regression once failed its `file://` localStorage
 assertion and passed an isolated repeat. The fixture now tests storage and an

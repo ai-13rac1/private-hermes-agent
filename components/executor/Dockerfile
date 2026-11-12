@@ -30,6 +30,7 @@ COPY components/executor/browser-requirements.txt /opt/private-hermes/browser-re
 RUN python3 -m venv /opt/browser-harness \
     && /opt/browser-harness/bin/pip install --no-deps --require-hashes -r /opt/private-hermes/browser-requirements.txt
 COPY --from=browser-source /opt/hermes/tools/browser_use_shot.py /opt/private-hermes/browser_use_shot.py
+COPY --from=browser-source /opt/hermes/LICENSE /opt/private-hermes/hermes-LICENSE
 COPY components/executor/browser-session.py /opt/private-hermes/browser-session.py
 RUN chmod 0755 /usr/local/bin/executor-start \
     && printf '\nSetEnv PLAYWRIGHT_BROWSERS_PATH=/opt/playwright XDG_RUNTIME_DIR=/tmp/hermes-runtime CUA_DRIVER_RS_TELEMETRY_ENABLED=0\n' >> /etc/ssh/sshd_config

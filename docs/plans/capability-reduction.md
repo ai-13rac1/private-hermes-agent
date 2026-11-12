@@ -156,7 +156,7 @@ harness and its SSH-owned session launcher introduce no additional capabilities,
 syscall allowances, published ports or peer grants. The separate browser Chromium
 startup path also contained explicit sandbox-bypass arguments; those are removed
 by the browser patch rather than expanding capabilities. Its runtime qualification
-is tracked in the [browser-use plan](browser-use-support.md); the existing listener
+is recorded in [development](../development.md#browser-harness-and-results); the existing listener
 omission evidence remains applicable and need not be repeated for Python packages.
 
 ## Preserved boundaries and intended behavior

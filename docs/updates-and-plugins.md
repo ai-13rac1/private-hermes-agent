@@ -182,8 +182,9 @@ The three separate in-browser preview tools instead follow the early captured
 private modes. Both policies apply to native registration, inline callback
 dispatch and stale registry calls, without rewriting operator settings.
 The final image copies the patched registry, inline-dispatch, desktop/driver,
-display RPC and display WebSocket files from the build stage. Revisit the executor exclusions only after the executor-support
-plans qualify each execution path; an upstream browser dependency or desktop
+display RPC and display WebSocket files from the build stage. Revisit remaining
+executor exclusions only after each execution path is independently qualified;
+an upstream browser dependency or desktop
 image alone is not grounds to restore those tools. Remove the patch when an
 equivalent native deployment-owned mechanism is selected and qualified.
 After building Hermes, run `python3 tests/desktop_tools_smoke.py` to check
@@ -220,8 +221,8 @@ sync-back. Other native mappings and safe extraction remain unchanged; the
 profile stays in executor bind data and backups. Remove this exclusion when
 native SSH archives only the required mapped state or handles this runtime
 profile without breaking safe extraction and selected-file synchronization.
-The desktop executor copies only the public screenshot helper from the same
-official image and builds `/opt/browser-harness` from the minimal locked dependency
+The desktop executor copies only the public screenshot helper and its MIT license
+from the same official image and builds `/opt/browser-harness` from the minimal locked dependency
 closure in `browser-requirements.txt`. Hashes and versions come from the packaged
 Hermes lock, including its explicit Pillow 13 override; `--no-deps` preserves that
 override instead of resolving the harness's older Pillow pin. Refresh both image

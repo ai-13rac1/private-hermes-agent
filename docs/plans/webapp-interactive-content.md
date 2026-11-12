@@ -28,8 +28,8 @@ second conflicting switch or a compatibility/migration layer.
 Structured desktop actions are available through the implemented
 [optional executor desktop](../configuration.md#optional-executor-desktop), with
 [documented qualification limits](../development.md#executor-desktop-qualification).
-The [browser-use work](browser-use-support.md) moves both Chromium and
-model-written Python into the SSH executor under the same desktop preference;
+The implemented [browser automation](../development.md#browser-harness-and-results)
+runs both Chromium and model-written Python in the SSH executor under the same desktop preference;
 CDP/dialog/vault tools remain excluded. The separate `desktop_preview`,
 `drive_preview` and `annotate_preview` tools target the viewer's renderer and are
 available only in `browser_native`; they are not disabled by the executor policy.

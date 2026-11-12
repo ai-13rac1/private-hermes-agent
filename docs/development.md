@@ -165,11 +165,26 @@ active/startup cancellation, timeout/retry, daemon crash, owner death and actual
 missing-harness refusal/recovery. These fixtures execute the tool as Hermes UID
 10000, matching the gateway: root `docker exec` can create native install locks
 owned by the wrong account and invalidate restart tests. The complete desktop/
-network run also passed image switching and harness Tor outage/recovery. Final
-webapp qualification and review remain tracked in the
-[browser-use plan](plans/browser-use-support.md). The implementation adds no capability, syscall rule,
+network run also passed image switching and harness Tor outage/recovery. The
+actual automation-launched Chromium's `chrome://sandbox` page reported namespace,
+PID/network-namespace and seccomp-BPF sandbox layers enabled.
+The implementation adds no capability, syscall rule,
 published port or internal network grant. The existing three OpenSSH grants and
 desktop-only Chromium user-namespace profile remain the owning requirements.
+
+On 2026-11-12, the combined Docker Desktop ARM64 webapp regression passed the
+existing 24 content cases across Chromium, Firefox and WebKit, eight screen
+mode/ingress cases, and eight browser screenshot/download mode/ingress cases
+plus initial authenticated result checks. Actual generated screenshots rendered,
+executor downloads transferred, logout denied subsequent file requests, and the
+viewing browser made no external requests. Restart, credential rotation, stale
+consent, DNS/preconnect, ingress mismatch and Tor failure/recovery checks passed.
+The profile archive exclusion also passed actual selected-cache round-trip
+without socket/symlink extraction failures. The qualification remains limited to
+the single default-profile desktop and tested engine/architecture above; AMD64,
+rootless Podman and full visual noVNC-pane interaction remain unqualified.
+CDP/dialog/vault tools remain excluded; raw CDP through executor Python does not
+qualify their separate native routes. Final independent acceptance is pending.
 
 ## Diagnostic messages
 

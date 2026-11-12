@@ -17,6 +17,23 @@ def check():
     print(result.stdout, result.stderr, flush=True)
     if result.returncode:
         raise RuntimeError('Executor browser qualification failed')
+    check_sandbox()
+
+
+def check_sandbox():
+    result = agent_python('''import json,re
+from tools.browser_use_cli import browser_exec
+r=json.loads(browser_exec('new_tab("chrome://sandbox"); wait_for_load(); print(js("document.body.innerText"))',session='sandbox-diagnostics'))
+assert r.get('success'),r
+text=r['output']
+assert re.search(r'Layer 1 Sandbox\\s+Namespace',text),text
+for layer in ('PID namespaces','Network namespaces','Seccomp-BPF sandbox'):
+ assert re.search(re.escape(layer)+r'\\s+Yes',text),text
+print('PASS: actual automation Chromium reports namespace, PID/network namespaces and seccomp sandbox layers')
+''', check=False)
+    print(result.stdout, result.stderr, flush=True)
+    if result.returncode:
+        raise RuntimeError('Automation Chromium sandbox qualification failed')
 
 
 def missing_harness():
