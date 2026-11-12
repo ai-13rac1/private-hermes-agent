@@ -109,6 +109,7 @@ def relay_checks(page, context, origin):
         'kind': 'remote', 'label': 'Disposable relay', 'url': 'http://10.203.84.10:8000',
         'authMode': 'token', 'token': 'disposable-relay-token'})
     assert saved['status'] == 200, saved
+    assert 'disposable-relay-token' not in json.dumps(saved), saved
     connection_id = saved['body']['connection']['id']
     base = '/api/relay/' + connection_id
     try:

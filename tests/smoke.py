@@ -224,7 +224,7 @@ asyncio.run(main())
 
         # Host-controlled fixture launch only: model code never receives sudo.
         uid_probe = "import os; os.setgroups([]); os.setgid(101); os.setuid(101); os.execvp('curl',['curl','--noproxy','*','-fsS','--connect-timeout','3','--max-time','35','https://check.torproject.org/api/ip'])"
-        uid_result = execute('executor', 'python3', '-c', uid_probe, user='0:0')
+        uid_result = eventually(lambda: execute('executor', 'python3', '-c', uid_probe, user='0:0'))
         assert json.loads(uid_result.stdout)['IsTor'] is True
         print('PASS: executor UID 101 still uses Tor', flush=True)
 

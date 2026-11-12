@@ -141,7 +141,7 @@ native build receipt before applying explicit patches with `git apply --check`.
 The image supplies the source and pinned Node. The disposable build stage uses
 upstream PM to install its hash-verified pnpm 12.15.0 pin, then the native build
 recipe installs frozen-lockfile dependencies and compiles the browser-hosted
-Desktop. pnpm and frontend build dependencies do not enter the final image. The final image
+Desktop. pnpm and frontend build dependencies do not enter the final image. It
 retains upstream dispatch, bootstrap and UID handling and explicitly selects the
 rebuilt `apps/desktop/dist-webapp` through `HERMES_WEBAPP_DIST`. It does not replace
 the separate legacy dashboard assets in `hermes_cli/web_dist` or install build

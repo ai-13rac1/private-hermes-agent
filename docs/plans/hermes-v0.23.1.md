@@ -67,3 +67,20 @@ Remaining runtime qualification and final review are pending. Target is Docker D
 ARM64, Engine 29.9.3. Fixtures use disposable projects, dummy credentials and no
 paid inference, funded wallet operations or live Funnel enrollment. Existing
 AMD64, rootless Podman and full visual noVNC limitations remain.
+
+Desktop actions, sandbox/user-namespace restrictions, native idle/display repair,
+on/off/on state preservation and missing desktop/SSH refusal/recovery passed.
+The subsequent UID-101 public Tor probe hit its three-second connection timeout;
+that successful-path probe now reuses the existing `eventually` helper, like
+other allowed Tor probes. The network/outage portion is rerunning without
+repeating the already-passed desktop actions/switching checks. Forbidden and
+Tor-stopped assertions retain their original failure behavior.
+
+The focused network rerun passed UID-101 Tor routing, allowed/forbidden paths,
+Tor outage and restart, and browser-harness outage/recovery. Serial image
+retrieval qualification passed. Browser lifecycle qualification passed actual
+missing-harness refusal/recovery in addition to placement, native cache sync,
+concurrency, cancellation, daemon crash and owner death. The final static check
+again passed 92 tests, Compose models and compilation after test changes.
+Plugin and webapp matrices are pending; final review must consider that evidence
+before accepting U2/U-FINAL.

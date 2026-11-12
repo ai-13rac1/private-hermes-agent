@@ -192,6 +192,34 @@ material findings. Final patch-context whitespace cleanup was checked against
 the exact packaged source: all seven patches apply and produce identical source
 bytes. The completed browser-use plan has been removed; its history remains in Git.
 
+## Hermes v0.23.1 integration qualification
+
+The upgrade review covered upstream
+`2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19..3b421578588243f920886e6fe79a6faa87ea026e`.
+The official multiarch base index is
+`sha256:276d44685c65c0cb2a25f190b63c65c8906f9dc76486fb1c05ae71b5826bda08`.
+The downloaded ARM64 image's clean install stamp matched the selected commit;
+its native renderer receipt and calculated source hash both matched
+`d962149f7c279801f68eb629e8939592105e0d49ddb97d01a549b85748335717`.
+All seven deployment patches remain necessary. Only the disabled-tool patch's
+import context needed refreshing. The browser harness dependency closure,
+screenshot helper and copied upstream session fixture are unchanged.
+
+The principal integration changes are the upstream switch to pnpm builds,
+native saved-gateway HTTP/WebSocket relays and SSH connections, threaded tool
+availability probes, a new browser-vault inline dispatcher, and schema 53.
+The [derived build](updates-and-plugins.md#derived-hermes-build-and-patch-maintenance)
+uses upstream's pinned pnpm in its disposable frontend stage. Existing registry
+and inline exclusions also cover the new vault dispatcher. Native availability
+budgets remain upstream-owned. Saved connections retain authenticated operator
+authority and the namespace's existing network grants; no firewall exceptions
+were added. The relay cannot pass a remote trusted-page marker through its
+header allowlist, so the existing global response policy makes relayed HTML/SVG
+inert attachments. The content matrix now exercises that actual route with
+hostile documents, a valid raster, anonymous requests and credential/header
+canaries. Configuration qualification includes a populated schema-52 migration
+and preservation of operator settings and SSH identities.
+
 ## Diagnostic messages
 
 Explain the affected operation or capability, its impact, the known cause or

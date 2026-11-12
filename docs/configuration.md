@@ -153,6 +153,11 @@ Use `auto` in place of `off` to restore Hermes Tool Search. Tool discovery setti
 control model presentation; they do not enable disabled tools or change MCP
 authentication, wallet policy, or network access.
 
+Hermes v0.23.1's native configuration migration changes the former default
+`agent.clarify_timeout` of 3600 seconds to 90 seconds. Other explicitly chosen
+values are retained. This affects how long an unanswered clarification holds a
+chat turn; it does not change network or payment deadlines.
+
 ## Optional executor desktop
 
 `COMPUTER_USE_ENABLED=false` selects the lean Alpine executor and excludes
