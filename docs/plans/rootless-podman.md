@@ -85,6 +85,7 @@ loading. Saved logs show F2, F4 and the started services.
 | F8 | Compose 2.36 | Compose 2.26.1 drops `gw_priority` and renders `create_host_path: false` as `bind: {}`, which fails `test_storage`. It keeps `stop_grace_period: -1s` in `config` output; whether it applies it is not known | None |
 | F9 | Docker drops forwarding between different bridge networks | Netavark forwards between two ordinary rootless networks: a client on one reached a listener on the other. With `-o isolate=strict` on both, the connection was blocked | None; the trial stack had this exposure |
 | F10 | Compose creates networks with the declared driver options | Podman's Docker-compatible network API sets `isolate=true` on every bridge and drops other options, including `isolate=strict` and `no_default_route`. On a stack created this way, a container on a user network without isolation reached teep at its uplink address on port 8337 and HAProxy's edge address | `ensure_networks()` creates the networks with the `podman` command first; Compose adopts networks that carry its labels |
+| F11 | A custom seccomp profile: Compose reads `seccomp=<file>` and sends its content through the API | Podman's compatible API treats the value as a path: `opening seccomp profile failed: open {"defaultAction":...`. The executor desktop (`COMPUTER_USE_ENABLED=true`) uses such a profile, so `computer-use-test` and `browser-use-test` could not start it | Preflight refuses a custom seccomp profile on Podman; the desktop needs Docker |
 
 Network evidence from disposable experiments. Except for F9, these used
 networks with `-o isolate=strict` and `--disable-dns`. The trial Compose set
@@ -398,6 +399,13 @@ Funnel off):
   depend on the engine; it is reported separately and was worked around in the
   test checkout with `chmod g-w`.
 
+- After the rebase onto `1d83657` (executor desktop and browser automation),
+  2026-11-12, commit `86c74f9` with a clean working tree: `make up` exit 0, the
+  path test passed 35 of 35, `make down` and the smoke suite left only `podman`,
+  and `tests/smoke.py` passed all eight sections. The desktop image built, but
+  `computer-use-test` and `browser-use-test` could not start the desktop executor
+  (F11).
+
 Limits: the Tor checks would also be blocked by the router firewall, so the
 teep checks are the ones that show isolation. The x402_treazury lifecycle
 beyond `x402_treazury-test` did not run (see Missing evidence). The teep result for the
@@ -623,11 +631,10 @@ volume deletion, wallet reinitialization or automatic cross-engine migration.
 
 ## Missing evidence
 
-- Any live run after the rebase onto `1d83657`: the executor desktop
-  (`COMPUTER_USE_ENABLED=true`, with its seccomp profile) and browser
-  automation have not run on Podman, and the P3 runs above predate them. Unit
-  tests and both Podman Compose models, with the desktop off and on, pass on the
-  rebased branch.
+- The executor desktop and browser automation on Podman: they need a custom
+  seccomp profile that Podman's compatible API cannot apply (F11), so they are
+  Docker-only, and preflight refuses them on Podman. A way to apply the profile
+  on Podman is not designed.
 - P5–P7 are unimplemented/unqualified. No Podman is installed on the current
   review host; obtain rootless runtime and dual-engine evidence on another host.
 - Docker: P3 items outside the recorded `86c74f9` Docker Desktop run, including

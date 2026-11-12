@@ -236,6 +236,32 @@ class ProxyFirewallTests(unittest.TestCase):
                 self.assertIn('-A OUTPUT -d 10.203.85.2/32 -p tcp --dport 9120 -m conntrack --ctstate NEW -j ACCEPT', rules)
 
 
+class PreflightSecurityOptionTests(unittest.TestCase):
+    def config(self, *options):
+        return {'services': {'executor': {'security_opt': ['no-new-privileges:true', *options]},
+                             'teep': {}}}
+
+    def test_podman_refuses_a_custom_seccomp_profile(self):
+        with patch.object(preflight, 'engine', return_value='podman'):
+            preflight.check_security_options(self.config())
+            preflight.check_security_options(self.config('seccomp=unconfined'))
+            with self.assertRaisesRegex(SystemExit, 'executor.*seccomp-desktop.json.*COMPUTER_USE_ENABLED=false'):
+                preflight.check_security_options(self.config('seccomp=./components/executor/seccomp-desktop.json'))
+
+    def test_docker_keeps_custom_seccomp_profiles(self):
+        with patch.object(preflight, 'engine', return_value='docker'):
+            preflight.check_security_options(self.config('seccomp=./components/executor/seccomp-desktop.json'))
+
+    def test_model_with_the_desktop_selects_the_profile_only_when_enabled(self):
+        def options(value):
+            result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', '--env-file', '/dev/null', 'config',
+                                     '--format', 'json'], cwd=ROOT, text=True, capture_output=True, check=True,
+                                    env={**os.environ, 'COMPUTER_USE_ENABLED': value})
+            return json.loads(result.stdout)['services']['executor']['security_opt']
+        self.assertFalse([o for o in options('false') if o.startswith('seccomp=')])
+        self.assertTrue([o for o in options('true') if o.startswith('seccomp=')])
+
+
 class PreflightFloorTests(unittest.TestCase):
     def check(self, kind, answers, environment=None):
         def output(*args):
