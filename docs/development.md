@@ -64,14 +64,16 @@ References: [Hermes backends](https://hermes-agent.nousresearch.com/docs/user-gu
 [Docker isolated networks](https://docs.docker.com/engine/network/port-publishing/#gateway-modes),
 [teep](https://github.com/13rac1/teep).
 
-`make check` validates the Docker and Podman Compose models on either engine;
-`tests/test_engine.py` covers engine selection, Podman network creation, the
-proxy firewall rules and the engine floors. The live tests use the same Compose
-files as the stack, including the Podman overlays. Run `make test` on each engine
-before changing network, ingress or overlay code. On Podman, the live tests need
-Compose 2.36+ as the provider of `podman compose`, and `sh tests/podman_paths_smoke.sh`
-checks the paths of a running stack, including a client on a network without
-isolation.
+`make check` validates the Docker and Podman Compose models with the selected
+engine's Compose; `tests/test_engine.py` covers the `CONTAINER_ENGINE` selector,
+the engine checks, the `stack.py compose` option parsing, Podman network creation,
+the proxy firewall rules and the engine floors, without a running engine. The
+live tests use the same Compose files and engine commands as the stack. Run
+`make test` on each engine (`CONTAINER_ENGINE=podman make test` selects Podman
+without editing `.env`) before changing network, ingress or overlay code. On
+Podman, `make podman-paths-test` checks the paths of a running stack, including a
+client on a network without isolation, with positive controls for its DNS and
+TCP probes.
 
 Component-specific checks and limits are documented in the
 [webapp](webapp.md#verification-and-current-limits),

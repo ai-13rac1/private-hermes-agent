@@ -6,6 +6,9 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from deployment import compose_base, engine_command  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('init_config', ROOT / 'scripts/init-config.py')
@@ -17,7 +20,7 @@ class OperatorConfigurationTests(unittest.TestCase):
     def test_computer_use_selects_one_executor_and_scoped_syscall_policy(self):
         models = {}
         for enabled in ('false', 'true'):
-            result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', 'config', '--format', 'json'],
+            result = subprocess.run([*compose_base(), '-f', 'compose.yaml', 'config', '--format', 'json'],
                                     cwd=ROOT, env=dict(os.environ, COMPUTER_USE_ENABLED=enabled),
                                     text=True, capture_output=True, check=True)
             services = json.loads(result.stdout)['services']
@@ -32,7 +35,7 @@ class OperatorConfigurationTests(unittest.TestCase):
             models[enabled] = executor
         for key in ('volumes', 'network_mode', 'cap_add', 'cap_drop', 'tmpfs', 'image'):
             self.assertEqual(models['false'][key], models['true'][key], key)
-        result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', 'config', '--quiet'],
+        result = subprocess.run([*compose_base(), '-f', 'compose.yaml', 'config', '--quiet'],
                                 cwd=ROOT, env=dict(os.environ, COMPUTER_USE_ENABLED='invalid'),
                                 capture_output=True)
         self.assertNotEqual(result.returncode, 0)
@@ -104,7 +107,7 @@ class OperatorConfigurationTests(unittest.TestCase):
         environment = dict(os.environ, **secrets, TEEP_HOST_PORT='18337',
                            HERMES_DEFAULT_MODEL='neardirect:qualification/custom-model',
                            TEEP_SERVE_ARGS="--log-level 'debug'")
-        result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', '-f', 'compose.funnel.yaml', '--profile', '*', 'config', '--format', 'json'],
+        result = subprocess.run([*compose_base(), '-f', 'compose.yaml', '-f', 'compose.funnel.yaml', '--profile', '*', 'config', '--format', 'json'],
                                 cwd=ROOT, env=environment, text=True,
                                 capture_output=True, check=True)
         services = json.loads(result.stdout)['services']

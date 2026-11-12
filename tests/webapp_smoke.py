@@ -17,9 +17,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'components/webapp'))
 from auth import hash_password
 from settings import Settings, proxy_config
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from deployment import compose_base, engine_command  # noqa: E402
 
 PROJECT = 'private-hermes-webapp-test'
-smoke.COMPOSE = ['docker', 'compose', '-p', PROJECT,
+smoke.COMPOSE = [*compose_base(), '-p', PROJECT,
                  *smoke.compose_files(True, extra=('tests/compose.yaml', 'tests/webapp-compose.yaml'))]
 
 
@@ -256,7 +258,7 @@ print(base64.b64encode(p.read_bytes()).decode())
             smoke.compose('restart', 'webapp-proxy')
             identifier = smoke.compose('ps','-q','--all','webapp-proxy').stdout.strip()
             for attempt in range(120):
-                state = json.loads(subprocess.check_output(['docker','inspect','--format','{{json .State}}',identifier],text=True))
+                state = json.loads(subprocess.check_output([*engine_command(),'inspect','--format','{{json .State}}',identifier],text=True))
                 if state['ExitCode'] != 0:
                     break
                 time.sleep(1)

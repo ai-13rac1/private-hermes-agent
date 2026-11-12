@@ -1,58 +1,153 @@
 """Compose handles dotenv interpolation; this module validates feature settings."""
 from functools import cache
+import io
 import json
 import os
 from pathlib import Path
-import socket
 import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'components/webapp'))
+sys.path.insert(0, str(ROOT / 'scripts/vendor/dotenv'))
 from settings import Settings, proxy_config
+from parser import parse_stream  # vendored python-dotenv parser, see scripts/vendor/dotenv/SOURCE.md
+
+
+SELECTOR = 'CONTAINER_ENGINE'
+ENGINES = ('docker', 'podman')
+# Endpoint overrides that would point Podman, or the Compose provider that
+# `podman compose` starts, at another engine. `podman compose` passes an
+# inherited DOCKER_HOST to the provider even with --remote=false.
+PODMAN_OVERRIDES = ('DOCKER_HOST', 'DOCKER_CONTEXT', 'CONTAINER_HOST', 'CONTAINER_CONNECTION')
+_AMBIENT_OVERRIDES = []
+
+
+class EngineError(RuntimeError):
+    pass
 
 
 def _output(*args):
     return subprocess.run(args, cwd=ROOT, text=True, capture_output=True, check=True).stdout
 
 
-def _endpoint_components(url):
-    """Return the component names that the engine API at a unix:// URL reports."""
-    if not url.startswith('unix://'):
-        raise ValueError('Only unix:// engine endpoints can be identified')
-    with socket.socket(socket.AF_UNIX) as connection:
-        connection.settimeout(10)
-        connection.connect(url[len('unix://'):])
-        connection.sendall(b'GET /version HTTP/1.0\r\nHost: engine\r\n\r\n')
-        response = b''
-        while chunk := connection.recv(65536):
-            response += chunk
-    body = response.partition(b'\r\n\r\n')[2]
-    return [entry.get('Name') for entry in json.loads(body).get('Components') or [] if isinstance(entry, dict)]
+def read_selector(path=None):
+    """Return the engine that CONTAINER_ENGINE selects: docker or podman.
+
+    An exported value takes precedence over the root .env. Without either, the
+    engine is Docker. A blank or other value is an error, never a fallback.
+    Only this key is read from .env; nothing is exported or interpolated.
+    """
+    if SELECTOR in os.environ:
+        value, source = os.environ[SELECTOR], 'the environment'
+    else:
+        path = Path(path or ROOT / '.env')
+        try:
+            text = path.read_text(encoding='utf-8')
+        except FileNotFoundError:
+            return 'docker'
+        except (OSError, UnicodeDecodeError) as error:
+            raise EngineError(f'Cannot read {path}: {getattr(error, "strerror", None) or error.__class__.__name__}') from None
+        value, source = None, str(path)
+        for binding in parse_stream(io.StringIO(text)):
+            if binding.error:
+                raise EngineError(f'{path}, line {binding.original.line}: not a valid assignment')
+            if binding.key == SELECTOR:
+                value = binding.value if binding.value is not None else ''
+        if value is None:
+            return 'docker'
+    if value not in ENGINES:
+        raise EngineError(f'{SELECTOR} in {source} must be docker or podman')
+    return value
 
 
 @cache
 def engine():
-    """Return 'podman' only when the endpoint Compose uses identifies as Podman.
+    """Return the selected engine. With Podman, remove endpoint overrides.
 
-    Any other answer, including a failed query, selects Docker, whose files are
-    complete on Docker. With the Docker files, Podman refuses to start the stack:
-    Compose rejects healthcheck.start_interval for Podman's API version.
+    The overrides are removed from this process's environment, so every child
+    command and the Compose provider use the local rootless Podman. They are
+    recorded, and a networked launch refuses to start while they are set.
     """
+    selected = read_selector()
+    if selected == 'podman':
+        for name in PODMAN_OVERRIDES:
+            if name in os.environ:
+                _AMBIENT_OVERRIDES.append(name)
+                del os.environ[name]
+    return selected
+
+
+def engine_command():
+    """The engine command: the Docker CLI, or local Podman."""
+    return ['docker'] if engine() == 'docker' else ['podman', '--remote=false']
+
+
+def compose_base():
+    return [*engine_command(), 'compose']
+
+
+def _version(text):
+    parts = text.strip().lstrip('v').split('-')[0].split('.')
     try:
-        if _output('docker', '--version').lower().startswith('podman version'):
-            # podman-docker or a shim: `podman compose` passes DOCKER_HOST to
-            # Compose when it is set, so identify that endpoint; otherwise
-            # Compose uses the user's Podman socket.
-            host = os.environ.get('DOCKER_HOST')
-            names = _endpoint_components(host) if host else ['Podman Engine']
-        else:
-            # The Docker CLI follows DOCKER_HOST and the current context, as Compose does.
-            components = json.loads(_output('docker', 'version', '--format', '{{json .Server.Components}}'))
-            names = [entry.get('Name') for entry in components or [] if isinstance(entry, dict)]
-    except (OSError, subprocess.CalledProcessError, ValueError, AttributeError):
-        return 'docker'
-    return 'podman' if 'Podman Engine' in names else 'docker'
+        return tuple(int(part) for part in parts[:3])
+    except ValueError:
+        return (0,)
+
+
+@cache
+def check_engine():
+    """Check the selected engine before a networked launch.
+
+    Docker: the endpoint is Docker Engine 28+ (not Podman behind a docker
+    command), with Compose 2.36+. Podman: local and rootless, 5.4+, its user API
+    socket exists, its Compose provider is Docker Compose 2.36+, and no endpoint
+    override is set.
+    """
+    if engine() == 'podman':
+        if _AMBIENT_OVERRIDES:
+            raise EngineError('Unset ' + ', '.join(_AMBIENT_OVERRIDES) + ' before starting the stack with Podman: '
+                              'the stack runs on the local rootless Podman only.')
+        try:
+            info = json.loads(_output(*engine_command(), 'info', '--format', 'json'))
+        except (OSError, subprocess.CalledProcessError, ValueError) as error:
+            raise EngineError('The podman command is required with CONTAINER_ENGINE=podman.') from error
+        host = info.get('host') or {}
+        if not (host.get('security') or {}).get('rootless'):
+            raise EngineError('Podman must run rootless: rootful bridge gateways are host addresses.')
+        if _version((info.get('version') or {}).get('Version', '')) < (5, 4, 0):
+            raise EngineError('Podman 5.4 or later is required.')
+        if not (host.get('remoteSocket') or {}).get('exists'):
+            raise EngineError('Enable the user Podman API socket: systemctl --user enable --now podman.socket')
+        try:
+            provider = _output(*compose_base(), 'version')
+        except (OSError, subprocess.CalledProcessError) as error:
+            raise EngineError('podman compose needs Docker Compose 2.36 or later as its provider.') from error
+        if 'Docker Compose' not in provider or _version(provider.rsplit(' ', 1)[-1]) < (2, 36, 0):
+            raise EngineError('podman compose needs Docker Compose 2.36 or later as its provider '
+                              '(PODMAN_COMPOSE_PROVIDER or compose_providers in containers.conf).')
+        return
+    reaches_podman = EngineError('The docker command reaches Podman. Set CONTAINER_ENGINE=podman to use Podman.')
+    try:
+        if _output('docker', '--version').lower().startswith('podman'):
+            raise reaches_podman
+        components = json.loads(_output('docker', 'version', '--format', '{{json .Server.Components}}'))
+        server = _output('docker', 'version', '--format', '{{.Server.Version}}')
+    except (OSError, subprocess.CalledProcessError, ValueError) as error:
+        raise EngineError('Docker Engine is required with CONTAINER_ENGINE=docker.') from error
+    names = [entry.get('Name') for entry in components or [] if isinstance(entry, dict)]
+    if 'Podman Engine' in names:
+        raise reaches_podman
+    if _version(server) < (28, 0, 0):
+        raise EngineError('Docker Engine 28 or later is required.')
+    if _version(_output('docker', 'compose', 'version', '--short')) < (2, 36, 0):
+        raise EngineError('Docker Compose 2.36 or later is required.')
+
+
+def prepare_launch(command):
+    """Check the engine, then create Podman networks, before a networked launch."""
+    check_engine()
+    ensure_networks(command)
 
 
 def remove_networks(command):
@@ -74,13 +169,13 @@ def remove_networks(command):
         if network.get('external'):
             continue
         name = network['name']
-        found = subprocess.run(['podman', 'network', 'inspect', name], cwd=ROOT, text=True, capture_output=True)
+        found = subprocess.run([*engine_command(), 'network', 'inspect', name], cwd=ROOT, text=True, capture_output=True)
         if found.returncode != 0:
             continue
         labels = json.loads(found.stdout)[0].get('labels') or {}
         if labels.get('com.docker.compose.project') != config['name']:
             continue
-        removed = subprocess.run(['podman', 'network', 'rm', name], cwd=ROOT, text=True, capture_output=True)
+        removed = subprocess.run([*engine_command(), 'network', 'rm', name], cwd=ROOT, text=True, capture_output=True)
         if removed.returncode:
             print(f'Could not remove Podman network {name}: {removed.stderr.strip()}', file=sys.stderr, flush=True)
 
@@ -105,7 +200,10 @@ def ensure_networks(command):
         subnets = sorted(entry['subnet'] for entry in (network.get('ipam') or {}).get('config') or []
                          if 'subnet' in entry)
         internal = bool(network.get('internal'))
-        found = subprocess.run(['podman', 'network', 'inspect', name], cwd=ROOT, text=True, capture_output=True)
+        if options.get('isolate') != 'strict':
+            # Without strict isolation, netavark forwards from other networks (F9).
+            raise RuntimeError(f'Network {key} has no isolate: strict for Podman. Declare it in compose.podman.yaml.')
+        found = subprocess.run([*engine_command(), 'network', 'inspect', name], cwd=ROOT, text=True, capture_output=True)
         if found.returncode == 0:
             actual = json.loads(found.stdout)[0]
             actual_options = actual.get('options') or {}
@@ -116,7 +214,7 @@ def ensure_networks(command):
                 raise RuntimeError(f'Podman network {name} does not have the options the stack declares. '
                                    'Run make down so that it is created again.')
             continue
-        arguments = ['podman', 'network', 'create',
+        arguments = [*engine_command(), 'network', 'create',
                      '--label', f"com.docker.compose.project={config['name']}",
                      '--label', f'com.docker.compose.network={key}']
         if internal:
@@ -137,16 +235,16 @@ def compose_files(funnel, extra=()):
 
 
 def settings():
-    result = subprocess.run(['docker', 'compose', *compose_files(False), 'config', '--format', 'json'],
+    result = subprocess.run([*compose_base(), *compose_files(False), 'config', '--format', 'json'],
                             cwd=ROOT, text=True, capture_output=True, check=True)
     return Settings.read(json.loads(result.stdout)['x-deployment'])
 
 
-def compose(config, all_ingress=False):
-    return ['docker', 'compose', *compose_files(config.funnel or all_ingress)]
+def compose(config, all_ingress=False, extra=()):
+    return [*compose_base(), *compose_files(config.funnel or all_ingress, extra)]
 
 
-def maintenance_compose(all_ingress=False, executor_build=False):
+def maintenance_compose(all_ingress=False, executor_build=False, extra=()):
     # These operations must not start ingress, inference or the agent with
     # placeholders. Actual treasury policy remains in its mounted configuration.
     # Compose still interpolates unused services and publications.
@@ -158,7 +256,7 @@ def maintenance_compose(all_ingress=False, executor_build=False):
         # Saved-state inspection/shutdown do not select or build an executor.
         # An invalid optional desktop preference must not block those operations.
         os.environ['COMPUTER_USE_ENABLED'] = 'false'
-    return ['docker', 'compose', *compose_files(all_ingress)]
+    return [*compose_base(), *compose_files(all_ingress, extra)]
 
 
 def maintenance_command(arguments):
@@ -186,3 +284,83 @@ def render(config):
     path = ROOT / 'config/webapp/proxy.cfg'
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(proxy_config(config, loopback_forwarder=engine() == 'podman'))
+
+
+# Compose global options that the stack.py passthrough accepts before the subcommand.
+GLOBAL_OPTIONS = {'-p': 'project', '--project-name': 'project', '--profile': 'profile', '-f': 'file',
+                  '--file': 'file', '--env-file': 'env', '--project-directory': 'directory'}
+NETWORKED = ('up', 'create', 'run', 'start', 'restart', 'watch')
+# `run` options that take a value, so that the service name can be found.
+RUN_VALUE_OPTIONS = ('--entrypoint', '-v', '--volume', '-e', '--env', '--env-from-file', '-u', '--user', '--name',
+                     '-w', '--workdir', '-p', '--publish', '-l', '--label', '--cap-add', '--cap-drop', '--pull')
+
+
+def needs_networks(command, rest):
+    """Return whether a Compose subcommand can create project networks.
+
+    `run` creates networks only for a service that joins networks; a networkless
+    job (network_mode none, service: or container:) does not. An unknown service
+    is treated as networked.
+    """
+    if not rest or rest[0] not in NETWORKED:
+        return False
+    if rest[0] != 'run':
+        return True
+    arguments = iter(rest[1:])
+    service = None
+    for value in arguments:
+        if value in RUN_VALUE_OPTIONS:
+            next(arguments, None)
+        elif not value.startswith('-'):
+            service = value
+            break
+    if service is None:
+        return True
+    config = json.loads(_output(*command, '--profile', '*', 'config', '--format', 'json'))
+    mode = ((config.get('services') or {}).get(service) or {}).get('network_mode', '')
+    return not (mode == 'none' or mode.startswith(('service:', 'container:')))
+
+
+def split_passthrough(arguments):
+    """Split `compose` passthrough arguments into (files, global options, dry run, rest).
+
+    The rest starts with the Compose subcommand. Files are returned apart so that
+    the engine files stay last. An unsupported global option is an error: the
+    wrapper must know the project and model a launch uses.
+    """
+    files, options, dry_run = [], [], False
+    rest = list(arguments)
+    while rest and rest[0].startswith('-'):
+        argument = rest.pop(0)
+        if argument == '--dry-run':
+            dry_run = True
+            options.append(argument)
+            continue
+        name, value = argument, None
+        if argument.startswith('--') and '=' in argument:
+            name, value = argument.split('=', 1)
+        elif not argument.startswith('--') and len(argument) > 2:
+            name, value = argument[:2], argument[2:].removeprefix('=')
+        if name not in GLOBAL_OPTIONS:
+            raise ValueError(f'Unsupported Compose global option {name}. Supported before the subcommand: '
+                             + ', '.join(sorted(GLOBAL_OPTIONS)) + ', --dry-run.')
+        if value is None:
+            if not rest:
+                raise ValueError(f'{name} needs a value')
+            value = rest.pop(0)
+        if GLOBAL_OPTIONS[name] == 'file':
+            files.append(value)
+        else:
+            options += [name, value]
+    return files, options, dry_run, rest
+
+
+if __name__ == '__main__':
+    # For the Makefile: print the selected Compose command.
+    if sys.argv[1:] == ['compose-command']:
+        try:
+            print(' '.join(compose_base()))
+        except EngineError as error:
+            raise SystemExit(str(error)) from None
+    else:
+        raise SystemExit('usage: deployment.py compose-command')

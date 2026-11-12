@@ -74,22 +74,36 @@ inside an application cannot grant a direct uplink.
 
 ## Rootless Podman
 
-The same topology and boundaries apply on rootless Podman. `scripts/deployment.py`
-selects `compose.podman.yaml`, and `compose.podman.funnel.yaml` with Funnel, as
-the last Compose files, only when the endpoint Compose uses identifies as Podman:
-the server reports the `Podman Engine` component, or the `docker` command is
-Podman and `DOCKER_HOST`, when set, names a Podman endpoint. Any other answer
-selects Docker. With the Docker files, Podman does not start the stack, because
-Compose refuses `healthcheck.start_interval` for Podman's API version.
+The same topology and boundaries apply on rootless Podman. `CONTAINER_ENGINE`
+(`docker` or `podman`, from the environment or root `.env`, default `docker`)
+selects the engine; any other value is an error, never a fallback.
+`scripts/deployment.py` builds every engine and Compose command from that
+selection: `docker` and `docker compose`, or the local `podman --remote=false`
+and `podman --remote=false compose`. With Podman it adds `compose.podman.yaml`,
+and `compose.podman.funnel.yaml` with Funnel, as the last Compose files, after
+any file a command adds.
+
+With Podman, the stack removes `DOCKER_HOST`, `DOCKER_CONTEXT`, `CONTAINER_HOST`
+and `CONTAINER_CONNECTION` from the environment of its commands: `podman compose`
+passes an inherited `DOCKER_HOST` to its Compose provider. Inspection, backup and
+shutdown then use the local Podman; a launch refuses to start while one of these
+variables is set. Before each launch (`make up`, treasury startup and wallet
+creation, the test fixtures, and `up`, `create`, `run`, `start`, `restart` or
+`watch` through `stack.py compose`), `deployment.prepare_launch()` checks the
+engine: on Docker, Docker Engine 28+ (not Podman behind a `docker` command) and
+Compose 2.36+; on Podman, rootless 5.4+, the user API socket, and Docker Compose
+2.36+ as the provider. `stack.py compose` reads the global options before the
+subcommand (`-p`, `--profile`, `-f`, `--env-file`, `--project-directory`,
+`--dry-run`) and uses them for preparation, the command and cleanup alike; it
+refuses other global options.
 
 Compose creates networks through Podman's Docker-compatible API, which sets
 only `isolate=true` and drops other bridge options. Before Compose starts
 services, `deployment.ensure_networks()` therefore creates each project network
 with the `podman` command, using the options the overlays declare and Compose's
-labels; Compose adopts these networks, and `make down` removes them. An existing
-network without the declared options stops startup until `make down` removes it.
-Preflight requires rootless Podman 5.4+, the `podman` command, and a
-`DOCKER_HOST` that is unset or names the user's Podman socket.
+labels; Compose adopts these networks, and `make down` removes them. Every
+non-external network must declare `isolate: strict`; a network without it, or an
+existing network without the declared options, stops startup.
 
 | Docker behavior | Rootless Podman counterpart |
 | --- | --- |

@@ -1,5 +1,5 @@
-# Rootless Podman overlay. scripts/deployment.py adds it last, and only when the
-# engine identifies as Podman. It removes or replaces the Docker-only settings
+# Rootless Podman overlay. scripts/deployment.py adds it last when
+# CONTAINER_ENGINE=podman. It removes or replaces the Docker-only settings
 # of compose.yaml; see docs/architecture.md (engine differences).
 #
 # Netavark forwards between bridge networks unless they are isolated, and it

@@ -3,14 +3,17 @@
 import json
 from pathlib import Path
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+from deployment import engine_command  # noqa: E402
 IMAGE = 'private-hermes-agent:local'
 PYTHON = '/opt/hermes/.venv/bin/python'
 
 
 def run(*arguments, check=True):
-    return subprocess.run(['docker', *arguments], cwd=ROOT, check=check,
+    return subprocess.run([*engine_command(), *arguments], cwd=ROOT, check=check,
                           text=True, capture_output=True)
 
 

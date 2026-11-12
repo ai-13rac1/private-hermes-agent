@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Unsupported-tool exclusion in the packaged image; no network or private mounts.
 
-Build first: docker compose -f compose.yaml build hermes
+Build first: python3 scripts/stack.py compose build hermes
 Run: python3 tests/desktop_tools_smoke.py
 """
 import json
@@ -9,6 +9,8 @@ from pathlib import Path
 import subprocess
 import sys
 from types import SimpleNamespace
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from deployment import compose_base, engine_command  # noqa: E402
 
 
 DISABLED = {
@@ -179,7 +181,7 @@ def main():
     fixture = Path(__file__).resolve()
     for mode, enabled in [(m, e) for m in ('tor_proxied', 'ask', 'off', 'browser_native', '', 'invalid') for e in ('false', 'true')]:
         subprocess.run([
-            'docker', 'run', '--rm', '--network', 'none', '--cap-drop', 'ALL',
+            *engine_command(), 'run', '--rm', '--network', 'none', '--cap-drop', 'ALL',
             '-e', f'WEBAPP_EXTERNAL_CONTENT={mode}', '-e', 'HERMES_HOME=/tmp/desktop-tools-test',
             '-e', f'COMPUTER_USE_ENABLED={enabled}',
             '--mount', f'type=bind,source={fixture},target=/tmp/desktop_tools_smoke.py,readonly',

@@ -1,9 +1,9 @@
 # Rootless Podman support
 
 Status: original G1 passed; P1 is merged; original P2 and P4 are implemented.
-P3 is partial. Review of `86c74f9` found three open defects (R1–R3 below).
-P5–P7 describe the explicit-selection amendment and are not implemented.
-Amendment design gate G1A passed; final combined gate G2 remains open.
+P5 and P6 are implemented on branch `podman-p5` (rebased onto `main` `3161614`)
+and qualified on rootless Podman (P5 evidence below); R1–R3 are resolved there.
+Amendment design gate G1A passed. P7 needs the Docker run; final gate G2 is open.
 Planning baseline: branch `main`, commit `4a08841`. Amendment baseline: branch
 `main`, commit `1d83657`.
 Explicit-selection amendment baseline: branch `rootless-podman-support`, commit
@@ -444,7 +444,7 @@ replaced with the P5 operating contract as that implementation lands.
   `X-Forwarded-For` value, which is `10.203.85.3` for every client on Podman.
 - Checks in `docs/development.md`.
 
-### P5 — Explicit selection and unified engine operations (not implemented)
+### P5 — Explicit selection and unified engine operations (implemented)
 
 Implement D1/D8/D9 and the simplifications together in a coherent new development
 commit, after G1A. Cover R1 and R2; no fixup/squash/rebase of existing history.
@@ -494,7 +494,34 @@ Focused acceptance:
   and conflicting ambient Podman endpoint overrides; no provider keys, credentials
   or wallets are rewritten. Repeated init retains the existing selector/config.
 
-### P6 — Accurate rootless publication guidance (not implemented)
+P5 evidence, 2026-11-12, rootless Podman 5.4.2, Docker Compose 2.40.3 as the
+`podman compose` provider, `CONTAINER_ENGINE=podman` exported:
+
+- Negative control on the old automatic selection (`84c5677`): `make down`, then
+  `stack.py compose --profile x402_treazury up -d …`, then the path test:
+  "Totals: 23 passed, 12 failed" (every network `isolate=true`, a client on a
+  network without isolation reached teep's uplink, HAProxy had a default route).
+- The same commands on this branch: "Totals: 36 passed, 0 failed" (the path test
+  now has 36 checks, with a TCP positive control). With `-p private-hermes`: 36/36.
+  With `-p another up -d --no-deps tor`: all nine `another_*` networks strict and
+  labelled for project `another`; `-p another down` left none.
+- Refused before any container or network was created: the default `docker`
+  selection on this Podman-only host ("The docker command reaches Podman"), an
+  exported `DOCKER_HOST` with Podman selected, and an unsupported global option.
+  Without this policy, `podman --remote=false compose` passes an inherited
+  `DOCKER_HOST` to its provider (shown with a stub provider).
+- `tests/smoke.py`, `tests/storage_smoke.py`, `tests/x402_treazury_smoke.py`,
+  `make up` and `make podman-paths-test` (36/36) passed; no fixture networks were
+  left. `make check` stops at the unchanged `test_storage` error
+  (`create_host_path`, also on `main` with Compose 2.26.1 and 2.40.3), so these
+  suites ran with the Makefile's commands directly.
+- Unit suite: 128 tests under `CONTAINER_ENGINE=docker` and `=podman`, one error
+  (the same `test_storage`).
+- Not run: Docker (P7), the webapp browser suite, desktop and browser automation
+  (Docker-only, F11), research-config, endpoint-readiness, images and Hermes UI
+  smoke scripts on Podman.
+
+### P6 — Accurate rootless publication guidance (implemented)
 
 A separate focused new commit implements D10/R3: correct the Podman overlay
 comment, architecture table and configuration/webapp guidance. Preserve the

@@ -5,7 +5,8 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-from deployment import ROOT, compose, compose_files, ensure_networks, remove_networks, render, settings, maintenance_compose, maintenance_command
+from deployment import (ROOT, compose, compose_base, compose_files, prepare_launch, remove_networks, render,
+                        settings, maintenance_compose, maintenance_command, needs_networks, split_passthrough)
 from auth import validate
 from x402_treazury import Controller, operation_lock
 from provisioning import initialize_setup, initialize_research_config
@@ -57,27 +58,36 @@ def main_unlocked():
             run(all_command + ['down', '--timeout', '-1'])
             remove_networks(all_command)
         return
-    if args.action == 'compose' and args.arguments[:1] == ['config']:
-        # Inspect the actual model, including invalid policy values, without
-        # replacing them with maintenance placeholders or pre-validating policy.
-        run(['docker', 'compose', *compose_files(True), *args.arguments])
-        return
-    if args.action == 'compose' and maintenance_command(args.arguments):
-        command = maintenance_compose(all_ingress=True, executor_build=args.arguments[:1] == ['build'])
-        run(command + args.arguments)
-        if args.arguments[0] == 'down':
-            remove_networks(command)
+    if args.action == 'compose':
+        if not args.arguments:
+            raise ValueError('Provide a Compose command after compose')
+        # Global options come before the subcommand. Keep the user's files
+        # before the engine files, and use the same project and profiles for
+        # network preparation, the command and cleanup.
+        files, options, dry_run, rest = split_passthrough(args.arguments)
+        if not rest:
+            raise ValueError('Provide a Compose command after the global options')
+        if rest[0] == 'config':
+            # Inspect the actual model, including invalid policy values, without
+            # replacing them with maintenance placeholders or pre-validating policy.
+            run([*compose_base(), *compose_files(True, files), *options, *rest])
+            return
+        if maintenance_command(rest):
+            command = maintenance_compose(all_ingress=True, executor_build=rest[0] == 'build', extra=files) + options
+            run(command + rest)
+            if rest[0] == 'down' and not dry_run:
+                remove_networks(command)
+            return
+        config = settings()
+        command = compose(config, extra=files) + options
+        if not dry_run and needs_networks(command, rest):
+            prepare_launch(command)
+        run(command + rest)
         return
     config = settings()
     command = compose(config)
     all_command = compose(config, all_ingress=True)
-    if args.action == 'compose':
-        if not args.arguments:
-            raise ValueError('Provide a Compose command after compose')
-        if args.arguments[0] in ('up', 'create', 'run', 'start'):
-            ensure_networks(command)
-        run(command + args.arguments)
-    elif args.action == 'config':
+    if args.action == 'config':
         run(command + ['config', '--quiet'])
     else:
         run([sys.executable, 'scripts/preflight.py', *(['--funnel'] if config.funnel else [])])
@@ -97,7 +107,7 @@ def main_unlocked():
         initialize_research_config(command, ROOT)
         initialize_setup(command)
         infrastructure = ['tor', 'agent-net', 'executor-net', 'executor', 'teep']
-        ensure_networks(command)
+        prepare_launch(command)
         run(command + ['up', '-d', '--wait', '--no-deps', *infrastructure])
         controller = Controller(command, ROOT)
         # Setup already removed research registrations. The recreated gateway
