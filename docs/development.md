@@ -83,8 +83,8 @@ Run
 `make test` on each engine (`CONTAINER_ENGINE=podman make test` selects Podman
 without editing `.env`) before changing network, ingress or overlay code. On
 Podman, `make podman-paths-test` checks the paths of a running stack, including a
-client on a network without isolation, with positive controls for its DNS and
-TCP probes.
+client on a network without isolation, with positive controls for its DNS, TCP
+and host-loopback probes; it refuses to run unless Podman is selected.
 
 Component-specific checks and limits are documented in the
 [webapp](webapp.md#verification-and-current-limits),

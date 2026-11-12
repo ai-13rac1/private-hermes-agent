@@ -6,7 +6,7 @@ import subprocess
 import smoke
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from deployment import compose_base, engine_command  # noqa: E402
+from deployment import compose_base  # noqa: E402
 
 smoke.COMPOSE = [*compose_base(), '-p', 'private-hermes-plugins-test',
                  *smoke.compose_files(False, extra=('tests/compose.yaml',))]

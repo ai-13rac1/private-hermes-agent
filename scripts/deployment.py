@@ -206,6 +206,11 @@ def ensure_networks(command):
         found = subprocess.run([*engine_command(), 'network', 'inspect', name], cwd=ROOT, text=True, capture_output=True)
         if found.returncode == 0:
             actual = json.loads(found.stdout)[0]
+            labels = actual.get('labels') or {}
+            if (actual.get('driver') != 'bridge' or labels.get('com.docker.compose.project') != config['name']
+                    or labels.get('com.docker.compose.network') != key):
+                raise RuntimeError(f'Podman network {name} is not a bridge network of this project. '
+                                   'Remove it or choose another project name.')
             actual_options = actual.get('options') or {}
             actual_subnets = sorted(entry['subnet'] for entry in actual.get('subnets') or [])
             if (any(actual_options.get(option) != value for option, value in options.items())
@@ -281,7 +286,11 @@ def render(config):
 # Compose global options that the stack.py passthrough accepts before the subcommand.
 GLOBAL_OPTIONS = {'-p': 'project', '--project-name': 'project', '--profile': 'profile', '-f': 'file',
                   '--file': 'file', '--env-file': 'env', '--project-directory': 'directory'}
-NETWORKED = ('up', 'create', 'run', 'start', 'restart', 'watch')
+# Compose subcommands that create no network. Every other subcommand, including
+# an unknown one, is prepared as a launch (run only for a networked service).
+NO_NETWORKS = ('config', 'ps', 'ls', 'logs', 'top', 'port', 'images', 'version', 'events', 'exec', 'stop',
+               'down', 'rm', 'kill', 'pause', 'unpause', 'build', 'pull', 'push', 'cp', 'wait', 'attach',
+               'stats', 'commit', 'export', 'volumes')
 # `run` options that take a value, so that the service name can be found.
 RUN_VALUE_OPTIONS = ('--entrypoint', '-v', '--volume', '-e', '--env', '--env-from-file', '-u', '--user', '--name',
                      '-w', '--workdir', '-p', '--publish', '-l', '--label', '--cap-add', '--cap-drop', '--pull')
@@ -338,7 +347,7 @@ def needs_networks(command, rest):
     runs, or dependency networks for none-mode jobs, even with --no-deps.
     Unknown services are treated as networked.
     """
-    if not rest or rest[0] not in NETWORKED:
+    if not rest or rest[0] in NO_NETWORKS:
         return False
     if rest[0] != 'run':
         return True
@@ -403,7 +412,10 @@ if __name__ == '__main__':
     # For the Makefile: print the selected Compose command.
     if sys.argv[1:] == ['compose-command']:
         try:
-            print(' '.join(compose_base()))
+            # Make runs this command with its own environment: drop the
+            # endpoint overrides there too, as engine() does for this process.
+            prefix = ['env', *(f'--unset={name}' for name in PODMAN_OVERRIDES)] if engine() == 'podman' else []
+            print(' '.join([*prefix, *compose_base()]))
         except EngineError as error:
             raise SystemExit(str(error)) from None
     else:
