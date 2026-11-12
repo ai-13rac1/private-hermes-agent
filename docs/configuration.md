@@ -103,7 +103,7 @@ Use the unprivileged offline configuration job for repair, or trusted setup for
 deliberate full storage qualification:
 
 ```sh
-python3 scripts/stack.py compose run --rm --no-deps hermes-config set model.default 'neardirect:z-ai/glm-5.3-flash-long'
+python3 scripts/stack.py compose run --rm --no-deps hermes-config set model.default 'neardirect:z-ai/glm-5.3-flash'
 python3 scripts/stack.py compose run --rm --no-deps setup-storage
 ```
 
@@ -209,8 +209,7 @@ The recommended provider is NearAI via teep's `neardirect` backend. Set
 `NEARAI_API_KEY` in `.env`. The native Hermes model picker has a **Teep** entry
 with these choices:
 
-- `neardirect:z-ai/glm-5.3-flash-long` (initial default)
-- `neardirect:z-ai/glm-5.3-flash`
+- `neardirect:z-ai/glm-5.3-flash` (initial default)
 - `neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017-abliterated`
 - `neardirect:deepseek-ai/DeepSeek-V4.1-Flash-1017`
 
