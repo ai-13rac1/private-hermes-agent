@@ -82,10 +82,14 @@ inside an application cannot grant a direct uplink.
 - Hermes: derived from official v0.23.0, with base digest and explicit source
   checks in `components/hermes/`. Runtime and maintenance share the derived
   image; see [patch/build procedure](updates-and-plugins.md#derived-hermes-build-and-patch-maintenance).
-- teep: built from commit `789918ea606826650447a7f1930b917521d3d135`
-  with Go 1.26. It runs as UID 10002, read-only except temporary files, without
-  `--offline`, `--force`, or debug tags. Upstream's default attestation policy
-  (including allowed failures) is preserved. Health is not proof of attestation.
+- teep: built from commit `3e5fb52284d7c4a99bbbab4695e7b503785e98da` of the
+  `hackathon` branch of github.com/ai-13rac1/teep, with Go 1.26. That commit is
+  teep `main` (`84ddfdc`) plus the change that allows the
+  `sigstore_verification` factor to fail for NEAR AI (13rac1/teep#191, open);
+  the pin moves to a teep `main` commit when #191 merges. It runs as UID 10002,
+  read-only except temporary files, without `--offline`, `--force`, or debug
+  tags. The attestation policy is upstream's default, plus the NEAR AI change in
+  13rac1/teep#191. Health is not proof of attestation.
 - Executor: lean Alpine by default, or a pinned Debian desktop sandbox selected
   by `COMPUTER_USE_ENABLED`. Both have Python, Node, Git, SSH, curl, read-only root
   and separate writable home/workspace. The desktop adds Xvnc/Xfce, Chromium and
