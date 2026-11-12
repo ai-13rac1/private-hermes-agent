@@ -100,6 +100,7 @@ Preflight requires rootless Podman 5.4+, the `podman` command, and a
 | Embedded DNS at `127.0.0.11` | aardvark-dns at each network gateway, denied by the endpoint firewalls with the connected networks. teep resolves provider names through it on `teep-uplink`. |
 | `healthcheck.start_interval`, `gw_priority` | Removed by the overlay. Podman's API refuses `start_interval`. `gw_priority` is not needed: the other network of teep and Tailscale is internal and gives no default route. |
 | Unprivileged processes may bind any port (`net.ipv4.ip_unprivileged_port_start=0`) | Podman sets the floor to 1024. The overlay sets 0 for HAProxy, so a `WEBAPP_PORT` below 1024 works as on Docker; the other services use ports above 1024 or bind as root. |
+| A custom seccomp profile (`security_opt: seccomp=<file>`), used by the executor desktop | Compose sends the profile's content through the Docker-compatible API, and Podman's API treats that value as a file path, so the container cannot be created. Preflight refuses any custom seccomp profile on Podman; the desktop (`COMPUTER_USE_ENABLED=true`) needs Docker. |
 | Restart backoff | A container that exits at once restarts about every 0.3 s. Startup refuses to run without an inference provider key, on both engines, because teep exits at once without one. Check `podman ps` and restart counts when a service does not become healthy. |
 
 Pasta maps `169.254.1.2` to the host. In a test on a network without

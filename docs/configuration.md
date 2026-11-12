@@ -164,6 +164,11 @@ advertised tools. A profile can still exclude either tool. `browser_cdp`,
 `browser_dialog` and `browser_vault` remain disabled. `WEBAPP_EXTERNAL_CONTENT`
 keeps its separate meaning; there is no second preference for browser automation.
 
+The desktop needs Docker. Its executor uses a custom seccomp profile, and
+Podman's Docker-compatible API cannot create a container with one, so on
+rootless Podman preflight refuses `COMPUTER_USE_ENABLED=true`
+(see [engine differences](architecture.md#rootless-podman)).
+
 Browser automation supports the executor's packaged Chromium only. External CDP,
 cloud browsers, real host profiles and alternate engines fail before execution.
 Its Python harness, daemon, workspace helpers and child processes run as runner
