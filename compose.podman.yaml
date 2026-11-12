@@ -25,7 +25,8 @@ services:
         gw_priority: !reset null
   webapp-proxy:
     # Docker lets unprivileged processes bind any port; Podman sets the floor
-    # to 1024. Keep a WEBAPP_PORT below 1024 working as on Docker.
+    # to 1024 in a container. This lets HAProxy bind a low port in its namespace;
+    # it does not lower the host's floor for publishing a low host port.
     sysctls:
       net.ipv4.ip_unprivileged_port_start: 0
     environment:

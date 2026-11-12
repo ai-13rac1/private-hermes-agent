@@ -86,7 +86,9 @@ for your user and set `PODMAN_COMPOSE_PROVIDER` to its path, or name it in
 `compose_providers` in `~/.config/containers/containers.conf`. Containers stop
 when you log out unless lingering is enabled for your user (`loginctl
 enable-linger`, which may need an administrator). After a reboot, run `make up`
-to start the stack again. See [engine differences](docs/architecture.md#rootless-podman).
+to start the stack again. Keep the default `WEBAPP_PORT=9120` or another port
+of 1024 or above: a rootless user can publish a lower port only if the host
+allows it. See [engine differences](docs/architecture.md#rootless-podman).
 
 Initialize your local settings:
 
