@@ -551,7 +551,8 @@ P5 evidence, 2026-11-12, rootless Podman 5.4.2, Docker Compose 2.40.3 as the
   not host loopback, so the earlier loopback-only probes were vacuous. With a
   stand-in service on the host's address and a positive control from a plain
   network, Hermes and the executor are blocked; teep reaches it (accepted direct
-  uplink, as through Docker's uplink gateway; D4). Path test: 38 passed, 0 failed.
+  uplink, D4). The same reach through Docker's uplink gateway is expected but
+  not tested on Docker (P7). Path test: 38 passed, 0 failed.
 - Not run: Docker (P7), the webapp browser suite, desktop and browser automation
   (Docker-only, F11), research-config, endpoint-readiness, images and Hermes UI
   smoke scripts on Podman.
