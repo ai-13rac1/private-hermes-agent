@@ -8,7 +8,7 @@
 +    from hermes_cli.private_browser_use import available
 +    return available()
 
- 
+
  def _workspace_dir(task_id: Optional[str]) -> Optional[str]:
 @@ -630,6 +631,9 @@
      """Stop every harness daemon this process drove (only ``home_key``'s when given), through the
@@ -32,7 +32,7 @@
      if not code or not code.strip():
 @@ -969,6 +976,9 @@
 
- 
+
  def _dynamic_schema_overrides() -> dict:
 +    from hermes_cli.private_browser_use import schema_overrides
 +    return schema_overrides()

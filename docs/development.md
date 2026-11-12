@@ -184,7 +184,13 @@ without socket/symlink extraction failures. The qualification remains limited to
 the single default-profile desktop and tested engine/architecture above; AMD64,
 rootless Podman and full visual noVNC-pane interaction remain unqualified.
 CDP/dialog/vault tools remain excluded; raw CDP through executor Python does not
-qualify their separate native routes. Final independent acceptance is pending.
+qualify their separate native routes.
+
+A fresh independent read-only combined review accepted BU-1 and BU-FINAL at
+`db84bcfb8ea879a51db5ab59c0ac6b1a244874b3` for this documented scope, with no
+material findings. Final patch-context whitespace cleanup was checked against
+the exact packaged source: all seven patches apply and produce identical source
+bytes. The completed browser-use plan has been removed; its history remains in Git.
 
 ## Diagnostic messages
 
