@@ -134,12 +134,14 @@ defaults, not immutable enforcement against arbitrary plugin or agent code.
 
 ## Derived Hermes build and patch maintenance
 
-`components/hermes/Dockerfile` derives from the pinned official v0.23.0 image,
-source `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`. A disposable build stage checks
+`components/hermes/Dockerfile` derives from the pinned official v0.23.1 image,
+source `3b421578588243f920886e6fe79a6faa87ea026e`. A disposable build stage checks
 the clean install stamp and the packaged Webapp source hash against its reviewed
 native build receipt before applying explicit patches with `git apply --check`.
-The image supplies the source and pinned Node/npm; the native build recipe installs
-locked npm dependencies and compiles the browser-hosted Desktop. The final image
+The image supplies the source and pinned Node. The disposable build stage uses
+upstream PM to install its hash-verified pnpm 12.15.0 pin, then the native build
+recipe installs frozen-lockfile dependencies and compiles the browser-hosted
+Desktop. pnpm and frontend build dependencies do not enter the final image. The final image
 retains upstream dispatch, bootstrap and UID handling and explicitly selects the
 rebuilt `apps/desktop/dist-webapp` through `HERMES_WEBAPP_DIST`. It does not replace
 the separate legacy dashboard assets in `hermes_cli/web_dist` or install build

@@ -79,7 +79,7 @@ inside an application cannot grant a direct uplink.
   and local authenticated bootstrap health check. Tor runs as UID 101 after
   initialization; there is no TCP control API, TCP SOCKS service, or HTTP proxy.
   A private SOCKS Unix socket is mounted only into the x402_treazury container.
-- Hermes: derived from official v0.23.0, with base digest and explicit source
+- Hermes: derived from official v0.23.1, with base digest and explicit source
   checks in `components/hermes/`. Runtime and maintenance share the derived
   image; see [patch/build procedure](updates-and-plugins.md#derived-hermes-build-and-patch-maintenance).
 - teep: built from commit `789918ea606826650447a7f1930b917521d3d135`

@@ -104,6 +104,47 @@ def login(page, origin):
     page.wait_for_load_state('domcontentloaded')
 
 
+def relay_checks(page, context, origin):
+    saved = fetch(page, '/api/gateway-connections', {
+        'kind': 'remote', 'label': 'Disposable relay', 'url': 'http://10.203.84.10:8000',
+        'authMode': 'token', 'token': 'disposable-relay-token'})
+    assert saved['status'] == 200, saved
+    connection_id = saved['body']['connection']['id']
+    base = '/api/relay/' + connection_id
+    try:
+        with context.browser.new_context(ignore_https_errors=True) as anonymous:
+            response = anonymous.request.get(origin + base + '/relay/page.html', max_redirects=0)
+            assert response.status in (401, 302, 303), response.status
+        for path in ('page.html', 'image.svg'):
+            response = page.request.get(origin + base + '/relay/' + path)
+            assert response.status == 200, response.status
+            headers = response.headers
+            assert headers['content-disposition'] == 'attachment', headers
+            assert "default-src 'none'" in headers['content-security-policy'], headers
+            assert 'x-private-hermes-trusted-page' not in headers, headers
+            assert 'set-cookie' not in headers and 'link' not in headers, headers
+        # Actual raster rendering through the native relay remains available.
+        result = page.evaluate('''async path => {
+          const image = new Image(); image.src = path; document.body.append(image);
+          try { await image.decode(); return image.naturalWidth; } finally { image.remove(); }
+        }''', base + '/relay/image.png')
+        assert result == 1, result
+        # Attempt to embed each active response. Attachment/CSP must prevent execution
+        # and remote subresources even when the native upstream content is hostile.
+        page.evaluate('''base => {
+          for (const name of ['page.html', 'image.svg']) {
+            const frame = document.createElement('iframe'); frame.dataset.relayTest = '1';
+            frame.src = base + '/relay/' + name; document.body.append(frame);
+          }
+        }''', base)
+        page.wait_for_timeout(500)
+        page.locator('iframe[data-relay-test]').evaluate_all('(frames) => frames.forEach(frame => frame.remove())')
+        assert not any('/relay' in request['path'] for request in requests), requests
+    finally:
+        response = page.request.delete(origin + '/api/gateway-connections/' + connection_id)
+        assert response.status == 200, response.status
+
+
 try:
     with sync_playwright() as playwright:
         for engine in (sys.argv[3:] or ('chromium', 'firefox', 'webkit')):
@@ -118,6 +159,7 @@ try:
                     page.on('websocket', lambda ws: ws.on('framereceived', lambda frame: chat_frames.append(frame)))
                     login(page, origin)
                     page.get_by_text('ready', exact=True).first.wait_for(timeout=30000)
+                    relay_checks(page, context, origin)
                     editor = page.locator('[data-slot="composer-rich-input"]').first
                     editor.fill('qualification-stream')
                     editor.press('Enter')

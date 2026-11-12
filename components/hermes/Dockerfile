@@ -1,12 +1,13 @@
-# Official v0.23.0, source 2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19.
-FROM nousresearch/hermes-agent@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002 AS upstream
+# Official v0.23.1, source 3b421578588243f920886e6fe79a6faa87ea026e.
+FROM nousresearch/hermes-agent@sha256:276d44685c65c0cb2a25f190b63c65c8906f9dc76486fb1c05ae71b5826bda08 AS upstream
 
 FROM upstream AS webapp-build
 COPY components/hermes/verify-build.mjs /tmp/verify-build.mjs
 RUN node /tmp/verify-build.mjs
-# Use the packaged npm CLI explicitly; do not install a second toolchain.
-RUN npm_execpath="$(readlink -f /usr/local/bin/npm)" \
-    node apps/desktop/scripts/build-webapp.mjs --deps-only
+# Upstream's runtime omits pnpm. Use its own hash-verified PM pin, only in
+# this disposable frontend stage, matching the upstream frontend build.
+RUN python3 -c 'from pathlib import Path; from pm import ensure, installed_package; ensure("pnpm", explicit=True); Path("/usr/local/bin/pnpm").symlink_to(installed_package("pnpm").binary)'
+RUN node apps/desktop/scripts/build-webapp.mjs --deps-only
 COPY components/hermes/ui/private-content.tsx /opt/hermes/apps/desktop/src/components/ui/private-content.tsx
 COPY components/hermes/patches/ /tmp/private-hermes-patches/
 RUN git apply --check /tmp/private-hermes-patches/*.patch && \
@@ -14,7 +15,6 @@ RUN git apply --check /tmp/private-hermes-patches/*.patch && \
 # The inherited output is an overlay lower-layer directory; replacing it by
 # rename fails EXDEV. Remove only this disposable build output before compiling.
 RUN rm -rf apps/desktop/dist-webapp && \
-    npm_execpath="$(readlink -f /usr/local/bin/npm)" \
     node apps/desktop/scripts/build-webapp.mjs --no-install
 
 # Native browser session creation validates its agent-side cwd exists. This

@@ -37,8 +37,8 @@ Preserve that explicit opt-in and private-mode restrictions. This plan must not
 use browser-native previews as evidence of executor isolation or authorize
 model Python execution in Hermes.
 
-The derived image retains official v0.23.0 source
-`2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`. Part 1 owns
+The derived image retains official v0.23.1 source
+`3b421578588243f920886e6fe79a6faa87ea026e`. Part 1 owns
 `/api/private-content/{policy,consent,image}`, exact browser/external-origin
 Tor-image grants in the native Hermes volume, early deployment-mode capture,
 shared resource renderers and additive response enforcement. Private HTML

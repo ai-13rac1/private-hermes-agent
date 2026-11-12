@@ -1,5 +1,6 @@
 """Stateless Streamable HTTP MCP fixture, plus reachable forbidden-port controls."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import base64
 import json
 import threading
 import socket
@@ -12,6 +13,29 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        if self.path.startswith('/relay/'):
+            if self.headers.get('X-Hermes-Session-Token') != 'disposable-relay-token':
+                self.send_error(401)
+                return
+            if self.path == '/relay/image.png':
+                mime = 'image/png'
+                body = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')
+            elif self.path == '/relay/image.svg':
+                mime = 'image/svg+xml'
+                body = b'<svg xmlns="http://www.w3.org/2000/svg"><script>fetch("https://public.test:19202/relay-script")</script><image href="https://public.test:19202/relay.png"/></svg>'
+            else:
+                mime = 'text/html'
+                body = b'<script>fetch("https://public.test:19202/relay-script")</script><img src="https://public.test:19202/relay.png">'
+            self.send_response(200)
+            self.send_header('Content-Type', mime)
+            self.send_header('Content-Length', str(len(body)))
+            # An upstream gateway cannot declare its document a trusted local page.
+            self.send_header('X-Private-Hermes-Trusted-Page', '1')
+            self.send_header('Set-Cookie', 'relay-must-not-cross=1')
+            self.send_header('Link', '<https://public.test:19202>; rel=preconnect')
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == '/mcp':
             self.send_response(405)
             self.send_header('Content-Length', '0')

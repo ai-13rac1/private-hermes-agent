@@ -72,6 +72,28 @@ print(json.dumps({name:hashlib.sha256((' '.join((root/name).read_text().split()[
                 return smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
                                      '/opt/hermes/.venv/bin/python', 'setup', '-c', snapshot).stdout
             original_identities = identities()
+            # Exercise this release's native schema transition on populated
+            # state, retaining an operator-chosen timeout and deployment routes.
+            smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
+                          '/opt/hermes/.venv/bin/python', 'hermes-config', '-c', """
+from pathlib import Path
+import hermes_yaml as yaml
+from hermes_cli.config import migrate_config, load_config
+p = Path('/opt/data/config.yaml')
+before = yaml.safe_load(p.read_text())
+before['_config_version'] = 52
+before.setdefault('agent', {})['clarify_timeout'] = 777
+p.write_text(yaml.safe_dump(before))
+migrate_config(interactive=False, quiet=True)
+after = load_config()
+assert after['_config_version'] == 53
+assert after['agent']['clarify_timeout'] == 777
+for section in ('terminal', 'model'):
+    assert all(after[section][key] == value for key, value in before[section].items())
+""")
+            smoke.initialize_setup(smoke.COMPOSE)
+            assert identities() == original_identities
+            print('PASS: populated schema-52 profile migrates natively, preserving operator timeout, SSH/Teep configuration and identities', flush=True)
             smoke.compose('run', '--rm', '-T', '--no-deps', '--entrypoint',
                           '/opt/hermes/.venv/bin/python', 'setup', '-c',
                           "from pathlib import Path; root=Path('/persistent-data'); (root/'ssh/agent/id_ed25519.pub').write_bytes(b''); (root/'ssh/executor/ssh_host_ed25519_key.pub').write_bytes(b'ssh-ed25519 partial')")

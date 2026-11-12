@@ -24,7 +24,7 @@ The packaged and inspected reference revision is
 `424f36a814711d542fbff27f139842c9d08d5b76`, pinned in the treasury Dockerfile.
 Native deployment configuration already supports named listeners, validates their
 identifiers, references and address uniqueness, and requires at least one server.
-Hermes uses the derived official v0.23.0 image and supports native `reload.mcp`.
+Hermes uses the derived official v0.23.1 image and supports native `reload.mcp`.
 No upstream patch or image/source revision change is proposed.
 
 ## Intended operator workflow

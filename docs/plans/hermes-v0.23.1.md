@@ -39,9 +39,31 @@ network/browser/configuration routes as well as changed patch targets.
 
 ## Evidence and unresolved items
 
-Implementation has not started. Docker access needs sandbox escalation; target
-architecture, image metadata, patch applicability and new routes remain to be
-checked. Qualification uses disposable projects, dummy credentials and no paid
-inference, funded wallet operations or live Funnel enrollment. Existing AMD64,
-rootless Podman and full visual noVNC limitations remain unless independently
-qualified here.
+U1 accepted by fresh read-only reviewer at baseline plus plan commit `bce23dc`.
+Review identified native saved-gateway relay routes, new browser_vault inline
+dispatch, threaded native availability checks and schema 52->53 migration.
+The existing global response policy and registry/inline exclusions cover the
+new routes structurally; focused actual relay coverage and populated-schema
+migration coverage have been added to existing fixtures.
+
+The official multiarch index is
+`sha256:276d44685c65c0cb2a25f190b63c65c8906f9dc76486fb1c05ae71b5826bda08`.
+Downloaded ARM64 source stamp is clean at the intended commit; native receipt
+and calculated renderer source hash both equal
+`d962149f7c279801f68eb629e8939592105e0d49ddb97d01a549b85748335717`.
+Browser lock closure and screenshot helper are unchanged. All seven patches
+apply after refreshing one import context. Upstream switched frontend builds
+to pnpm and excludes it from runtime images; the derived frontend stage now
+uses the identical upstream PM hash-verified pnpm installation recipe.
+
+`make check` passed 92 unit tests, effective base/Funnel models and compilation.
+Native dispatch/mode capture, 12 packaged tool-policy combinations, URL-context
+checks, full renderer TypeScript and 70 focused UI tests passed. Storage/setup
+qualification passed, including populated schema-52 migration, CLI repair,
+identity preservation and native volume locking. Desktop/network qualification
+is running. Image fixture startup collided with the active network fixture;
+no image assertions ran, and that fixture will be rerun serially.
+Remaining runtime qualification and final review are pending. Target is Docker Desktop
+ARM64, Engine 29.9.3. Fixtures use disposable projects, dummy credentials and no
+paid inference, funded wallet operations or live Funnel enrollment. Existing
+AMD64, rootless Podman and full visual noVNC limitations remain.

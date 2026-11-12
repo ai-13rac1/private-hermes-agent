@@ -79,9 +79,11 @@ unprivileged configuration and profile-only disconnect paths.
 
 ### Packaged contracts and evidence limits
 
-- Hermes: official v0.23.0, source
+- Historical Hermes inspection (before the v0.23.1 update): official v0.23.0, source
   `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, base digest
   `adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002`.
+  See the [current image contract](../updates-and-plugins.md#derived-hermes-build-and-patch-maintenance)
+  and recheck these capability assumptions against the selected revision.
   Packaged dispatcher, stage2 hook, main wrapper and profile supervision scripts
   were inspected. Root bootstrap and service drops are distinct; Compose
   `user: 10000` is not an established equivalent lifecycle.
