@@ -1,7 +1,9 @@
 #!/bin/sh
 # Allowed and forbidden network paths of a running rootless Podman stack
 # (project private-hermes). Run after `make up` on Podman:
-#   sh tests/podman_paths_smoke.sh
+#   make podman-paths-test
+# The allowed-path checks need Internet access: they fetch
+# https://check.torproject.org/api/ip through Tor and through teep's uplink.
 # Each check prints PASS or FAIL against the expected result; the script exits
 # non-zero on any FAIL. It starts a TCP listener on 127.0.0.1:11111, and a
 # disposable network and container without isolation, and removes them at exit.
@@ -12,7 +14,10 @@ pass=0; fail=0
 expect() { # name, expected (open|blocked), actual (open|blocked)
   if [ "$2" = "$3" ]; then echo "PASS  $1: $3"; pass=$((pass+1)); else echo "FAIL  $1: expected $2, got $3"; fail=$((fail+1)); fi
 }
+valid_ip() { echo "$1" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; }
 tcp() { # container, host, port -> open|blocked (python3 or nc inside the container)
+  # An unresolved target is a test error, never "blocked".
+  valid_ip "$2" || { echo "error (no address: '$2')"; return; }
   if podman exec "$(c "$1")" sh -c "command -v python3 >/dev/null" 2>/dev/null; then
     podman exec "$(c "$1")" python3 -c "
 import socket,sys
@@ -41,7 +46,7 @@ python3 -I -c 'import socket; socket.create_connection(("127.0.0.1", 11111), tim
 PLAIN=private-hermes-paths-plain
 cleanup() {
   kill $HOSTSVC 2>/dev/null
-  podman rm -f "$PLAIN" >/dev/null 2>&1
+  podman rm -f "$PLAIN" "$PLAIN-listener" >/dev/null 2>&1
   podman network rm "$PLAIN" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -56,7 +61,12 @@ r=$(podman exec "$(c teep)" sh -c 'curl -s --max-time 90 https://check.torprojec
 case "$r" in *'"IsTor":false'*) expect "teep direct HTTPS on its isolated uplink" open open;; *) expect "teep direct HTTPS on its isolated uplink" open "blocked ($r)";; esac
 expect "hermes -> teep 10.203.83.3:8337" open "$(tcp hermes 10.203.83.3 8337)"
 expect "hermes -> executor SSH 10.203.82.3:2222" open "$(tcp hermes 10.203.82.3 2222)"
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://127.0.0.1:9120/)
+# Hermes answers 503 through HAProxy until its webapp is ready.
+for _ in $(seq 60); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://127.0.0.1:9120/)
+  [ "$code" = 503 ] || [ "$code" = 000 ] || break
+  sleep 2
+done
 [ "$code" = 302 ] && expect "webapp via HAProxy (302 to login)" open open || expect "webapp via HAProxy (302 to login)" open "blocked ($code)"
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -H 'Host: evil.example' http://127.0.0.1:9120/)
 [ "$code" = 421 ] && expect "webapp wrong Host refused (421)" open open || expect "webapp wrong Host refused (421)" open "blocked ($code)"
@@ -107,8 +117,23 @@ try:
     s.sendto(bytes.fromhex('123401000001000000000000076578616d706c6503636f6d0000010001'),('10.203.95.1',53)); s.recv(4096); print('open')
 except OSError: print('blocked')" 2>/dev/null)
 expect "DNS probe control: Podman DNS answers on a plain network" open "$r"
+# Positive control for the TCP probes: a listener on the same plain network is reachable.
+podman run -d --name "$PLAIN-listener" --network "$PLAIN" --entrypoint python3 "$EXECUTOR_IMAGE" -c "
+import socket
+s=socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1); s.bind(('0.0.0.0', 7000)); s.listen()
+while True: s.accept()[0].close()" >/dev/null
+plainpeer=$(podman inspect "$PLAIN-listener" --format "{{(index .NetworkSettings.Networks \"$PLAIN\").IPAddress}}")
+r=error
+for _ in $(seq 10); do
+  r=$(podman exec "$PLAIN" sh -c "command -v nc >/dev/null || { echo 'error (no nc)'; exit; }; nc -z -w 5 $plainpeer 7000 && echo open || echo blocked" 2>/dev/null)
+  [ "$r" = open ] && break
+  sleep 1
+done
+valid_ip "$plainpeer" || r="error (no address: '$plainpeer')"
+expect "TCP probe control: plain network -> listener $plainpeer:7000" open "$r"
 for target in "$teepup 8337 teep-uplink" "$edge 9120 HAProxy-edge" "10.203.83.3 8337 teep-inference"; do
   set -- $target
+  valid_ip "$1" || { expect "non-isolated network -> $3" blocked "error (no address: '$1')"; continue; }
   r=$(podman exec "$PLAIN" sh -c "command -v nc >/dev/null || { echo 'error (no nc)'; exit; }; nc -z -w 5 $1 $2 && echo open || echo blocked" 2>/dev/null)
   expect "non-isolated network -> $3 $1:$2" blocked "$r"
 done

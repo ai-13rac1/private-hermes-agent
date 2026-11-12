@@ -107,6 +107,7 @@ class DiagnosticContractTests(unittest.TestCase):
         controller.call = Mock(return_value=subprocess.CompletedProcess([], 0, stdout='stopped-id\n'))
         with patch.object(treasury.subprocess, 'check_output',
                           return_value='2026-11-11 22:32:02.496429564 +0000 UTC\n'), \
+                patch.object(treasury, 'engine_command', return_value=['docker']), \
                 patch.object(treasury.subprocess, 'run') as logs, \
                 self.assertRaisesRegex(RuntimeError, 'Research service stopped'):
             controller.serving_instance()

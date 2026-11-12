@@ -11,6 +11,8 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'components/provisioning'))
 from storage import initialize, verify_filesystem, LAYOUT
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from deployment import compose_base, engine_command  # noqa: E402
 
 
 class PersistentStorageTests(unittest.TestCase):
@@ -69,7 +71,7 @@ class PersistentStorageTests(unittest.TestCase):
             self.assertFalse((outside / 'agent').exists())
 
     def test_persistent_mounts_preserve_wallet_and_executor_separation(self):
-        result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', '-f', 'compose.funnel.yaml',
+        result = subprocess.run([*compose_base(), '-f', 'compose.yaml', '-f', 'compose.funnel.yaml',
                                  '--profile', '*', 'config', '--format', 'json'],
                                 cwd=ROOT, text=True, capture_output=True, check=True)
         config = json.loads(result.stdout)

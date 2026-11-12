@@ -1,13 +1,16 @@
 .DEFAULT_GOAL := check
+# The Compose command of the engine that CONTAINER_ENGINE selects (.env or the
+# environment). An invalid selection prints its error and runs `false`.
+COMPOSE = $(shell python3 scripts/deployment.py compose-command || echo false)
 .PHONY: init check build up down test
 init:
 	python3 scripts/init-config.py
 check:
 	python3 -m unittest discover -s tests -p 'test_*.py'
 	python3 scripts/stack.py config
-	docker compose -f compose.yaml -f compose.funnel.yaml config --quiet
-	docker compose -f compose.yaml -f compose.podman.yaml config --quiet
-	docker compose -f compose.yaml -f compose.funnel.yaml -f compose.podman.yaml -f compose.podman.funnel.yaml config --quiet
+	$(COMPOSE) -f compose.yaml -f compose.funnel.yaml config --quiet
+	$(COMPOSE) -f compose.yaml -f compose.podman.yaml config --quiet
+	$(COMPOSE) -f compose.yaml -f compose.funnel.yaml -f compose.podman.yaml -f compose.podman.funnel.yaml config --quiet
 	python3 -m compileall -q components scripts tests
 build:
 	python3 scripts/stack.py build
@@ -18,19 +21,19 @@ down:
 	python3 scripts/stack.py down
 
 test: check
-	docker compose -f compose.yaml build hermes executor
+	$(COMPOSE) -f compose.yaml build hermes executor
 	python3 scripts/preflight.py private-hermes-test
 	python3 -u tests/smoke.py
 
 .PHONY: computer-use-test
 computer-use-test: check
-	COMPUTER_USE_ENABLED=true docker compose -f compose.yaml build hermes executor
+	COMPUTER_USE_ENABLED=true $(COMPOSE) -f compose.yaml build hermes executor
 	python3 scripts/preflight.py private-hermes-test
 	COMPUTER_USE_ENABLED=true python3 -u tests/computer_use_smoke.py
 
 .PHONY: browser-use-test
 browser-use-test: check
-	COMPUTER_USE_ENABLED=true docker compose -f compose.yaml build hermes executor
+	COMPUTER_USE_ENABLED=true $(COMPOSE) -f compose.yaml build hermes executor
 	python3 scripts/preflight.py private-hermes-test
 	COMPUTER_USE_ENABLED=true python3 -u tests/browser_use_smoke.py
 
@@ -61,7 +64,7 @@ webapp-credentials:
 webapp-rotate:
 	python3 scripts/webapp-credentials.py --rotate
 webapp-test: check
-	docker compose -f compose.yaml build hermes executor webapp-proxy
+	$(COMPOSE) -f compose.yaml build hermes executor webapp-proxy
 	python3 scripts/preflight.py private-hermes-webapp-test --funnel
 	python3 -u tests/webapp_smoke.py
 
@@ -83,9 +86,14 @@ plugins-test: check
 
 .PHONY: images-test
 images-test: check
-	docker compose -f compose.yaml build hermes
+	$(COMPOSE) -f compose.yaml build hermes
 	python3 -u tests/images_smoke.py
 
 .PHONY: hermes-ui-test
 hermes-ui-test: check
 	python3 -u tests/hermes_ui.py
+
+# Forbidden-path test of a running stack on Podman (make up first).
+.PHONY: podman-paths-test
+podman-paths-test:
+	bash tests/podman_paths_smoke.sh

@@ -13,10 +13,12 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from provisioning import initialize_research_config
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from deployment import compose_base, engine_command  # noqa: E402
 
 
 def docker(*args, check=True):
-    return subprocess.run(['docker', *args], check=check, capture_output=True, text=True)
+    return subprocess.run([*engine_command(), *args], check=check, capture_output=True, text=True)
 
 
 def main():
@@ -24,7 +26,7 @@ def main():
     image = 'private-hermes-x402_treazury:local'
     with tempfile.TemporaryDirectory(prefix=identity) as folder:
         root = Path(folder)
-        initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
+        initialize_research_config([*compose_base(), '-f', 'compose.yaml'], root)
         directory = root / 'config/x402_treazury'
         path = directory / 'research_desk.toml'
         original = path.read_text()
@@ -67,7 +69,7 @@ def main():
                     {'type': 'bind', 'source': str(directory),
                      'target': '/opt/x402/examples/deployments', 'read_only': True}]}},
                 'volumes': {'x402_treazury-data': {'external': True, 'name': identity}}}))
-            command = ['docker', 'compose', '--env-file', '/dev/null', '-p', identity,
+            command = [*compose_base(), '--env-file', '/dev/null', '-p', identity,
                        '-f', str(ROOT / 'compose.yaml'), '-f', str(override)]
 
             def admin(action, check=True):
@@ -112,7 +114,7 @@ def main():
             assert policy().get('wallet_bootstrap') is None
             assert inspect()['prepared']
             assert execute('x402_treazury', 'wallet', 'addresses').stdout == addresses
-            initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
+            initialize_research_config([*compose_base(), '-f', 'compose.yaml'], root)
             assert path.read_text() == ordinary
             publish(original)
             assert policy()['wallet_bootstrap']['bootstrap_group'] == 'general'
@@ -171,7 +173,7 @@ def main():
             auth = root / 'config/webapp/auth.json'
             auth.parent.mkdir(parents=True)
             auth.write_text('invalid auth')
-            initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
+            initialize_research_config([*compose_base(), '-f', 'compose.yaml'], root)
             assert path.read_text() == changed
             seeded = subprocess.run(['make', 'x402_treazury-config'], cwd=root,
                                     env=dict(os.environ, COMPOSE_PROJECT_NAME=identity),

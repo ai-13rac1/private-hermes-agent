@@ -54,6 +54,7 @@ class MaintenanceScopeTests(unittest.TestCase):
                 stack.main()
             self.assertEqual(run.call_args.args[0][-len(command):], command)
         for command in (['up'], ['run', '--rm', '--no-deps', 'hermes', 'gateway', 'run'],
+                        ['run', 'setup-storage', 'command', '--no-deps'],
                         ['run', '--no-deps', '--name', 'hermes-config', 'hermes', 'gateway', 'run']):
             with patch.object(sys, 'argv', ['stack.py', 'compose', *command]), \
                     patch.object(stack, 'settings', side_effect=ValueError('invalid launch policy')), \

@@ -13,7 +13,7 @@ import subprocess
 import sys
 import threading
 import time
-from deployment import ROOT, ensure_networks, maintenance_compose
+from deployment import ROOT, engine_command, needs_networks, prepare_launch, maintenance_compose
 from provisioning import initialize_research_config, research_config_diff, report_research_config_diff
 
 
@@ -45,7 +45,7 @@ def log_since(started_at):
 def serving_diagnostics(identifier, started_at, root):
     """Display this serving lifetime's diagnostics without storing another record."""
     stopped, failures = threading.Event(), []
-    logs = subprocess.Popen(['docker', 'logs', '--follow', '--since', started_at, identifier],
+    logs = subprocess.Popen([*engine_command(), 'logs', '--follow', '--since', started_at, identifier],
                             cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     def drain():
         try:
@@ -85,8 +85,8 @@ class Controller:
         self.command, self.root = command, Path(root)
 
     def call(self, *arguments, **kwargs):
-        if arguments[:1] == ('up',):
-            ensure_networks(self.command)
+        if needs_networks(self.command, arguments):
+            prepare_launch(self.command)
         return subprocess.run([*self.command, *arguments], cwd=self.root, text=True, check=True, **kwargs)
 
     def admin(self, action, capture=False):
@@ -128,12 +128,12 @@ class Controller:
             # A quick native startup failure may precede the live observer.
             stopped = self.call('ps', '-a', '-q', 'x402_treazury', capture_output=True).stdout.strip()
             if stopped:
-                started = subprocess.check_output(['docker', 'inspect', stopped, '--format',
+                started = subprocess.check_output([*engine_command(), 'inspect', stopped, '--format',
                                                    '{{.State.StartedAt}}'], text=True)
-                subprocess.run(['docker', 'logs', '--since', log_since(started), stopped], cwd=self.root, check=True)
+                subprocess.run([*engine_command(), 'logs', '--since', log_since(started), stopped], cwd=self.root, check=True)
             raise RuntimeError('Research service stopped before MCP activation completed; see its startup diagnostics.')
         # Podman's start time contains spaces, so the restart count comes first.
-        restarts, started = subprocess.check_output(['docker', 'inspect', identifier, '--format',
+        restarts, started = subprocess.check_output([*engine_command(), 'inspect', identifier, '--format',
                                                      '{{.RestartCount}}|{{.State.StartedAt}}'],
                                                     text=True).strip().split('|', 1)
         return identifier, log_since(started), restarts
@@ -206,7 +206,7 @@ class Controller:
         started = finished = False
         def cancel(signum, _frame):
             interrupted.append(signum)
-            subprocess.run(['docker', 'stop', '--timeout', '-1', name], cwd=self.root, check=False)
+            subprocess.run([*engine_command(), 'stop', '--timeout', '-1', name], cwd=self.root, check=False)
         try:
             # A retained container signals a prior interrupted/failed cleanup;
             # never remove or overwrite it implicitly.
@@ -216,8 +216,8 @@ class Controller:
             started = True
             if interrupted:
                 cancel(interrupted[0], None)
-            logs = subprocess.Popen(['docker', 'logs', '--follow', name], cwd=self.root)
-            result = subprocess.run(['docker', 'wait', name], cwd=self.root, text=True,
+            logs = subprocess.Popen([*engine_command(), 'logs', '--follow', name], cwd=self.root)
+            result = subprocess.run([*engine_command(), 'wait', name], cwd=self.root, text=True,
                                     capture_output=True, check=True)
             code = int(result.stdout.strip())
             finished = True
@@ -226,7 +226,7 @@ class Controller:
                 raise RuntimeError(f'x402_treazury {action} stopped (exit {code}); inspect status before retrying.')
         finally:
             if started and not finished:
-                subprocess.run(['docker', 'stop', '--timeout', '-1', name], cwd=self.root, check=False)
+                subprocess.run([*engine_command(), 'stop', '--timeout', '-1', name], cwd=self.root, check=False)
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
             if logs and logs.poll() is None:
@@ -234,7 +234,7 @@ class Controller:
                 logs.wait()
             # Non-forced removal refuses a still-running financial operation.
             if started:
-                subprocess.run(['docker', 'rm', name], cwd=self.root, check=False, capture_output=True)
+                subprocess.run([*engine_command(), 'rm', name], cwd=self.root, check=False, capture_output=True)
 
     def initialize(self):
         state = self.inspect()

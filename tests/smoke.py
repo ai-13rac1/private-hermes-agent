@@ -21,9 +21,9 @@ from storage import initialize as initialize_storage
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from provisioning import initialize_setup, initialize_research_config
-from deployment import compose_files, engine, ensure_networks, remove_networks
+from deployment import compose_files, needs_networks, engine, prepare_launch, remove_networks, compose_base, engine_command
 
-COMPOSE = ['docker', 'compose', '-p', 'private-hermes-test', *compose_files(False, extra=('tests/compose.yaml',))]
+COMPOSE = [*compose_base(), '-p', 'private-hermes-test', *compose_files(False, extra=('tests/compose.yaml',))]
 
 
 @contextmanager
@@ -82,8 +82,8 @@ PODMAN_HOST_TARGETS = ('169.254.1.2', *GATEWAYS)
 
 
 def compose(*args, check=True, **kwargs):
-    if args[:1] == ('up',):
-        ensure_networks(COMPOSE)
+    if needs_networks(COMPOSE, list(args)):
+        prepare_launch(COMPOSE)
     result = subprocess.run(COMPOSE + list(args), check=check, text=True, capture_output=True, **kwargs)
     if args[:1] == ('down',):
         remove_networks(COMPOSE)
@@ -121,13 +121,13 @@ def start_stack(setup=True):
     if setup:
         initialize_setup(COMPOSE)
     identifier = compose('ps', '-a', '-q', 'setup').stdout.strip()
-    started = subprocess.check_output(['docker', 'inspect', identifier, '--format', '{{.State.StartedAt}}'], text=True)
+    started = subprocess.check_output([*engine_command(), 'inspect', identifier, '--format', '{{.State.StartedAt}}'], text=True)
     # The unfunded test fixture intentionally connects its MCP inventory before
     # startup. Production only connects after authenticated endpoint readiness.
     compose('run', '--rm', '-T', '--no-deps', 'mcp-config', 'connect')
     compose('up', '-d', '--no-build', '--wait', '--no-deps', '--wait-timeout', '600',
             'tor', 'agent-net', 'executor-net', 'executor', 'teep', 'fixture', 'x402_treazury', 'hermes')
-    assert subprocess.check_output(['docker', 'inspect', identifier, '--format', '{{.State.StartedAt}}'], text=True) == started
+    assert subprocess.check_output([*engine_command(), 'inspect', identifier, '--format', '{{.State.StartedAt}}'], text=True) == started
 
 
 def run_suite():

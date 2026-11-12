@@ -4,9 +4,12 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from deployment import compose_base, engine_command  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-COMMAND = ['docker', 'compose', '-p', 'private-hermes-images-test', '-f', 'tests/images-compose.yaml']
+COMMAND = [*compose_base(), '-p', 'private-hermes-images-test', '-f', 'tests/images-compose.yaml']
 
 
 def main():

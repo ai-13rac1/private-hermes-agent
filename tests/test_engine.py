@@ -1,10 +1,12 @@
-"""Engine selection, the Podman overlays and checks that depend on the engine."""
+"""Engine selection, engine commands, the Podman overlays and checks that depend on the engine."""
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -19,55 +21,182 @@ proxy_start = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(proxy_start)
 
 
+COMPOSE = None
+
+
+def compose_command():
+    # Model rendering needs only the Compose client, not a running engine.
+    global COMPOSE
+    if COMPOSE is None:
+        with patch.dict(os.environ):
+            COMPOSE = deployment.compose_base()
+    return COMPOSE
+
+
 def model(*files):
     arguments = [argument for name in files for argument in ('-f', name)]
-    result = subprocess.run(['docker', 'compose', *arguments, '--profile', '*', '--env-file', '/dev/null',
-                             'config', '--format', 'json'], cwd=ROOT, text=True, capture_output=True, check=True)
+    result = subprocess.run([*compose_command(), *arguments, '--profile', '*', '--env-file', '/dev/null',
+                             'config', '--format', 'json'], cwd=ROOT, text=True, capture_output=True)
+    if result.returncode:
+        raise AssertionError(result.stderr)
     return json.loads(result.stdout)
 
 
-def detect(answers):
-    def output(*args):
-        answer = answers[args[1]]
-        if isinstance(answer, Exception):
-            raise answer
-        return answer
-    deployment.engine.cache_clear()
-    try:
-        with patch.object(deployment, '_output', side_effect=output):
-            return deployment.engine()
-    finally:
-        deployment.engine.cache_clear()
+class SelectorTests(unittest.TestCase):
+    def select(self, text=None, exported=None):
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ):
+            os.environ.pop('CONTAINER_ENGINE', None)
+            if exported is not None:
+                os.environ['CONTAINER_ENGINE'] = exported
+            path = Path(folder) / '.env'
+            if text is not None:
+                path.write_bytes(text.encode())
+            return deployment.read_selector(path)
 
-
-class EngineSelectionTests(unittest.TestCase):
-    def test_only_a_positive_podman_identification_selects_podman(self):
-        docker_client = 'Docker version 28.4.0, build 1234567\n'
+    def test_valid_forms(self):
         cases = (
-            ({'--version': 'podman version 5.4.2\n'}, 'podman'),
-            ({'--version': docker_client, 'version': json.dumps([{'Name': 'Podman Engine'}])}, 'podman'),
-            ({'--version': docker_client, 'version': json.dumps([{'Name': 'Engine'}, {'Name': 'containerd'}])}, 'docker'),
-            ({'--version': docker_client, 'version': 'null'}, 'docker'),
-            ({'--version': docker_client, 'version': 'not json'}, 'docker'),
-            ({'--version': docker_client, 'version': subprocess.CalledProcessError(1, 'docker')}, 'docker'),
-            ({'--version': OSError('no docker command')}, 'docker'),
+            (None, 'docker'), ('', 'docker'), ('NEARAI_API_KEY=x\n', 'docker'),
+            ('CONTAINER_ENGINE=podman\n', 'podman'), ('CONTAINER_ENGINE=docker\n', 'docker'),
+            ('CONTAINER_ENGINE="podman"\n', 'podman'), ("CONTAINER_ENGINE='podman'\n", 'podman'),
+            ('export CONTAINER_ENGINE=podman\n', 'podman'), ('  CONTAINER_ENGINE = podman  # local\n', 'podman'),
+            ('CONTAINER_ENGINE=podman\r\nOTHER=1\r\n', 'podman'),
+            ('CONTAINER_ENGINE=docker\nCONTAINER_ENGINE=podman\n', 'podman'),
+            ('# CONTAINER_ENGINE=podman\n', 'docker'),
+            ('NOTE="line one\nCONTAINER_ENGINE=podman\nline three"\n', 'docker'),
         )
-        for answers, expected in cases:
-            with self.subTest(answers=answers), patch.dict(os.environ, clear=False) as environment:
-                environment.pop('DOCKER_HOST', None)
-                self.assertEqual(detect(answers), expected)
+        for text, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(self.select(text), expected)
 
-    def test_podman_client_identifies_the_docker_host_endpoint(self):
-        # podman compose passes DOCKER_HOST to Compose, so a Podman client alone is not enough.
-        answers = {'--version': 'podman version 5.4.2\n'}
-        for components, expected in ((['Podman Engine', 'Conmon'], 'podman'), (['Engine', 'containerd'], 'docker'),
-                                     (ValueError('tcp:// endpoint'), 'docker'), (OSError('no socket'), 'docker')):
-            with self.subTest(components=components), \
-                    patch.dict(os.environ, DOCKER_HOST='unix:///run/user/1/docker.sock'), \
-                    patch.object(deployment, '_endpoint_components',
-                                 side_effect=components if isinstance(components, Exception) else None,
-                                 return_value=None if isinstance(components, Exception) else components):
-                self.assertEqual(detect(answers), expected)
+    def test_exported_value_wins_and_needs_no_file(self):
+        self.assertEqual(self.select('CONTAINER_ENGINE=docker\n', exported='podman'), 'podman')
+        self.assertEqual(self.select('this is = not "valid\n', exported='docker'), 'docker')
+
+    def test_invalid_values_are_errors_not_fallbacks(self):
+        for text, exported in (('CONTAINER_ENGINE=\n', None), ('CONTAINER_ENGINE=Podman\n', None),
+                               ('CONTAINER_ENGINE\n', None), ('CONTAINER_ENGINE=$(echo podman)\n', None),
+                               ('CONTAINER_ENGINE=podman docker\n', None), (None, ''), (None, 'auto')):
+            with self.subTest(text=text, exported=exported), self.assertRaises(deployment.EngineError) as caught:
+                self.select(text, exported)
+            self.assertNotIn('echo', str(caught.exception))
+
+    def test_unreadable_and_malformed_files_name_the_path_and_line_only(self):
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ):
+            os.environ.pop('CONTAINER_ENGINE', None)
+            with self.assertRaisesRegex(deployment.EngineError, 'Cannot read'):
+                deployment.read_selector(Path(folder))
+            path = Path(folder) / '.env'
+            path.write_text('SECRET=hunter2\nOPEN="unterminated\n')
+            with self.assertRaises(deployment.EngineError) as caught:
+                deployment.read_selector(path)
+            self.assertIn('line 2', str(caught.exception))
+            self.assertNotIn('hunter2', str(caught.exception))
+            self.assertNotIn('unterminated', str(caught.exception))
+
+    def test_literal_forms_match_compose_parsing(self):
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / 'compose.yaml').write_text('services:\n  x:\n    image: scratch\n'
+                                                       '    environment:\n      SELECTED: ${CONTAINER_ENGINE}\n')
+            for text in ('CONTAINER_ENGINE=podman\n', 'CONTAINER_ENGINE="podman"\n', "CONTAINER_ENGINE='podman'\n",
+                         'export CONTAINER_ENGINE=podman\n', 'CONTAINER_ENGINE=podman # local\n',
+                         'CONTAINER_ENGINE=docker\r\n', 'CONTAINER_ENGINE=docker\nCONTAINER_ENGINE=podman\n'):
+                with self.subTest(text=text):
+                    path = Path(folder) / 'engine.env'
+                    path.write_bytes(text.encode())
+                    environment = {k: v for k, v in os.environ.items() if k != 'CONTAINER_ENGINE'}
+                    result = subprocess.run([*compose_command(), '--project-directory', folder, '-f',
+                                             str(Path(folder) / 'compose.yaml'), '--env-file', str(path),
+                                             'config', '--format', 'json'], text=True, capture_output=True,
+                                            env=environment)
+                    if result.returncode:
+                        raise AssertionError(result.stderr)
+                    composed = json.loads(result.stdout)['services']['x']['environment']['SELECTED']
+                    with patch.dict(os.environ):
+                        os.environ.pop('CONTAINER_ENGINE', None)
+                        self.assertEqual(composed, deployment.read_selector(path))
+
+
+class EngineCommandTests(unittest.TestCase):
+    def setUp(self):
+        deployment.engine.cache_clear()
+        deployment.check_engine.cache_clear()
+        deployment._AMBIENT_OVERRIDES.clear()
+
+    tearDown = setUp
+
+    def test_commands_follow_the_selection(self):
+        with patch.dict(os.environ, CONTAINER_ENGINE='docker'):
+            self.assertEqual(deployment.compose_base(), ['docker', 'compose'])
+        deployment.engine.cache_clear()
+        with patch.dict(os.environ, CONTAINER_ENGINE='podman'):
+            self.assertEqual(deployment.compose_base(), ['podman', '--remote=false', 'compose'])
+
+    def test_podman_removes_endpoint_overrides_and_launch_refuses_them(self):
+        with patch.dict(os.environ, CONTAINER_ENGINE='podman', DOCKER_HOST='tcp://10.9.9.9:2375',
+                        CONTAINER_CONNECTION='other'):
+            self.assertEqual(deployment.engine(), 'podman')
+            self.assertNotIn('DOCKER_HOST', os.environ)
+            self.assertNotIn('CONTAINER_CONNECTION', os.environ)
+            with patch.object(deployment, '_output', side_effect=AssertionError('no engine query')), \
+                    self.assertRaisesRegex(deployment.EngineError, 'Unset DOCKER_HOST, CONTAINER_CONNECTION'):
+                deployment.check_engine()
+
+    def test_docker_keeps_its_context_variables(self):
+        with patch.dict(os.environ, CONTAINER_ENGINE='docker', DOCKER_CONTEXT='desktop-linux'):
+            deployment.engine()
+            self.assertEqual(os.environ['DOCKER_CONTEXT'], 'desktop-linux')
+
+    def checked(self, selected, answers):
+        def output(*args):
+            key = ' '.join(args)
+            for prefix, answer in answers.items():
+                if key.startswith(prefix):
+                    if isinstance(answer, Exception):
+                        raise answer
+                    return answer
+            raise AssertionError(key)
+        deployment.check_engine.cache_clear()
+        with patch.object(deployment, 'engine', return_value=selected), \
+                patch.object(deployment, '_output', side_effect=output):
+            deployment.check_engine()
+
+    def podman(self, version='5.4.0', rootless=True, socket=True, provider='Docker Compose version v2.36.0'):
+        return {'podman --remote=false info': json.dumps({'version': {'Version': version}, 'host': {
+                    'security': {'rootless': rootless}, 'remoteSocket': {'path': '/run/user/1/podman/podman.sock',
+                                                                         'exists': socket}}}),
+                'podman --remote=false compose version': provider}
+
+    def docker(self, components=('Engine', 'containerd'), server='28.0.0', compose='2.36.0',
+               client='Docker version 28.0.0, build 1'):
+        return {'docker version --format {{json .Server.Components}}': json.dumps([{'Name': n} for n in components]),
+                'docker version --format {{.Server.Version}}': server, 'docker --version': client,
+                'docker compose version --short': compose}
+
+    def test_docker_endpoint_must_be_docker_engine_at_the_floors(self):
+        self.checked('docker', self.docker())
+        for answers, reason in ((self.docker(components=('Podman Engine',)), 'reaches Podman'),
+                                (self.docker(client='podman version 5.4.2'), 'reaches Podman'),
+                                (self.docker(server='27.9.9'), 'Engine 28'),
+                                (self.docker(compose='2.35.9'), 'Compose 2.36'),
+                                ({'docker': OSError('no docker')}, 'Docker Engine is required')):
+            with self.subTest(reason=reason), self.assertRaisesRegex(deployment.EngineError, reason):
+                self.checked('docker', answers)
+
+    def test_podman_must_be_local_rootless_with_socket_and_provider(self):
+        self.checked('podman', self.podman())
+        for answers, reason in ((self.podman(version='5.3.9'), '5.4'),
+                                (self.podman(rootless=False), 'rootless'),
+                                (self.podman(socket=False), 'podman.socket'),
+                                (self.podman(provider='Docker Compose version v2.26.1'), '2.36'),
+                                (self.podman(provider='podman-compose version 1.0.6'), '2.36'),
+                                ({'podman --remote=false info': OSError('no podman')}, 'podman command')):
+            with self.subTest(reason=reason), self.assertRaisesRegex(deployment.EngineError, reason):
+                self.checked('podman', answers)
+
+    def test_preflight_reports_engine_errors(self):
+        with patch.object(deployment, 'check_engine', side_effect=deployment.EngineError('Podman 5.4 or later')), \
+                self.assertRaisesRegex(SystemExit, 'Podman 5.4'):
+            preflight.check_engine()
 
     def test_podman_files_are_last_and_funnel_file_only_with_funnel(self):
         with patch.object(deployment, 'engine', return_value='docker'):
@@ -77,9 +206,148 @@ class EngineSelectionTests(unittest.TestCase):
             self.assertEqual(deployment.compose_files(True, extra=('tests/compose.yaml',)),
                              ['-f', 'compose.yaml', '-f', 'compose.funnel.yaml', '-f', 'tests/compose.yaml',
                               '-f', 'compose.podman.yaml', '-f', 'compose.podman.funnel.yaml'])
-            # maintenance_compose sets placeholder settings in os.environ.
             with patch.dict(os.environ):
                 self.assertIn('compose.podman.yaml', deployment.maintenance_compose(all_ingress=True))
+
+
+class PassthroughTests(unittest.TestCase):
+    def test_split_finds_the_subcommand_after_global_options(self):
+        cases = (
+            (['up', '-d'], ([], [], False, ['up', '-d'])),
+            (['--profile', 'x402_treazury', 'up', '-d'], ([], ['--profile', 'x402_treazury'], False, ['up', '-d'])),
+            (['-p', 'other', 'up'], ([], ['-p', 'other'], False, ['up'])),
+            (['-pother', '--profile=a', '-f', 'x.yaml', '--file=y.yaml', 'up'],
+             (['x.yaml', 'y.yaml'], ['-p', 'other', '--profile', 'a'], False, ['up'])),
+            (['--env-file', 'e.env', '--project-directory', '.', 'create'],
+             ([], ['--env-file', 'e.env', '--project-directory', '.'], False, ['create'])),
+            (['--dry-run', 'up'], ([], ['--dry-run'], True, ['up'])),
+            (['up', '--dry-run'], ([], [], True, ['up', '--dry-run'])),
+            (['down', '--dry-run'], ([], [], True, ['down', '--dry-run'])),
+            (['run', '--dry-run', 'hermes'], ([], [], True, ['run', '--dry-run', 'hermes'])),
+            (['run', 'hermes', 'echo', '--dry-run'], ([], [], False, ['run', 'hermes', 'echo', '--dry-run'])),
+            (['--dry-run', 'run', '--dry-run=false', 'hermes'],
+             ([], ['--dry-run'], False, ['run', '--dry-run=false', 'hermes'])),
+            (['--dry-run=false', 'up', '--dry-run=true'],
+             ([], ['--dry-run=false'], True, ['up', '--dry-run=true'])),
+        )
+        for arguments, expected in cases:
+            with self.subTest(arguments=arguments):
+                self.assertEqual(deployment.split_passthrough(arguments), expected)
+
+    def test_unsupported_or_incomplete_global_options_are_refused(self):
+        for arguments in (['--ansi', 'never', 'up'], ['-c', 'ctx', 'up'], ['--profile'], ['--parallel=2', 'up']):
+            with self.subTest(arguments=arguments), self.assertRaises(ValueError):
+                deployment.split_passthrough(arguments)
+
+    def run_passthrough(self, arguments, selected='podman', model=None, rejected=False):
+        settings = deployment.Settings.read(dict(
+            external_content='tor_proxied', funnel_enabled='false', webapp_bind='127.0.0.1', webapp_port='9120',
+            webapp_username='admin', funnel_host='', funnel_port='443', tailscale_hostname='private-hermes'))
+        model = json.dumps(model or {'services': {'teep': {'networks': {'inference': None}},
+                                                'setup': {'network_mode': 'none'},
+                                                'dependent': {'network_mode': 'none', 'depends_on': {'teep': {}}},
+                                                'offline-admin': {'network_mode': 'none', 'depends_on': {'setup': {}}},
+                                                'transitive': {'network_mode': 'none', 'depends_on': {'dependent': {}}},
+                                                'hermes': {'network_mode': 'service:agent-net'},
+                                                'shared': {'network_mode': 'container:existing'},
+                                                'x402_treazury-inspect': {'network_mode': 'none'}}})
+        with patch.object(sys, 'argv', ['stack.py', 'compose', *arguments]), patch.dict(os.environ), \
+                patch.object(deployment, 'engine', return_value=selected), \
+                patch.object(deployment, '_output', return_value=model), \
+                patch.object(stack, 'settings', return_value=settings), \
+                patch.object(stack, 'prepare_launch') as prepare, patch.object(stack, 'remove_networks') as cleanup, \
+                patch.object(stack, 'run') as run:
+            if rejected:
+                prepare.side_effect = deployment.EngineError('launch refused')
+                with self.assertRaisesRegex(deployment.EngineError, 'launch refused'):
+                    stack.main_unlocked()
+                run.assert_not_called()
+            else:
+                stack.main_unlocked()
+        return prepare, cleanup, run
+
+    def test_every_networked_launch_is_prepared_with_the_same_project_and_files(self):
+        for arguments, prepared in ((['up', '-d'], True), (['--profile', 'x402_treazury', 'up', '-d'], True),
+                                    (['-p', 'another', 'up', '-d'], True), (['create'], True), (['start'], True),
+                                    (['run', '--rm', 'teep', 'serve', '--help'], True),
+                                    (['run', '--rm', '-e', 'A=1', '--entrypoint', 'sh', 'teep'], True),
+                                    (['run', '--rm', '-T', '--entrypoint', 'python3', 'setup', '-c', 'x'], False),
+                                    (['run', '--rm', 'hermes', 'chat'], True),
+                                    (['run', '--rm', '--no-deps', 'hermes', 'chat'], True),
+                                    (['run', '--rm', '--no-deps', 'shared'], True),
+                                    (['run', '--rm', 'setup'], False),
+                                    (['run', '--rm', 'dependent'], True),
+                                    (['run', '--rm', '--no-deps', 'dependent'], True),
+                                    (['run', '--rm', '--no-deps', 'transitive'], True),
+                                    (['run', '--rm', '--no-deps', 'offline-admin'], False),
+                                    (['run', '--rm', '--no-deps', 'setup'], False),
+                                    (['scale', 'tor=1'], True), (['some-future-command'], True),
+                                    (['--dry-run', 'up'], False), (['ps'], False), (['config'], False),
+                                    (['up', '--dry-run'], False), (['run', '--dry-run', 'hermes'], False),
+                                    (['run', 'hermes', 'echo', '--dry-run'], True),
+                                    (['logs', 'tor'], False)):
+            with self.subTest(arguments=arguments):
+                prepare, _, run = self.run_passthrough(arguments)
+                self.assertEqual(prepare.called, prepared)
+                launched = run.call_args.args[0]
+                if prepared:
+                    self.assertEqual(prepare.call_args.args[0], launched[:len(prepare.call_args.args[0])])
+                if '-p' in arguments:
+                    self.assertIn('another', launched)
+        _, _, run = self.run_passthrough(['-f', 'extra.yaml', 'up'])
+        launched = run.call_args.args[0]
+        files = [value for flag, value in zip(launched, launched[1:]) if flag == '-f']
+        self.assertEqual(files, ['compose.yaml', 'extra.yaml', 'compose.podman.yaml'])
+
+    def test_shared_and_dependency_launches_check_both_engines_before_running(self):
+        for selected in ('docker', 'podman'):
+            for service in ('hermes', 'shared', 'dependent'):
+                with self.subTest(engine=selected, service=service):
+                    self.run_passthrough(['run', '--rm', service], selected=selected, rejected=True)
+            self.run_passthrough(['run', '--rm', '--no-deps', 'hermes'], selected=selected, rejected=True)
+
+    def test_ambiguous_run_flags_cannot_select_an_offline_service(self):
+        for selected in ('docker', 'podman'):
+            self.run_passthrough(['run', '--no-deps', '-Te', 'x402_treazury-inspect', 'hermes'],
+                                 selected=selected, rejected=True)
+            with self.assertRaisesRegex(ValueError, 'Unsupported Compose run option'):
+                self.run_passthrough(['run', '--no-deps', '--future-value-option', 'x402_treazury-inspect', 'hermes'],
+                                     selected=selected)
+            for option in ('-eNAME=value', '--env=NAME=value', '--entrypoint=python3'):
+                prepare, _, _ = self.run_passthrough(['run', '--no-deps', option, 'x402_treazury-inspect'],
+                                                     selected=selected)
+                prepare.assert_not_called()
+
+    def test_offline_maintenance_rejects_networking_overrides_on_both_engines(self):
+        for selected in ('docker', 'podman'):
+            for definition in ({'network_mode': 'service:agent-net'}, {'network_mode': 'container:existing'},
+                               {'network_mode': 'bridge'}, {'network_mode': 'none', 'depends_on': {'teep': {}}}):
+                with self.subTest(engine=selected, definition=definition), \
+                        self.assertRaisesRegex(ValueError, 'Offline maintenance jobs require network_mode: none'):
+                    self.run_passthrough(['run', '--rm', '--no-deps', 'x402_treazury-inspect'],
+                                         selected=selected,
+                                         model={'services': {'x402_treazury-inspect': definition}})
+            prepared, _, run = self.run_passthrough(['run', '--rm', '--no-deps', 'x402_treazury-inspect'],
+                                                   selected=selected)
+            prepared.assert_not_called()
+            run.assert_called_once()
+
+    def test_unsupported_option_refuses_before_any_command(self):
+        with self.assertRaises(ValueError):
+            self.run_passthrough(['--ansi', 'never', 'up'])
+
+    def test_down_removes_leftover_networks_of_the_named_project(self):
+        _, cleanup, run = self.run_passthrough(['-p', 'another', 'down', '--remove-orphans'])
+        self.assertEqual(run.call_args.args[0][-2:], ['down', '--remove-orphans'])
+        self.assertIn('another', cleanup.call_args.args[0])
+
+    def test_dry_down_never_removes_real_networks_on_either_engine(self):
+        for selected in ('docker', 'podman'):
+            for arguments in (['--dry-run', 'down'], ['down', '--dry-run'], ['down', '--dry-run=true']):
+                with self.subTest(engine=selected, arguments=arguments):
+                    prepare, cleanup, _ = self.run_passthrough(arguments, selected=selected)
+                    prepare.assert_not_called()
+                    cleanup.assert_not_called()
 
 
 class ComposeModelTests(unittest.TestCase):
@@ -130,23 +398,23 @@ class NetworkCreationTests(unittest.TestCase):
         calls = []
         def run(arguments, **kwargs):
             calls.append(arguments)
-            if arguments[:3] == ['podman', 'network', 'inspect']:
-                found = inspected.get(arguments[3])
+            if arguments[:4] == ['podman', '--remote=false', 'network', 'inspect']:
+                found = inspected.get(arguments[4])
                 return subprocess.CompletedProcess(arguments, 0 if found else 125, json.dumps([found]) if found else '', '')
             return subprocess.CompletedProcess(arguments, 0, '', '')
         with patch.object(deployment, 'engine', return_value='podman'), \
                 patch.object(deployment, '_output', return_value=json.dumps(self.CONFIG)), \
                 patch.object(deployment.subprocess, 'run', side_effect=run):
             deployment.ensure_networks(['docker', 'compose', '-p', 'private-hermes'])
-        return [call for call in calls if call[:3] == ['podman', 'network', 'create']]
+        return [call[2:] for call in calls if call[:4] == ['podman', '--remote=false', 'network', 'create']]
 
     def test_missing_networks_are_created_with_declared_options_and_compose_labels(self):
         created = self.run_ensure({})
         self.assertEqual(created, [
-            ['podman', 'network', 'create', '--label', 'com.docker.compose.project=private-hermes',
+            ['network', 'create', '--label', 'com.docker.compose.project=private-hermes',
              '--label', 'com.docker.compose.network=inference', '--internal', '--subnet', '10.203.83.0/24',
              '--opt', 'isolate=strict', 'private-hermes_inference'],
-            ['podman', 'network', 'create', '--label', 'com.docker.compose.project=private-hermes',
+            ['network', 'create', '--label', 'com.docker.compose.project=private-hermes',
              '--label', 'com.docker.compose.network=webapp-publish',
              '--opt', 'isolate=strict', '--opt', 'no_default_route=true', 'private-hermes_webapp-publish']])
 
@@ -170,41 +438,32 @@ class NetworkCreationTests(unittest.TestCase):
         calls = []
         def run(arguments, **kwargs):
             calls.append(arguments)
-            if arguments[:3] == ['podman', 'network', 'inspect']:
-                found = inspected.get(arguments[3])
+            if arguments[:4] == ['podman', '--remote=false', 'network', 'inspect']:
+                found = inspected.get(arguments[4])
                 return subprocess.CompletedProcess(arguments, 0 if found else 125, json.dumps([found]) if found else '', '')
             return subprocess.CompletedProcess(arguments, 0, '', '')
         with patch.object(deployment, 'engine', return_value='podman'), \
                 patch.object(deployment, '_output', return_value=json.dumps(self.CONFIG)), \
                 patch.object(deployment.subprocess, 'run', side_effect=run):
             deployment.remove_networks(['docker', 'compose'])
-        self.assertEqual([call for call in calls if call[:3] == ['podman', 'network', 'rm']],
-                         [['podman', 'network', 'rm', 'private-hermes_inference']])
+        self.assertEqual([call for call in calls if call[2:4] == ['network', 'rm']],
+                         [['podman', '--remote=false', 'network', 'rm', 'private-hermes_inference']])
 
-    def test_compose_passthrough_creates_networks_before_starting_services(self):
-        for command, creates in ((['up', '-d'], True), (['run', '--rm', 'teep', 'serve', '--help'], True),
-                                 (['ps'], False)):
-            with self.subTest(command=command), patch.object(sys, 'argv', ['stack.py', 'compose', *command]), \
-                    patch.object(stack, 'settings', return_value=deployment.Settings.read(dict(
-                        external_content='tor_proxied', funnel_enabled='false', webapp_bind='127.0.0.1',
-                        webapp_port='9120', webapp_username='admin', funnel_host='', funnel_port='443',
-                        tailscale_hostname='private-hermes'))), \
-                    patch.object(stack, 'ensure_networks') as ensure, patch.object(stack, 'run'):
-                stack.main_unlocked()
-                self.assertEqual(ensure.called, creates)
-
-    def test_compose_down_passthrough_removes_leftover_networks(self):
-        with patch.object(sys, 'argv', ['stack.py', 'compose', 'down', '--remove-orphans']), \
-                patch.object(stack, 'remove_networks') as cleanup, patch.object(stack, 'run') as run, \
-                patch.dict(os.environ):
-            stack.main_unlocked()
-        self.assertEqual(run.call_args.args[0][-2:], ['down', '--remove-orphans'])
-        cleanup.assert_called_once()
+    def test_a_network_without_strict_isolation_stops_startup(self):
+        for options in ({}, {'isolate': 'true'}):
+            config = {'name': 'private-hermes', 'networks': {'net': {'name': 'private-hermes_net', 'driver_opts': options}}}
+            with self.subTest(options=options), patch.object(deployment, 'engine', return_value='podman'), \
+                    patch.object(deployment, '_output', return_value=json.dumps(config)), \
+                    patch.object(deployment.subprocess, 'run', side_effect=AssertionError('no network command')), \
+                    self.assertRaisesRegex(RuntimeError, 'isolate: strict'):
+                deployment.ensure_networks(['podman', 'compose'])
 
     def test_network_removal_reports_a_failed_model_query_without_raising(self):
         with patch.object(deployment, 'engine', return_value='podman'), \
-                patch.object(deployment, '_output', side_effect=subprocess.CalledProcessError(1, 'docker')):
-            deployment.remove_networks(['docker', 'compose'])
+                patch.object(deployment, '_output', side_effect=subprocess.CalledProcessError(1, 'podman')), \
+                patch('sys.stderr', new_callable=io.StringIO) as stderr:
+            deployment.remove_networks(['podman', 'compose'])
+        self.assertIn('Could not list the project networks', stderr.getvalue())
 
     def test_docker_engine_creates_no_network(self):
         with patch.object(deployment, 'engine', return_value='docker'), \
@@ -254,53 +513,14 @@ class PreflightSecurityOptionTests(unittest.TestCase):
 
     def test_model_with_the_desktop_selects_the_profile_only_when_enabled(self):
         def options(value):
-            result = subprocess.run(['docker', 'compose', '-f', 'compose.yaml', '--env-file', '/dev/null', 'config',
-                                     '--format', 'json'], cwd=ROOT, text=True, capture_output=True, check=True,
+            result = subprocess.run([*compose_command(), '-f', 'compose.yaml', '--env-file', '/dev/null', 'config',
+                                     '--format', 'json'], cwd=ROOT, text=True, capture_output=True,
                                     env={**os.environ, 'COMPUTER_USE_ENABLED': value})
+            if result.returncode:
+                raise AssertionError(result.stderr)
             return json.loads(result.stdout)['services']['executor']['security_opt']
         self.assertFalse([o for o in options('false') if o.startswith('seccomp=')])
         self.assertTrue([o for o in options('true') if o.startswith('seccomp=')])
-
-
-class PreflightFloorTests(unittest.TestCase):
-    def check(self, kind, answers, environment=None):
-        def output(*args):
-            key = ' '.join(args)
-            for prefix, answer in answers.items():
-                if key.startswith(prefix):
-                    if isinstance(answer, Exception):
-                        raise answer
-                    return answer
-            raise AssertionError(key)
-        with patch.object(preflight, 'engine', return_value=kind), patch.object(preflight, 'output', side_effect=output), \
-                patch.dict(os.environ, environment or {}, clear=False):
-            if not environment:
-                os.environ.pop('DOCKER_HOST', None)
-            preflight.check_engine()
-
-    def podman(self, version='5.4.0', rootless=True, socket='/run/user/1001/podman/podman.sock'):
-        return {'podman info': json.dumps({'version': {'Version': version}, 'host': {
-                    'security': {'rootless': rootless}, 'remoteSocket': {'path': socket}}}),
-                'docker compose version': '2.36.0'}
-
-    def test_docker_floors(self):
-        self.check('docker', {'docker version': '28.0.0', 'docker compose version': '2.36.0'})
-        for answers in ({'docker version': '27.9.9', 'docker compose version': '2.36.0'},
-                        {'docker version': '28.0.0', 'docker compose version': '2.35.9'},
-                        {'docker version': 'unknown', 'docker compose version': '2.36.0'}):
-            with self.subTest(answers=answers), self.assertRaises(SystemExit):
-                self.check('docker', answers)
-
-    def test_podman_floors_rootless_and_endpoint(self):
-        self.check('podman', self.podman())
-        self.check('podman', self.podman(), {'DOCKER_HOST': 'unix:///run/user/1001/podman/podman.sock'})
-        for answers, environment in ((self.podman(version='5.3.9'), None),
-                                     (self.podman(rootless=False), None),
-                                     ({**self.podman(), 'docker compose version': '2.26.1'}, None),
-                                     ({'podman info': OSError('no podman')}, None),
-                                     (self.podman(), {'DOCKER_HOST': 'unix:///run/podman/podman.sock'})):
-            with self.subTest(answers=answers, environment=environment), self.assertRaises(SystemExit):
-                self.check('podman', answers, environment)
 
 
 class EngineDependentCheckTests(unittest.TestCase):
