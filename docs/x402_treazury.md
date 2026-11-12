@@ -76,7 +76,7 @@ Startup runs cached image builds, including treasury, before setup or service
 changes. Use `make build` separately to build ahead of startup if desired.
 
 The image builds unmodified upstream commit
-`39fb372871c99d44029b70f952e91d0a352ca1f5` using its Rust 1.99.1 toolchain and
+`e493b88d364cac25ed84922ae162c3f6a5d22452` using its Rust 1.99.1 toolchain and
 locked dependencies. The renderer changes only the Tor SOCKS endpoint, persistent
 state path, and HTTP Host allowlists. Wallet groups, rotation, funding, payment
 caps, source selection, and tool selection retain upstream policy. Provider
@@ -87,7 +87,7 @@ serving schedules independent refill opportunities per group, nominally every
 30–120 seconds, and can rotate low active payers into funded reserves. Restart
 redraws that wait; downtime or pending work can extend it. Explicit bootstrap
 retains prompt allocation of its captured claims. See the pinned upstream
-[wallet rotation guide](https://github.com/mikeperry-tor/x402_treazury/blob/39fb372871c99d44029b70f952e91d0a352ca1f5/docs/wallet-rotation.md)
+[wallet rotation guide](https://github.com/mikeperry-tor/x402_treazury/blob/e493b88d364cac25ed84922ae162c3f6a5d22452/docs/wallet-rotation.md)
 for selection and rotation details.
 
 New packaged policy has `[wallet_bootstrap]` with `bootstrap_group = "general"`
@@ -193,7 +193,7 @@ including by an empty group created during an earlier startup. Simply changing
 a name in TOML creates a different group on startup; the old group and its funds
 remain saved but are no longer selected by the renamed references. Renaming a
 group also preserves its historical payer correlation. See the pinned upstream
-[wallet rename guide](https://github.com/mikeperry-tor/x402_treazury/blob/39fb372871c99d44029b70f952e91d0a352ca1f5/docs/wallet-cli.md#rename-a-managed-wallet-group).
+[wallet rename guide](https://github.com/mikeperry-tor/x402_treazury/blob/e493b88d364cac25ed84922ae162c3f6a5d22452/docs/wallet-cli.md#rename-a-managed-wallet-group).
 
 ## Create the wallet and deposit when ready
 
@@ -252,7 +252,7 @@ Preview reports saved metadata and requested policy differences, not live
 balances or cryptographic verification. The upstream `wallet rename` command is
 also available for deliberate offline administration; it requires exclusive store
 ownership and a backup first. This update does not rename groups automatically.
-See the [pinned upstream wallet CLI guide](https://github.com/mikeperry-tor/x402_treazury/blob/39fb372871c99d44029b70f952e91d0a352ca1f5/docs/wallet-cli.md)
+See the [pinned upstream wallet CLI guide](https://github.com/mikeperry-tor/x402_treazury/blob/e493b88d364cac25ed84922ae162c3f6a5d22452/docs/wallet-cli.md)
 for its constraints. Deployment policy remains packaged in the image; renaming a
 saved group alone does not change the configured wallet references.
 
@@ -350,14 +350,18 @@ Subsequent `make up` automatically starts and connects a prepared deployment.
 Missing or incomplete preparation, a different treasury identity, or invalid
 runtime policy leaves research disconnected and prints the reason. Correcting
 runtime policy restores eligibility without repeating completed preparation.
-A completion record is historical evidence: balances can change, catalogs
-expire, and serving continues native synchronization, replacement funding, and
-discovery under its policy. Startup does not rerun explicit bootstrap/warming.
+A completion record is historical evidence: balances can change, catalogs can
+expire or be refreshed, and serving continues native synchronization,
+replacement funding, and discovery under its policy. Startup does not rerun
+explicit bootstrap/warming.
 
-`catalog warm` stores cache data under the configured treasury's `http-cache/`
-directory in the same persistent directory. It never uses `--direct`. Cached entries
-remain subject to native freshness, provenance, and revalidation rules; warming
-is not a promise that future help, dynamic discovery or API calls are offline.
+`catalog warm` unconditionally re-downloads selected catalogs and configured
+pricing documents, then stores cache data under the configured treasury's
+`http-cache/` directory in the same persistent directory. It never uses `--direct`.
+Normal startup and offline catalog inspection can reuse a fresh entry, but entries
+remain subject to native provenance and revalidation rules and the packaged
+indefinite catalog lifetime. Warming is not a promise that future help, dynamic
+discovery or API calls are offline.
 
 `mcp-config` provides networkless token/registration publication with the Hermes
 profile, bind-data parent for its auth directory, and read-only public helper code.

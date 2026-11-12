@@ -36,7 +36,7 @@ def run_suite():
         }.items():
             assert all(production['servers'][name]['wallet'] == wallet for name in names)
         identity = json.loads(subprocess.check_output(command + ['build-info'], text=True))
-        assert identity['source_revision'] == '39fb372871c99d44029b70f952e91d0a352ca1f5'
+        assert identity['source_revision'] == 'e493b88d364cac25ed84922ae162c3f6a5d22452'
         assert identity['source_dirty'] is False
         gate = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'python3',
                                'private-hermes-x402_treazury:local', '-c',
@@ -180,10 +180,13 @@ except OSError: pass
 else: raise AssertionError('Stopped Tor still accepted a SOCKS connection')
 """)
         smoke.python('x402_treazury', """import json,subprocess
-summary=json.loads(subprocess.check_output(['x402_treazury','catalog','warm','--config','/tmp/catalog-warm.toml'],text=True))
-assert summary['sources'][0]['catalog_cache']=='fresh',summary
+forced=subprocess.run(['x402_treazury','catalog','warm','--config','/tmp/catalog-warm.toml'],capture_output=True,text=True)
+assert forced.returncode != 0, 'Explicit warm unexpectedly reused a cached catalog'
+inventory=json.loads(subprocess.check_output(['x402_treazury','catalog','tools','--config','/tmp/catalog-warm.toml'],text=True))
+assert len(inventory)==12, inventory
+assert all(len(server['tools'])==1 for server in inventory), inventory
 """)
-        print('PASS: a separate native warm process reuses persisted fresh cache with Tor stopped', flush=True)
+        print('PASS: explicit warm requires fresh acquisition while ordinary inspection reuses the persisted catalog with Tor stopped', flush=True)
         assert smoke.curl('hermes', 'https://check.torproject.org/api/ip', check=False).returncode != 0
         assert json.loads(smoke.curl('hermes', 'http://10.203.83.3:8337/health').stdout)['status']=='ok'
         failed = False
