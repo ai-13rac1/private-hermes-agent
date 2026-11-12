@@ -113,7 +113,9 @@ def relay_checks(page, context, origin):
     connection_id = saved['body']['connection']['id']
     base = '/api/relay/' + connection_id
     try:
-        with context.browser.new_context(ignore_https_errors=True) as anonymous:
+        with context.browser.new_context(ignore_https_errors=True,
+                proxy={'server': f'http://127.0.0.1:{observer.server_port}',
+                       'bypass': '127.0.0.1,localhost'}) as anonymous:
             response = anonymous.request.get(origin + base + '/relay/page.html', max_redirects=0)
             assert response.status in (401, 302, 303), response.status
         for path in ('page.html', 'image.svg'):
@@ -274,8 +276,18 @@ try:
                         page.wait_for_timeout(300)
                         assert len(requests) == before
                     # Deliberate link navigation remains a real browser request, with no referrer.
-                    with context.expect_page() as popup:
-                        page.get_by_role('link', name='Privacy deliberate external link', exact=True).click()
+                    link = page.get_by_role('link', name='Privacy deliberate external link', exact=True)
+                    link.evaluate('''link => link.addEventListener('click', event => {
+                      window.__qualificationClick = {trusted:event.isTrusted, active:navigator.userActivation?.isActive};
+                    }, {capture:true, once:true})''')
+                    try:
+                        with context.expect_page() as popup:
+                            link.click()
+                    except Exception:
+                        print('External-link diagnostic:', engine, mode, origin, page.url,
+                              link.evaluate('link => ({html:link.outerHTML, click:window.__qualificationClick})'),
+                              [event for event in requests if event['path'] == '/deliberate'], flush=True)
+                        raise
                     child = popup.value
                     child.wait_for_load_state('domcontentloaded')
                     assert child.url == CANARY + '/deliberate'

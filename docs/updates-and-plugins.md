@@ -148,6 +148,12 @@ the separate legacy dashboard assets in `hermes_cli/web_dist` or install build
 dependencies at startup. Runtime, offline setup and qualification fixtures use the
 same derived image. Build contexts still contain only tracked components.
 
+Native plugin commands can report an advisory `pnpm: not installed or outdated`
+from their passive runtime check. The official v0.23.1 runtime intentionally
+omits this frontend build tool; the warning does not block Python plugin
+environment preparation. Dependency download failures still fail the requested
+operation visibly and require a successful retry.
+
 `make check-updates` reads the official base pin from this Dockerfile. An upstream
 change requires reviewing source and runtime contracts, refreshing explicit
 patches and the source/hash checks, then rebuilding and rerunning affected build,

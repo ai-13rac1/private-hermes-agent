@@ -220,6 +220,35 @@ hostile documents, a valid raster, anonymous requests and credential/header
 canaries. Configuration qualification includes a populated schema-52 migration
 and preservation of operator settings and SSH identities.
 
+On 2026-11-12, Docker Desktop ARM64 (Engine 29.9.3) passed 92 unit tests,
+effective base/Funnel Compose models, compilation, native image dispatch and
+policy capture, 12 packaged tool-policy combinations, URL-context refusal,
+full renderer TypeScript and 70 focused renderer tests. Runtime checks passed
+configuration migration/repair/retry and native-volume locking; actual SSH
+terminal/code execution; allowed and forbidden network paths; Tor outage and
+restart; desktop actions, sandbox layers and on/off/on state preservation;
+browser placement, cancellation, daemon/owner death and missing-harness recovery;
+image retrieval canaries; and dependency-bearing native plugin install/update
+and recreation persistence. The successful UID-101 public Tor probe now uses
+the same existing retry helper as other allowed Tor probes; forbidden-path and
+Tor-stopped assertions retain their original failure behavior.
+
+The webapp passed 24 content/relay cases across Chromium, Firefox and WebKit,
+four content modes and local/simulated HTTPS ingress, plus eight screen and
+eight browser screenshot/download mode/ingress cases. Native auth, credential
+rotation, gateway restart, terminal/file placement and viewer-request checks
+also passed. Initial transient Tor/DNS failures were retried without changing
+transport. One Firefox popup observation timed out; a diagnostic repeat and the
+complete matrix passed the same deliberate-link assertion with read-only click
+diagnostics. Existing single-profile, platform and visual-surface limitations
+above still apply. These checks use dummy credentials and establish neither live
+Funnel ingress, provider attestation nor funded settlement.
+
+The complete webapp run also passed stale-consent revocation across restart and
+policy changes, direct DNS/TCP/preconnect observation, gateway/ingress mismatch
+refusal and repair, real Tor raster retrieval and outage/recovery, and staged
+activation/reload/disconnection of twelve unfunded fixture MCP endpoints.
+
 ## Diagnostic messages
 
 Explain the affected operation or capability, its impact, the known cause or

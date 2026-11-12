@@ -84,3 +84,22 @@ concurrency, cancellation, daemon crash and owner death. The final static check
 again passed 92 tests, Compose models and compilation after test changes.
 Plugin and webapp matrices are pending; final review must consider that evidence
 before accepting U2/U-FINAL.
+
+U2 qualification is complete. Native plugin install/update/recreation passed
+on retry after a transient Tor DNS failure. The complete original webapp suite
+passed with COMPUTER_USE_ENABLED=true: all 24 content/relay cases, eight screen
+and eight browser-result cases, stale consent, DNS/preconnect, ingress mismatch,
+real Tor retrieval/outage/recovery and twelve fixture MCP endpoint activation.
+The new anonymous relay context uses the same controlled observer proxy as the
+main fixture. Read-only click diagnostics preserve the deliberate-link assertion;
+the earlier isolated Firefox popup timeout did not recur in the complete run.
+An attempted focused continuation omitted artifact seeding and was discarded;
+the final complete run used the original driver without skipped phases.
+The stale preexisting proxy image was rebuilt before successful qualification.
+
+Maintained guides now record source hazards, actual qualification, native pnpm
+advisory behavior, configuration migration semantics and existing limitations.
+Final independent U2/U-FINAL acceptance remains pending; remove this plan only
+after that gate. No production policy change followed the original pin/build/
+patch-context update. All fixture projects are disposable and the successful
+complete webapp run cleaned itself up.
