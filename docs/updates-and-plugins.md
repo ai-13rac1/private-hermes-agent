@@ -134,6 +134,9 @@ defaults, not immutable enforcement against arbitrary plugin or agent code.
 
 ## Derived Hermes build and patch maintenance
 
+For the review sequence and lessons from prior upgrades, see
+[Hermes update workflow](update-workflow.md).
+
 `components/hermes/Dockerfile` derives from the pinned official v0.23.1 image,
 source `3b421578588243f920886e6fe79a6faa87ea026e`. A disposable build stage checks
 the clean install stamp and the packaged Webapp source hash against its reviewed
