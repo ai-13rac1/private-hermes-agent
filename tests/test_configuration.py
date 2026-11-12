@@ -8,7 +8,7 @@ import tempfile
 import unittest
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from deployment import compose_base, engine_command  # noqa: E402
+from deployment import compose_base  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('init_config', ROOT / 'scripts/init-config.py')

@@ -254,6 +254,7 @@ class PassthroughTests(unittest.TestCase):
                                     (['run', '--rm', '-e', 'A=1', '--entrypoint', 'sh', 'teep'], True),
                                     (['run', '--rm', '-T', '--entrypoint', 'python3', 'setup', '-c', 'x'], False),
                                     (['run', '--rm', 'hermes', 'chat'], False),
+                                    (['scale', 'tor=1'], True), (['some-future-command'], True),
                                     (['--dry-run', 'up'], False), (['ps'], False), (['config'], False),
                                     (['logs', 'tor'], False)):
             with self.subTest(arguments=arguments):
@@ -270,8 +271,25 @@ class PassthroughTests(unittest.TestCase):
         self.assertEqual(files, ['compose.yaml', 'extra.yaml', 'compose.podman.yaml'])
 
     def test_unsupported_option_refuses_before_any_command(self):
-        with self.assertRaises(ValueError):
-            self.run_passthrough(['--ansi', 'never', 'up'])
+        with patch.object(sys, 'argv', ['stack.py', 'compose', '--ansi', 'never', 'up']), patch.dict(os.environ), \
+                patch.object(deployment, 'engine', return_value='podman'), \
+                patch.object(stack, 'prepare_launch') as prepare, patch.object(stack, 'run') as run, \
+                self.assertRaisesRegex(ValueError, 'Unsupported Compose global option --ansi'):
+            stack.main_unlocked()
+        prepare.assert_not_called()
+        run.assert_not_called()
+
+    def test_makefile_stops_on_an_invalid_selection(self):
+        result = subprocess.run(['make', '-n', 'check'], cwd=ROOT, text=True, capture_output=True,
+                                env={**os.environ, 'CONTAINER_ENGINE': 'bogus'})
+        self.assertIn('CONTAINER_ENGINE in the environment must be docker or podman', result.stderr)
+        self.assertIn('false -f compose.yaml', result.stdout)
+        with patch.dict(os.environ, CONTAINER_ENGINE='podman'):
+            printed = subprocess.run([sys.executable, 'scripts/deployment.py', 'compose-command'], cwd=ROOT,
+                                     text=True, capture_output=True, check=True).stdout.split()
+        self.assertEqual(printed[0], 'env')
+        self.assertIn('--unset=DOCKER_HOST', printed)
+        self.assertEqual(printed[-3:], ['podman', '--remote=false', 'compose'])
 
     def test_down_removes_leftover_networks_of_the_named_project(self):
         _, cleanup, run = self.run_passthrough(['-p', 'another', 'down', '--remove-orphans'])
@@ -348,10 +366,14 @@ class NetworkCreationTests(unittest.TestCase):
              '--opt', 'isolate=strict', '--opt', 'no_default_route=true', 'private-hermes_webapp-publish']])
 
     def test_matching_networks_are_kept_and_weaker_ones_stop_startup(self):
+        def labels(key):
+            return {'driver': 'bridge', 'labels': {'com.docker.compose.project': 'private-hermes',
+                                                   'com.docker.compose.network': key}}
         good = {'private-hermes_inference': {'options': {'isolate': 'strict'}, 'internal': True,
-                                             'subnets': [{'subnet': '10.203.83.0/24'}]},
+                                             'subnets': [{'subnet': '10.203.83.0/24'}], **labels('inference')},
                 'private-hermes_webapp-publish': {'options': {'isolate': 'strict', 'no_default_route': 'true'},
-                                                  'internal': False, 'subnets': [{'subnet': '10.89.2.0/24'}]}}
+                                                  'internal': False, 'subnets': [{'subnet': '10.89.2.0/24'}],
+                                                  **labels('webapp-publish')}}
         self.assertEqual(self.run_ensure(good), [])
         # Compose through the Docker-compatible API creates isolate=true only.
         for name, change in (('private-hermes_inference', {'options': {'isolate': 'true'}}),
@@ -360,6 +382,11 @@ class NetworkCreationTests(unittest.TestCase):
                              ('private-hermes_webapp-publish', {'options': {'isolate': 'strict'}})):
             with self.subTest(name=name, change=change), self.assertRaisesRegex(RuntimeError, 'make down'):
                 self.run_ensure({**good, name: {**good[name], **change}})
+        # A network of another driver or project is not adopted.
+        for change in ({'driver': 'macvlan'}, {'labels': {}},
+                       {'labels': {'com.docker.compose.project': 'other', 'com.docker.compose.network': 'inference'}}):
+            with self.subTest(change=change), self.assertRaisesRegex(RuntimeError, 'not a bridge network of this project'):
+                self.run_ensure({**good, 'private-hermes_inference': {**good['private-hermes_inference'], **change}})
 
     def test_down_removes_only_this_projects_leftover_networks(self):
         inspected = {'private-hermes_inference': {'labels': {'com.docker.compose.project': 'private-hermes'}},
@@ -461,6 +488,28 @@ class EngineDependentCheckTests(unittest.TestCase):
             stack.require_inference_key(['docker', 'compose'])
         with patch.object(stack, 'capture', return_value=config(NEARAI_API_KEY='set')):
             stack.require_inference_key(['docker', 'compose'])
+
+    def test_preflight_stops_on_a_foreign_network_with_an_overlapping_subnet(self):
+        model = json.dumps({'services': {}, 'networks': {'inference': {'ipam': {'config': [{'subnet': '10.203.83.0/24'}]}}}})
+        own = {'name': 'private-hermes_inference', 'labels': {'com.docker.compose.project': 'private-hermes'},
+               'subnets': [{'subnet': '10.203.83.0/24'}]}
+        foreign = {'name': 'other', 'labels': {}, 'subnets': [{'subnet': '10.203.83.0/25'}]}
+        def output(*args):
+            if 'config' in args:
+                return model
+            if args[-2:] == ('ls', '-q'):
+                return 'a b'
+            return json.dumps(self.networks)
+        for networks, conflict in (([own], False), ([own, foreign], True)):
+            self.networks = networks
+            with self.subTest(conflict=conflict), patch.object(preflight, 'output', side_effect=output), \
+                    patch.object(preflight, 'check_engine'), patch.object(preflight, 'engine', return_value='podman'), \
+                    patch.object(sys, 'argv', ['preflight.py']), patch('sys.stdout', new_callable=io.StringIO):
+                if conflict:
+                    with self.assertRaisesRegex(SystemExit, 'Address conflict: 10.203.83.0/24 overlaps other'):
+                        preflight.main()
+                else:
+                    preflight.main()
 
     def test_preflight_reads_docker_and_podman_network_subnets(self):
         docker = {'Name': 'other', 'Labels': {}, 'IPAM': {'Config': [{'Subnet': '10.203.83.0/24'}]}}

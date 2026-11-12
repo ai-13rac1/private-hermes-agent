@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'components/provisioning'))
 from storage import initialize, verify_filesystem, LAYOUT
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from deployment import compose_base, engine_command  # noqa: E402
+from deployment import compose_base  # noqa: E402
 
 
 class PersistentStorageTests(unittest.TestCase):

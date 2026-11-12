@@ -10,7 +10,7 @@ import subprocess
 import sys
 from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from deployment import compose_base, engine_command  # noqa: E402
+from deployment import engine_command  # noqa: E402
 
 
 DISABLED = {

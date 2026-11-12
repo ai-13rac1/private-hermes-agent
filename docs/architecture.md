@@ -87,9 +87,12 @@ With Podman, the stack removes `DOCKER_HOST`, `DOCKER_CONTEXT`, `CONTAINER_HOST`
 and `CONTAINER_CONNECTION` from the environment of its commands: `podman compose`
 passes an inherited `DOCKER_HOST` to its Compose provider. Inspection, backup and
 shutdown then use the local Podman; a launch refuses to start while one of these
-variables is set. Before each launch (`make up`, treasury startup and wallet
-creation, the test fixtures, and `up`, `create`, `run`, `start`, `restart` or
-`watch` through `stack.py compose`), `deployment.prepare_launch()` checks the
+variables is set (`make up` checks this before preflight and setup). The Make
+targets run the Podman command without these variables too. Before each launch
+(`make up`, treasury startup and wallet creation, the test fixtures, and every
+`stack.py compose` subcommand except those that create no network, such as
+`config`, `ps`, `logs`, `exec`, `stop`, `down` or `build`; `run` only for a
+service that joins networks), `deployment.prepare_launch()` checks the
 engine: on Docker, Docker Engine 28+ (not Podman behind a `docker` command) and
 Compose 2.36+; on Podman, rootless 5.4+, the user API socket, and Docker Compose
 2.36+ as the provider. `stack.py compose` reads the global options before the
@@ -103,7 +106,8 @@ services, `deployment.ensure_networks()` therefore creates each project network
 with the `podman` command, using the options the overlays declare and Compose's
 labels; Compose adopts these networks, and `make down` removes them. Every
 non-external network must declare `isolate: strict`; a network without it, or an
-existing network without the declared options, stops startup.
+existing network that is not a bridge network of this project or lacks the
+declared options, stops startup.
 
 | Docker behavior | Rootless Podman counterpart |
 | --- | --- |
@@ -117,13 +121,15 @@ existing network without the declared options, stops startup.
 | A custom seccomp profile (`security_opt: seccomp=<file>`), used by the executor desktop | Compose sends the profile's content through the Docker-compatible API, and Podman's API treats that value as a file path, so the container cannot be created. Preflight refuses any custom seccomp profile on Podman; the desktop (`COMPUTER_USE_ENABLED=true`) needs Docker. |
 | Restart backoff | A container that exits at once restarts about every 0.3 s. Startup refuses to run without an inference provider key, on both engines, because teep exits at once without one. Check `podman ps` and restart counts when a service does not become healthy. |
 
-Pasta maps `169.254.1.2` to the host. In a test on a network without
-isolation, a container with an uplink reached a host service bound to all
-addresses there; with `isolate=strict`, teep did not reach a host service bound
-only to `127.0.0.1`, and the reachability of services bound to all addresses
-from teep, Tor or Tailscale is not tested. On Docker, these uplink containers
-reach the host through their gateway. The router denies `169.254.0.0/16` for
-Tor's own traffic; Hermes and the executor have no uplink.
+Pasta maps `169.254.1.2` to the host's own address, not to host loopback. A
+host service bound to the host's address (or to all addresses) is reachable
+there from teep, which has a direct uplink and no endpoint firewall; Hermes, the
+executor, Tor and HAProxy did not reach it (`make podman-paths-test`). On Docker,
+the uplink containers reach the host through their gateway in the same way, so
+this is the accepted direct uplink of teep, not a Podman difference. Do not run
+host services that trust local network peers while the stack runs. A service
+bound only to `127.0.0.1` is not reachable at `169.254.1.2`. Tailscale was not
+tested.
 
 Bind data under `data/` is owned by subordinate user IDs on the host; use
 `podman unshare` for host-side copies (see [backup scope](configuration.md#backup-scope)).

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-from deployment import (ROOT, compose, compose_base, compose_files, prepare_launch, remove_networks, render,
+from deployment import (ROOT, check_engine, compose, compose_base, compose_files, prepare_launch, remove_networks, render,
                         settings, maintenance_compose, maintenance_command, needs_networks, split_passthrough)
 from auth import validate
 from x402_treazury import Controller, operation_lock
@@ -90,6 +90,8 @@ def main_unlocked():
     if args.action == 'config':
         run(command + ['config', '--quiet'])
     else:
+        # Refuse a wrong engine or an endpoint override before setup writes anything.
+        check_engine()
         run([sys.executable, 'scripts/preflight.py', *(['--funnel'] if config.funnel else [])])
         path = ROOT / 'config/webapp/auth.json'
         if not path.is_file():
