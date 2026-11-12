@@ -124,9 +124,9 @@ declared options, stops startup.
 Pasta maps `169.254.1.2` to the host's own address, not to host loopback. A
 host service bound to the host's address (or to all addresses) is reachable
 there from teep, which has a direct uplink and no endpoint firewall; Hermes, the
-executor, Tor and HAProxy did not reach it (`make podman-paths-test`). On Docker,
-the uplink containers reach the host through their gateway in the same way, so
-this is the accepted direct uplink of teep, not a Podman difference. Do not run
+executor, Tor and HAProxy did not reach it (`make podman-paths-test`). This is
+teep's accepted direct uplink. On Docker, teep is expected to reach the host
+through its uplink gateway in the same way; this is not tested on Docker. Do not run
 host services that trust local network peers while the stack runs. A service
 bound only to `127.0.0.1` is not reachable at `169.254.1.2`. Tailscale was not
 tested.
