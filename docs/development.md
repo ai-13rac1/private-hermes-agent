@@ -249,6 +249,11 @@ policy changes, direct DNS/TCP/preconnect observation, gateway/ingress mismatch
 refusal and repair, real Tor raster retrieval and outage/recovery, and staged
 activation/reload/disconnection of twelve unfunded fixture MCP endpoints.
 
+A fresh independent read-only review accepted U2/U-FINAL at
+`594bc0c92f87cbe3694f54afbb64e82b63275a4c` with no material findings for the
+documented Docker Desktop ARM64 scope. The completed upgrade plan was removed
+after acceptance; Git history retains its baseline and review evidence.
+
 ## Diagnostic messages
 
 Explain the affected operation or capability, its impact, the known cause or
