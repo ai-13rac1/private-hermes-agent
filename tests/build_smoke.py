@@ -12,7 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     with tempfile.TemporaryDirectory(prefix='private-hermes-build-test-') as folder:
         root = Path(folder)
-        for name in ('Makefile', 'compose.yaml', 'compose.funnel.yaml', '.dockerignore'):
+        for name in ('Makefile', 'compose.yaml', 'compose.executor.yaml', 'compose.funnel.yaml',
+                     'compose.podman.yaml', 'compose.podman.funnel.yaml', '.dockerignore'):
             shutil.copyfile(ROOT / name, root / name)
         for name in ('components', 'scripts'):
             shutil.copytree(ROOT / name, root / name, ignore=shutil.ignore_patterns('__pycache__'))

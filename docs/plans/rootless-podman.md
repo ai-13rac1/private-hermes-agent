@@ -133,6 +133,24 @@ Fresh independent combined review accepted the source after socket-listener,
 zero-scale and CLI path corrections, with no remaining material findings.
 Focused browser and full dual-engine qualification are in progress; G2 stays open.
 
+Native controlled B2 assertions passed, but teardown revealed a further native
+lifecycle defect: base-only `down` omits the stopped, profiled treasury service,
+then Podman refuses removal of its shared namespace owner. Include all profiles
+for managed shutdown and disposable fixture teardown, preserve volumes for
+operator shutdown, and surface fixture cleanup failures. Qualify actual cleanup
+of the retained fixture and the final browser run; do not count hidden teardown
+failure as complete qualification. The build-only fixture must also copy the
+executor inheritance and Podman Compose files into its disposable checkout.
+
+Lifecycle correction source is independently accepted with no material findings.
+Managed and passthrough `down` include all profiles without adding volume removal;
+selected-service `stop` retains its scope. The shared fixture helper reports
+teardown errors, fails otherwise successful checks and preserves active original
+exceptions. All 157 unit/model tests passed on Docker. Actual all-profile cleanup
+of the retained Podman namespace users/owner completed successfully and left no
+project containers, networks or volumes. The permanent profiled-namespace probe
+and final broader/native runs remain in progress; no full G2 acceptance is claimed.
+
 ## Rebase onto current main (2026-11-13)
 
 Baseline: `rootless-podman-support` at `ffc0e80`. Target: local and upstream

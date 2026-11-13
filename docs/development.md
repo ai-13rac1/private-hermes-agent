@@ -428,3 +428,11 @@ overridden and unrelated offline jobs remain usable. Run `make webapp-test` and
 `make webapp-live-test` serially: the former concentrates UI/ingress boundaries,
 the latter retains public Tor image/outage/recovery evidence. See the
 [webapp test matrix](webapp.md) for retained cross-browser coverage.
+
+Native Podman controlled browser assertions passed after the matrix reduction.
+Teardown exposed a stopped profiled treasury container omitted by default Compose
+`down`; Podman then refused its namespace owner's removal. Managed/wrapper down
+and disposable teardown now include all profiles. The fixture helper reports
+cleanup errors and fails otherwise successful tests while preserving an original
+exception. A real stopped-profile/shared-namespace regression case is included in
+`tests/launch_smoke.py`. Operator shutdown preserves volumes unless requested.

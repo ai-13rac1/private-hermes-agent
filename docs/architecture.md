@@ -80,8 +80,10 @@ including offline setup/treasury jobs and `stack.py compose up/create/run/scale`
 Checks follow selected services and dependencies; `--no-deps` excludes dependency
 mounts, and run-volume overrides replace mounts at the same target. Noncreating
 inspection, shutdown and exec remain available. Unsupported creation commands
-and watch recreation are refused; use explicit supported commands. Bare Compose
-bypasses this check. It prevents ordinary missing-source mistakes but cannot
+and watch recreation are refused; use explicit supported commands. Managed `make down` and wrapper `compose down` include all profiles so stopped treasury namespace users
+are removed before their owner; operator volumes are preserved unless explicitly
+removed. Use `stop` for selected services instead of project-wide shutdown. Bare Compose
+bypasses the bind check. It prevents ordinary missing-source mistakes but cannot
 prevent concurrent host deletion after checking; Podman 5.4.2's compatible API
 still lacks native enforcement of `create_host_path: false`.
 

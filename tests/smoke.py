@@ -95,9 +95,19 @@ def compose(*args, check=True, **kwargs):
     check_bind_sources(COMPOSE, list(args))
     if needs_networks(COMPOSE, list(args)):
         prepare_launch(COMPOSE)
-    result = subprocess.run(COMPOSE + list(args), check=check, text=True, capture_output=True, **kwargs)
-    if args[:1] == ('down',):
-        remove_networks(COMPOSE)
+    # Include stopped profiled namespace users before removing their owners.
+    # Report cleanup failures without replacing an original test exception.
+    teardown = args[:1] == ('down',)
+    command = [*COMPOSE, *(['--profile', '*'] if teardown else [])]
+    result = subprocess.run(command + list(args), check=False if teardown else check,
+                            text=True, capture_output=True, **kwargs)
+    if teardown:
+        if result.returncode:
+            print('Disposable project cleanup failed:', result.stdout, result.stderr, flush=True)
+            if sys.exc_info()[0] is None:
+                result.check_returncode()
+        else:
+            remove_networks(COMPOSE)
     return result
 
 

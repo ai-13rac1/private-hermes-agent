@@ -13,7 +13,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from deployment import engine, engine_command
+from deployment import engine, engine_command, compose_base, compose_files
 
 
 def dry_run_checks(override):
@@ -50,6 +50,29 @@ def dry_run_checks(override):
         assert not networks(), 'Disposable dry-run network was not removed'
 
 
+def profile_cleanup_checks(override):
+    # A stopped profiled container still holds its owner's namespace in Podman.
+    # Default down can omit it; the shared fixture teardown must include it.
+    import smoke
+    project = 'private-hermes-launch-' + uuid.uuid4().hex[:12]
+    previous = smoke.COMPOSE
+    smoke.COMPOSE = [*compose_base(), '-p', project, '--env-file', '/dev/null',
+                     *compose_files(False, extra=(str(override),))]
+    try:
+        smoke.compose('up', '-d', '--wait', 'probe-profiled')
+        smoke.compose('stop', 'probe-profiled')
+    finally:
+        try:
+            smoke.compose('down', '--volumes', '--remove-orphans')
+        finally:
+            smoke.COMPOSE = previous
+    for kind in ('container', 'network', 'volume'):
+        found = subprocess.check_output([*engine_command(), kind, 'ls', '-q', '--filter',
+                                         f'label=com.docker.compose.project={project}'], text=True)
+        assert not found.strip(), ('Profile cleanup left project resources', kind, found)
+    print(f'PASS: {engine()} cleanup removes stopped profiled namespace users before owners', flush=True)
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix='private-hermes-launch-') as directory:
         override = Path(directory) / 'launch.yaml'
@@ -65,6 +88,16 @@ def main():
       interval: 1s
       timeout: 3s
       retries: 30
+  probe-profiled:
+    profiles: [cleanup]
+    image: private-hermes-executor:local
+    init: true
+    entrypoint: [sleep]
+    command: [infinity]
+    cap_drop: [ALL]
+    network_mode: service:probe-owner
+    depends_on:
+      probe-owner: {condition: service_healthy}
   probe-shared:
     image: private-hermes-agent:local
     entrypoint: [/opt/hermes/.venv/bin/python]
@@ -141,6 +174,7 @@ def main():
                                check=True, capture_output=True)
                 assert not networks(), 'Disposable project networks were not removed'
         dry_run_checks(override)
+        profile_cleanup_checks(override)
 
 
 if __name__ == '__main__':

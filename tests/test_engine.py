@@ -314,6 +314,16 @@ class PassthroughTests(unittest.TestCase):
         files = [value for flag, value in zip(launched, launched[1:]) if flag == '-f']
         self.assertEqual(files, ['compose.yaml', 'extra.yaml', 'compose.podman.yaml'])
 
+    def test_passthrough_down_is_project_wide_without_removing_volumes(self):
+        for selected in ('docker', 'podman'):
+            prepare, cleanup, run = self.run_passthrough(
+                ['-p', 'another', '--profile', 'x402_treazury', 'down'], selected=selected)
+            command = run.call_args.args[0]
+            self.assertEqual(command[-3:], ['--profile', '*', 'down'])
+            self.assertNotIn('--volumes', command)
+            prepare.assert_not_called()
+            cleanup.assert_called_once_with(command[:-1])
+
     def test_shared_and_dependency_launches_check_both_engines_before_running(self):
         for selected in ('docker', 'podman'):
             for service in ('hermes', 'shared', 'dependent'):

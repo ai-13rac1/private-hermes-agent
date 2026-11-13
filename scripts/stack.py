@@ -51,7 +51,7 @@ def main_unlocked():
         run(maintenance_compose(all_ingress=True, executor_build=True) + ['--profile', '*', 'build'])
         return
     if args.action == 'down':
-        all_command = maintenance_compose(all_ingress=True)
+        all_command = maintenance_compose(all_ingress=True) + ['--profile', '*']
         try:
             stop_funnel(all_command)
         finally:
@@ -77,6 +77,8 @@ def main_unlocked():
             if rest[0] == 'run' and needs_networks(command, rest):
                 raise ValueError('Offline maintenance jobs require network_mode: none for the job and its dependencies. '
                                  'Remove the networking/dependency override before running this job.')
+            if rest[0] == 'down':
+                command += ['--profile', '*']
             if not dry_run:
                 check_bind_sources(command, rest)
             run(command + rest)
