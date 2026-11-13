@@ -254,6 +254,37 @@ python3 scripts/stack.py compose logs -f hermes tor executor
 Use the deployment-aware `scripts/stack.py compose` wrapper for other Compose
 operations so your enabled options are included.
 
+## Service hardening
+
+Private Hermes adds substantially stronger containment than the
+[stock Hermes Compose setup at the packaged revision](https://github.com/NousResearch/hermes-agent/blob/3b421578588243f920886e6fe79a6faa87ea026e/docker-compose.yml),
+which uses host networking. The additional controls limit what malicious tool
+output, prompt-injected commands, or a compromised service can reach:
+
+- **Network containment:** Hermes and its executor have isolated networks and
+  default-deny firewalls. These block access to host/VM services, private networks
+  and cloud metadata addresses, and prevent direct Internet fallback if Tor fails.
+  Only explicitly required internal connections are allowed.
+- **Code and secret separation:** model-issued code runs as an unprivileged user
+  in the SSH executor, without mounts for agent state, provider keys or wallets.
+  This limits theft or modification of those files by generated code. Teep owns
+  provider keys; x402_treazury owns wallet keys.
+- **Reduced service privileges:** services drop default container capabilities
+  and receive only those needed for their work, with privilege escalation through
+  setuid executables and file capabilities blocked. The executor and most
+  supporting services have read-only root filesystems, limiting system-file
+  modification while keeping designated state and work directories writable.
+- **Protected browser rendering:** the default webapp content policy prevents
+  automatic external content from exposing the viewing browser's network address,
+  including when you use a normal browser.
+
+These controls reduce exposure and the damage a compromise can cause; they do
+not guarantee protection against kernel/container-engine exploits or a compromised
+host. Agent sessions share one executor, and authenticated webapp operators and
+installed plugins retain administrative agent authority. See
+[architecture and isolation](docs/architecture.md) for exact boundaries and
+[development and qualification](docs/development.md) for tested coverage and limits.
+
 ## Privacy and access limits
 
 An authenticated webapp user has administrative agent authority. The browser's
