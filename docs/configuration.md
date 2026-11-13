@@ -45,7 +45,8 @@ example and explicit Compose mappings together.
 initial file is `config/network/mcp-allowlist.json`; its tracked default is
 `components/network/mcp-allowlist.json`. `make init` creates the local copy only
 if missing. Existing local policy is preserved. The service mounts it read-only,
-and Compose refuses to create a directory if the source file is missing. Run
+and managed startup refuses missing required bind sources before container
+creation. Raw Compose lacks this enforcement on the qualified Podman API. Run
 `make init` before starting a fresh checkout. Use `make up` and the
 `scripts/stack.py compose` wrapper so enabled ingress layers are selected.
 

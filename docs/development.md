@@ -96,8 +96,8 @@ configuration and endpoint-readiness/cancellation checks. A fresh independent
 combined review accepted `817fd3d` for the source/current Docker correction scope,
 with no significant findings or compelling premerge simplifications. The model
 tests exercise both engine paths through the selected provider; they do not prove
-Podman runtime behavior. The [Podman plan](plans/rootless-podman.md) retains the
-remaining native Podman lifecycle, ingress and corrected-launch qualification.
+Podman runtime behavior. The subsequent native lifecycle, ingress and
+corrected-launch qualification is recorded below.
 
 The subsequent rebase onto `main` `b46e050` retained v0.23.1's pnpm layout,
 relay guards and schema migration alongside native engine selection. Through
@@ -111,8 +111,7 @@ transient post-restart Tor DNS failure; positive image checks now retry only tha
 exact failure, while Tor-stopped denial stays unchanged. The complete rerun passed.
 Fresh independent reviews accepted combined source `e28fbde` and that focused
 fixture correction with no material findings or compelling simplifications.
-The native follow-up and remaining review gate are recorded below and in the
-retained plan.
+The native follow-up and final combined review acceptance are recorded below.
 
 On 2026-11-13, unchanged source `a94ff16` was copied to Debian 13 ARM64
 (kernel 6.12.116), rootless Podman 5.4.2 with netavark/overlay, and
@@ -133,14 +132,15 @@ A networkless signal-handler probe completed 12-second cleanup both
 with the configured unlimited timeout and explicit Compose `--timeout -1`.
 Podman's native inspection stores the configured timeout as unsigned maximum.
 
-This is not complete qualification. Compose preserves `bind.create_host_path:
+That initial qualification exposed an API limitation. Compose preserves
+`bind.create_host_path:
 false` in its effective model, but the compatibility API starts a container and
 creates the missing source anyway. Native `podman run --mount` refuses it.
 The operation-scoped host preflight now rejects missing required sources for
 managed creation, including offline jobs and supported passthrough launches; raw
 Compose still bypasses it and concurrent host deletion remains an upstream gap.
 The original reliability defect had no demonstrated credential or network
-boundary bypass. The final G2 review remains open. A subsequent side-by-side comparison with the checksum-verified
+boundary bypass. A subsequent side-by-side comparison with the checksum-verified
 official [Compose 5.7.1](https://github.com/docker/compose/releases/tag/v5.7.1)
 binary reproduced both missing-bind creation and inline-seccomp filename failure
 on Podman 5.4.2. The installed provider was not replaced; upgrading Compose alone
@@ -246,8 +246,9 @@ The stack has only been runtime-qualified on ARM64; AMD64 qualification is not a
 completion prerequisite. The pinned desktop image includes Linux AMD64 and ARM64,
 Compose imposes no ARM64 restriction, and Chromium discovery retains its AMD64
 paths alongside the added ARM64 path. This preserves the ability to qualify AMD64
-without claiming that it has passed. Rootless Podman qualification belongs to the
-[rootless Podman plan](plans/rootless-podman.md).
+without claiming that it has passed. The [rootless engine differences](architecture.md#rootless-podman)
+explain why executor desktop/browser tools remain Docker-only; native operator
+webapp/browser qualification is recorded separately above and below.
 
 The image choice avoids a substantial download and disk footprint when desktop
 tools are unused. On 2026-11-11, the pinned desktop index reported compressed
@@ -463,11 +464,19 @@ regression test on both engines.
 No blanket browser retries, increased browser deadlines, direct transport or
 weaker TLS verification were added.
 
-Fresh independent design and source-correction reviews accepted the work without
-remaining material findings. The requested final post-qualification combined
-reviewer could not run because it hit a service usage limit. Parent self-review
-is complete; it does not substitute for that independent gate. The retained
-[Podman plan](plans/rootless-podman.md) records the next review and platform limits.
+On 2026-11-13, a fresh independent final combined review accepted `1d46ce9`
+against `main` `b46e050`, including corrections through `897f91a`, with no material
+security or reliability findings. The reviewer traced engine selection/endpoint
+normalization, network preparation, dry-run operands, bind checks, maintenance
+and treasury consumers, shutdown, browser containment and qualification fixtures.
+It independently passed 54 focused tests (8 bind, 42 engine, 2 TLS bridge and
+2 CONNECT), passed `git diff --check`, and inspected the successful Docker and
+native Podman qualification logs and matching VM checkout. Full runtime suites
+were not repeated for the unchanged reviewed snapshot. G2 is accepted for the
+qualified lean deployments on Docker Desktop ARM64 and Debian 13 ARM64 rootless
+Podman. The completed plan was removed under the planning workflow; Git history
+retains its design and review evidence.
+
 Podman executor computer/browser tools remain refused because of seccomp profile
 delivery; operator webapp/browser qualification is a separate capability. Live
 Funnel, provider attestation, funded settlement and other platforms remain
@@ -480,10 +489,17 @@ is an option value. The wrapper now consumes value options before interpreting
 flags; dry-run still validates supported creation commands, and service names are
 forwarded after `--`. Unit tests exercise both engines' preparation/refusal, and
 actual-engine probes verify missing-bind refusal plus genuine global dry-run
-preservation with flag-like operands. The final independent review remains
-unavailable and must include this correction.
+preservation with flag-like operands. This correction was included in the final
+independent combined review.
 
 The final resource audit found no current-run qualification containers, networks
 or volumes on either engine. Two older Docker webapp fixture volumes dated
 2026-11-09 were preserved; they predate this run and are absent from the current
 model. Normal deployment state and unrelated resources were preserved.
+
+Qualification does not extend to Linux Docker, AMD64, other distributions/kernels,
+Compose 2.36–2.39 or arbitrary provider/engine combinations. Additional targets
+need native allowed/forbidden-path and lifecycle evidence. Podman executor desktop
+support first needs a qualified seccomp delivery mechanism that preserves the
+required profile; neither native bind enforcement nor seccomp delivery was fixed
+by upgrading the stock Compose provider.
