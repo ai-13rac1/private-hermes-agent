@@ -14,6 +14,31 @@ Explicit-selection amendment baseline: branch `rootless-podman-support`, commit
 Plan path: `docs/plans/rootless-podman.md`.
 Follow the [planning workflow](../planning-workflow.md) before implementation.
 
+## Rebase onto current main (2026-11-13)
+
+Baseline: `rootless-podman-support` at `ffc0e80`. Target: local and upstream
+`main` at `b46e050bf550bb1c3f87ae244a291ec884d746b9`, verified by HTTPS fetch.
+The operator authorizes replaying this branch on main and resolving conflicts;
+do not autosquash, push or alter unrelated private/untracked state.
+
+Main upgrades Hermes to v0.23.1 (source
+`3b421578588243f920886e6fe79a6faa87ea026e`) and adds advisory research-policy
+comparison against the selected local image. Preserve that upgrade's source,
+patch/build checks, pnpm paths, relay/configuration qualification and migration
+semantics alongside explicit engine selection, native Podman networks and scoped
+launch/maintenance checks. In particular, the new image-reading helper must use
+the selected engine without networking, and automatic comparison stays advisory.
+
+Replay commits without squashing. Resolve shared helper/test/documentation
+conflicts by retaining both contracts, then inspect semantic merges as well as
+textual conflicts. Add both-engine behavior coverage for new integration paths;
+rerun effective models and affected Docker launch, storage/migration, image/tool,
+research and webapp/relay checks. Podman is unavailable here, so preserve native
+Podman fixture support and disclose missing runtime qualification. Obtain a fresh
+independent combined review of the rebased branch and resolve material findings
+before recording acceptance. The previous correction evidence below remains
+historical and does not qualify the new combined source by itself.
+
 ## Review correction scope (2026-11-13)
 
 Baseline: branch `rootless-podman-support`, `e2ad623324f0b9b5ac694bfd3cfb29d6356675ae`.
