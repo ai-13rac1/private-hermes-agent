@@ -556,3 +556,33 @@ All probe containers/projects were removed, and existing deployment state was
 preserved. The probes do not establish Chromium's nested sandbox, desktop
 operation, SSH lifecycle or Tor/forbidden-path behavior for the desktop image.
 The current Podman computer/browser guard remains in place.
+
+A subsequent comparison used the VM's selected default profile at
+`/usr/share/containers/seccomp.json`, not `seccomp=unconfined`. Both default and
+custom profiles ran with seccomp mode 2, UID 10000, no capabilities and
+no-new-privileges. Both permitted an isolated child to create a user namespace,
+and both let an invalid-FD `setns` call reach kernel validation. The policies are
+nevertheless different:
+
+| Harmless probe | Desktop profile | VM Podman default |
+| --- | --- | --- |
+| Invalid `keyctl` operation | EPERM from the syscall filter | EOPNOTSUPP from kernel validation |
+| Invalid `clone3` arguments | ENOSYS, preserving the selected fallback contract | EINVAL from kernel validation |
+| Invalid `io_uring_setup` arguments | EPERM | ENOSYS |
+| Invalid `bpf` operation | EPERM | EPERM |
+
+The profile files confirm that the custom policy blocks `keyctl` and `clone3`,
+while the VM default permits them at the syscall-filter layer. Both block
+io_uring and retain capability/kernel restrictions. Dropping only the custom
+profile therefore retains container seccomp but changes its allowed kernel attack
+surface; it does not establish equivalent security. Podman's default is already
+the lean executor's policy. It may support Chromium's namespace sandbox without
+a translator, but the actual desktop/browser sandbox layers and the additional
+kernel interfaces must be qualified and reviewed before changing the guard.
+Disabling seccomp or Chromium's sandbox is not that alternative.
+
+A separate lifetime probe created a container through the compatible API with a
+filename-based denial canary, deleted that file after successful creation, and
+started the same container twice. Both starts retained the enforced canary. This
+supports temporary profile files on the tested Podman 5.4.2; it does not qualify
+other versions or an API proxy implementation.
