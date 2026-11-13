@@ -50,8 +50,8 @@ def storage_fixture():
                     shutil.rmtree(root)
                 except PermissionError:
                     # Linux hosts need ownership returned from container UIDs.
-                    # A nonce and a mandatory test-only Compose override keep
-                    # this metadata operation away from operator data.
+                    # A nonce and one explicit disposable bind keep this
+                    # metadata operation away from operator data.
                     (root / '.test-storage').write_text(marker)
                     script = '''import os, pathlib, stat, sys
 root=pathlib.Path('/persistent-data')
@@ -65,8 +65,18 @@ for base,dirs,files in os.walk(root):
 '''
                     # Rootless Podman maps the host user to container UID 0.
                     owner = ('0', '0') if engine() == 'podman' else (str(os.getuid()), str(os.getgid()))
-                    compose('run', '--rm', '-T', '--no-deps', '--entrypoint', 'python3',
-                            'setup', '-c', script, marker, *owner)
+                    # Do not reuse setup: its application-volume mounts would
+                    # recreate empty named volumes after the suite's shutdown.
+                    subprocess.run([*engine_command(), 'run', '--rm', '--network', 'none',
+                                    '--user', '0:0', '--cap-drop', 'ALL',
+                                    '--cap-add', 'CHOWN', '--cap-add', 'FOWNER',
+                                    '--cap-add', 'DAC_OVERRIDE', '--read-only',
+                                    '--security-opt', 'no-new-privileges:true',
+                                    '--tmpfs', '/tmp:mode=1777',
+                                    '--mount', f'type=bind,source={root},target=/persistent-data',
+                                    '--entrypoint', '/opt/hermes/.venv/bin/python',
+                                    'private-hermes-agent:local', '-c', script, marker, *owner],
+                                   check=True)
                     shutil.rmtree(root)
         finally:
             if previous is None:

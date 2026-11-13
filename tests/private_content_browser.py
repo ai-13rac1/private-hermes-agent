@@ -3,15 +3,14 @@ import base64
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
-import select
-import socket
 import ssl
 import struct
 import sys
 import tempfile
 import threading
 import zlib
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Error, sync_playwright
+from browser_proxy import Observer, tunnels
 
 password_path, mode = Path(sys.argv[1]), sys.argv[2]
 PASSWORD = password_path.read_text()
@@ -24,7 +23,7 @@ def chunk(kind, data):
     return struct.pack('!I', len(data)) + kind + data + struct.pack('!I', zlib.crc32(kind + data) & 0xffffffff)
 PNG = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('!2I5B', 2, 2, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress((b'\0' + b'\0\0\xff' * 2) * 2)) + chunk(b'IEND', b'')
 DATA = 'data:image/png;base64,' + base64.b64encode(PNG).decode()
-requests, connections, tunnels = [], [], []
+requests, connections = [], []
 
 
 class Canary(BaseHTTPRequestHandler):
@@ -47,36 +46,6 @@ class TLSServer(ThreadingHTTPServer):
         sock, address = super().get_request()
         connections.append(address)
         return tls.wrap_socket(sock, server_side=True), address
-
-
-class Observer(BaseHTTPRequestHandler):
-    # Forward only to controlled local fixtures, never resolve an outside host.
-    def log_message(self, *args):
-        pass
-    def do_CONNECT(self):
-        host, port = self.path.rsplit(':', 1)
-        tunnels.append((host, int(port)))
-        target = (int(port) if host == 'webapp-test.example.ts.net' and int(port) == 10000 else
-                  19202 if host in ('public.test', 'www.youtube.com', 'www.youtube-nocookie.com') else None)
-        if target is None:
-            self.send_error(502, 'Uncontrolled destination denied by fixture')
-            return
-        upstream = socket.create_connection(('127.0.0.1', target))
-        self.send_response(200)
-        self.end_headers()
-        sockets = [self.connection, upstream]
-        try:
-            while True:
-                readable, _, _ = select.select(sockets, [], [])
-                for source in readable:
-                    data = source.recv(65536)
-                    if not data:
-                        return
-                    (upstream if source is self.connection else self.connection).sendall(data)
-        except (OSError, ssl.SSLError):
-            pass
-        finally:
-            upstream.close()
 
 
 tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -104,6 +73,17 @@ def login(page, origin):
     page.wait_for_load_state('domcontentloaded')
 
 
+def attachment_download(page, url, expected):
+    page.evaluate("""href => {
+      const a=document.createElement('a');a.id='qualification-download';
+      a.href=href;a.textContent='Download active fixture';document.body.append(a);
+    }""", url)
+    with page.expect_download() as clicked:
+        page.locator('#qualification-download').click()
+    assert Path(clicked.value.path()).read_bytes() == expected
+    page.locator('#qualification-download').evaluate('(a) => a.remove()')
+
+
 def relay_checks(page, context, origin):
     saved = fetch(page, '/api/gateway-connections', {
         'kind': 'remote', 'label': 'Disposable relay', 'url': 'http://10.203.84.10:8000',
@@ -123,9 +103,20 @@ def relay_checks(page, context, origin):
             assert response.status == 200, response.status
             headers = response.headers
             assert headers['content-disposition'] == 'attachment', headers
+            assert headers['content-type'] == 'application/octet-stream', headers
+            assert headers['x-content-type-options'] == 'nosniff', headers
             assert "default-src 'none'" in headers['content-security-policy'], headers
             assert 'x-private-hermes-trusted-page' not in headers, headers
             assert 'set-cookie' not in headers and 'link' not in headers, headers
+            url = origin + base + '/relay/' + path
+            attachment_download(page, url, response.body())
+            # The native relay requires same-origin Fetch Metadata. An address-
+            # bar/new-tab navigation must not exercise the saved credential.
+            tab = context.new_page()
+            try:
+                assert tab.goto(url).status == 403
+            finally:
+                tab.close()
         # Actual raster rendering through the native relay remains available.
         result = page.evaluate('''async path => {
           const image = new Image(); image.src = path; document.body.append(image);
@@ -162,7 +153,6 @@ try:
                     page.on('websocket', lambda ws: ws.on('framereceived', lambda frame: chat_frames.append(frame)))
                     login(page, origin)
                     page.get_by_text('ready', exact=True).first.wait_for(timeout=30000)
-                    relay_checks(page, context, origin)
                     editor = page.locator('[data-slot="composer-rich-input"]').first
                     editor.fill('qualification-stream')
                     editor.press('Enter')
@@ -206,16 +196,24 @@ try:
                             page.get_by_role('button', name='Load once through Tor / retry').first.click()
                             page.wait_for_function('''() => [...document.images].some(i => i.src.startsWith('data:image/png') && i.complete && i.naturalWidth===2)''')
                             assert len(image_calls) == 1 and image_calls[0]['load_once'] is True
-                            assert fetch(page, '/api/private-content/policy')['body']['origins'] == []
-                            page.get_by_role('button', name='Remember this origin for Tor images').first.click()
-                            page.wait_for_function('''async () => (await (await fetch('/api/private-content/policy')).json()).origins.length===1''')
+                            policy = fetch(page, '/api/private-content/policy')
+                            assert policy['body']['origins'] == [], policy
+                            with page.expect_response(lambda r: r.url.endswith('/api/private-content/consent')
+                                                      and r.request.method == 'POST') as remembered:
+                                page.get_by_role('button', name='Remember this origin for Tor images').first.click()
+                            assert remembered.value.status == 200
+                            assert remembered.value.json()['origins'] == [CANARY]
                             # The one persistent settings surface is available even once images load.
                             page.goto(origin + '/#/settings?tab=config%3Aappearance&page=chat-display')
                             page.get_by_role('button', name='Image permissions', exact=True).first.click(timeout=15000)
                             dialog = page.get_by_role('dialog', name='Private image permissions')
-                            dialog.get_by_role('button', name='Revoke', exact=True).click()
-                            page.wait_for_function('''async () => (await (await fetch('/api/private-content/policy')).json()).origins.length===0''')
-                            assert fetch(page, '/api/private-content/policy')['body']['origins'] == []
+                            with page.expect_response(lambda r: r.url.endswith('/api/private-content/consent')
+                                                      and r.request.method == 'POST') as revoked:
+                                dialog.get_by_role('button', name='Revoke', exact=True).click()
+                            assert revoked.value.status == 200
+                            assert revoked.value.json()['origins'] == []
+                            policy = fetch(page, '/api/private-content/policy')
+                            assert policy['body']['origins'] == [], policy
                             dialog.get_by_role('button', name='Close', exact=True).click()
                         elif mode == 'off':
                             assert not image_calls and page.get_by_role('button', name='Load once through Tor / retry').count() == 0
@@ -236,21 +234,21 @@ try:
                         response = context.request.get(origin + '/dashboard-plugins/privacy-assets/' + asset)
                         assert response.status == 200, (asset,response.status)
                         assert response.headers.get('content-disposition') == 'attachment'
+                        assert response.headers.get('content-type') == 'application/octet-stream'
+                        assert response.headers.get('x-content-type-options') == 'nosniff'
                         assert 'sandbox' in response.headers.get('content-security-policy','')
-                        page.evaluate("""href => {
-                          document.getElementById('qualification-download')?.remove();
-                          const a=document.createElement('a');a.id='qualification-download';
-                          a.href=href;a.textContent='Download active fixture';document.body.append(a);
-                        }""", origin + '/dashboard-plugins/privacy-assets/' + asset)
-                        with page.expect_download():
-                            page.locator('#qualification-download').click()
+                        url = origin + '/dashboard-plugins/privacy-assets/' + asset
+                        attachment_download(page, url, response.body())
                         tab = context.new_page()
-                        with tab.expect_download():
-                            try:
-                                tab.goto(origin + '/dashboard-plugins/privacy-assets/' + asset)
-                            except Exception:
-                                pass  # A download navigation aborts; the download event is required.
-                        tab.close()
+                        try:
+                            with tab.expect_download() as navigated:
+                                try:
+                                    tab.goto(url)
+                                except Error:
+                                    pass  # The required download aborts navigation.
+                            assert Path(navigated.value.path()).read_bytes() == response.body()
+                        finally:
+                            tab.close()
 
                     # Real same-origin local bytes and authenticated playback remain usable.
                     page.goto(origin + '/#/private-content-qualification')
@@ -275,6 +273,9 @@ try:
                         page.frame_locator('iframe[src="/assets/webapp-preview.html"]').last.locator('#source').get_by_text('<img',exact=False).wait_for(timeout=5000)
                         page.wait_for_timeout(300)
                         assert len(requests) == before
+                    # Exercise extra tabs after chat/media checks so they cannot
+                    # interrupt the fresh page's initial WebSocket subscription.
+                    relay_checks(page, context, origin)
                     # Deliberate link navigation remains a real browser request, with no referrer.
                     link = page.get_by_role('link', name='Privacy deliberate external link', exact=True)
                     link.evaluate('''link => link.addEventListener('click', event => {

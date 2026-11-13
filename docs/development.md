@@ -133,38 +133,67 @@ A networkless signal-handler probe completed 12-second cleanup both
 with the configured unlimited timeout and explicit Compose `--timeout -1`.
 Podman's native inspection stores the configured timeout as unsigned maximum.
 
-This is not complete qualification. The following findings remain unresolved:
+This is not complete qualification. Compose preserves `bind.create_host_path:
+false` in its effective model, but the compatibility API starts a container and
+creates the missing source anyway. Native `podman run --mount` refuses it.
+Existing launch checks do not enforce this requirement for all supported
+passthrough launches. A fresh read-only review confirmed a material reliability
+gap, without a demonstrated credential or network boundary bypass. Plan D2
+remains open. A subsequent side-by-side comparison with the checksum-verified
+official [Compose 5.7.1](https://github.com/docker/compose/releases/tag/v5.7.1)
+binary reproduced both missing-bind creation and inline-seccomp filename failure
+on Podman 5.4.2. The installed provider was not replaced; upgrading Compose alone
+does not fix either observed issue.
 
-- **Missing bind sources:** Compose preserves `bind.create_host_path: false`
-  in its effective model, but the compatibility API starts a container and
-  creates the missing source anyway. Native `podman run --mount` refuses it.
-  Existing launch checks do not enforce this requirement for all supported
-  passthrough launches. A fresh read-only review confirmed a material
-  reliability/fail-closed gap, without a demonstrated credential or network
-  boundary bypass. Plan D2 remains open.
-- **Cold launches:** the API splits the fixture's multiword `python -c` health
-  check argument, preventing its dependency from becoming healthy. Production
-  health checks use scripts or `CMD-SHELL`; the launch fixture still needs repair.
-- **Research policy:** the missing-scratch negative control assumes Docker's
-  `--read-only` behavior. Podman automatically supplies writable temporary
-  filesystems, so the negative control succeeds and stops the remaining suite.
-- **Image canaries:** the disposable TLS directory retains `0700`, preventing
-  container UID 10000 from reading it on this Linux host.
-- **Webapp:** authentication, local/simulated HTTPS ingress, restart/rotation,
-  terminal/file boundaries and Chromium/Firefox's first content mode passed.
-  WebKit rejects the relay fixture PNG, whose IDAT checksum is invalid. The exact
-  bytes also fail standalone WebKit data-URI decoding without containers or
-  network; the complete content/failure matrix remains unqualified.
-- **Fixture cleanup:** subordinate-UID bind cleanup launches `setup` after
-  `down --volumes`, recreating its two empty named application volumes. The
-  helper should mount only its disposable bind data.
+The subsequent qualification corrections address the fixture failures:
 
-Live checks also encountered a three-second Tor DNS timeout, an unfunded treasury
+- Cold-launch health checks use a simple executable HTTP probe, avoiding API
+  splitting of a multiword Python argument.
+- Research's missing-scratch negative control explicitly mounts read-only
+  scratch on both engines; it no longer depends on Podman's automatic tmpfs.
+- The disposable TLS fixture directory is traversable by container UID 10000.
+- Both relay and local-file PNG fixtures have valid chunk checksums.
+- The CONNECT observer uses unbuffered HTTP input before transferring socket
+  ownership to its raw tunnel loop. A controlled coalesced-write probe reproduced
+  lost early tunnel bytes with the old buffered parser. Real TCP tests cover
+  preserved bytes and forbidden-target refusal without an upstream connection.
+- The simulated TLS bridge closes both sockets and cancels residual copying
+  when either peer closes. A real loopback probe reproduced the original
+  orphaned bridge; two TCP tests verify full byte delivery, closure from either
+  side and visible upstream-connection refusal. No active-stream deadline was
+  added. A fresh independent review accepted this lifecycle correction.
+- Ownership cleanup uses a networkless helper with only the disposable bind,
+  preserving the nonce check and scoped capabilities. It no longer recreates
+  named application volumes through `setup`; storage asserts their absence.
+  Both engines also removed the helper's inherited anonymous volume with `--rm`.
+
+Fresh independent review accepted the initial six-file fixture correction.
+The expanded 147-test unit suite/model/compile checks and complete cold-launch/
+dry-run, image-canary, research-policy and storage suites passed on both engines.
+Subsequent browser testing exposed a product portability defect: Linux WebKit renders attachment
+HTML inline despite its disposition. Standalone HTTP probes reproduced this
+without containers; the sandbox blocked scripts, while binary MIME delivery
+restored downloads. The existing untrusted HTML/XHTML/SVG branch now serves
+binary attachments with unchanged bytes, nosniff and sandbox policy, preserving
+trusted-document, raster and media behavior in every mode. Fresh independent
+design review accepted this narrow fix. Browser tests retain actual click and
+new-tab plugin download requirements and compare plugin/relay clicked-download
+bytes with the authenticated response. Direct relay navigation still requires
+403 under its native same-origin Fetch Metadata guard. Full rebuilt-image
+browser qualification is pending.
+Browser assertions wait for the exact consent-mutation response rather than
+polling potentially stale state; new-tab relay exercises run after chat/media
+checks so they cannot interrupt the fresh SPA's initial stream subscription.
+Logout checks use a fresh page in the same cleared cookie context, avoiding a
+race with the old SPA's own redirect while retaining unauthorized API assertions.
+
+Earlier live checks also encountered a three-second Tor DNS timeout, an unfunded treasury
 Tor-check TLS EOF, and a plugin environment GitHub-wheel download timeout; the
 treasury and plugin suites did not pass. No weaker transport was selected.
 The VM's checkout umask produced a group-writable public SSH configuration;
 setting `components/hermes/ssh-client.conf` to `0644` was required by OpenSSH
-before the successful core rerun. Source content was unchanged. Host browser
+before the successful core rerun. Source content was unchanged during that
+initial qualification. Host browser
 prerequisites were installed separately. Executor desktop/browser use remains
 explicitly refused with Podman; no inference, funds or live Funnel was tested.
 

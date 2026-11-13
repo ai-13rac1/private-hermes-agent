@@ -222,6 +222,12 @@ with sqlite3.connect(root/'persistence-test.sqlite') as db:
             # Only this disposable test project is deliberately erased.
             smoke.compose('down', '--volumes', '--remove-orphans')
 
+    remaining = subprocess.check_output([*engine_command(), 'volume', 'ls', '-q', '--filter',
+                                        'label=com.docker.compose.project=private-hermes-storage-test'],
+                                       text=True)
+    assert not remaining.strip(), 'Disposable application volumes survived final bind-data cleanup'
+    print('PASS: final bind-data cleanup leaves no disposable application volumes', flush=True)
+
 
 if __name__ == '__main__':
     main()

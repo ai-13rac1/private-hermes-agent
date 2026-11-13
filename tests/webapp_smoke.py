@@ -164,7 +164,7 @@ for host,port in (('10.203.85.2',9120),('10.203.85.3',8080),('10.203.85.3',19120
             smoke.python('hermes', content_fixture)
             smoke.python('executor', """import base64,wave
 from pathlib import Path
-Path('/workspace/private-content-local.png').write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6sRsAAAAASUVORK5CYII='))
+Path('/workspace/private-content-local.png').write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC'))
 with wave.open('/workspace/private-content-local.wav','wb') as f:
  f.setnchannels(1); f.setsampwidth(2); f.setframerate(8000); f.writeframes(b'\\x00\\x00'*8000)
 """)
@@ -277,7 +277,17 @@ print(base64.b64encode(p.read_bytes()).decode())
             print('PASS: gateway/ingress mismatch and stale generated policy fail closed; corrected recreation restores access',flush=True)
             # Separate real-route evidence: Tor exit control plus transparent
             # redirect counters around an actual authenticated image retrieval.
-            smoke.python('hermes', "import json,urllib.request; assert json.load(urllib.request.urlopen('https://check.torproject.org/api/ip',timeout=60))['IsTor'] is True")
+            smoke.python('hermes', """import json,ssl,time,urllib.error,urllib.request
+for attempt in range(4):
+ try:
+  with urllib.request.urlopen('https://check.torproject.org/api/ip',timeout=60) as response:
+   assert json.load(response)['IsTor'] is True
+  break
+ except urllib.error.URLError as error:
+  # Observed transient exit TLS EOF, not certificate errors or HTTP/policy failures.
+  if not isinstance(error.reason,ssl.SSLEOFError) or attempt==3: raise
+  time.sleep(2)
+""")
             def tor_redirect_count():
                 table = smoke.compose('exec','-T','tor','iptables','-t','nat','-L','PREROUTING','-n','-v','-x').stdout
                 return sum(int(line.split()[0]) for line in table.splitlines()

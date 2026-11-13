@@ -15,6 +15,7 @@ COMMAND = [*compose_base(), '-p', 'private-hermes-images-test', '-f', 'tests/ima
 def main():
     with tempfile.TemporaryDirectory(prefix='private-hermes-image-tls-') as folder:
         tls = Path(folder)
+        tls.chmod(0o755)  # Disposable certificates must be reachable by container UID 10000.
         subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
                         '-keyout', str(tls / 'key.pem'), '-out', str(tls / 'cert.pem'),
                         '-subj', '/CN=public.test', '-addext', 'subjectAltName=DNS:public.test'],

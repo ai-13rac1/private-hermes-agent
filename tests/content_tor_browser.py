@@ -22,11 +22,14 @@ with sync_playwright() as p:
             }''')
         def image_after_bootstrap():
             # Bootstrap health does not guarantee that a particular exit can
-            # resolve this host immediately. Match the existing allowed-path
-            # retry cadence; other errors and Tor-stopped checks still fail.
+            # resolve or connect to this host immediately. Keep the existing
+            # allowed-path cadence for these observed transport failures only;
+            # policy/other errors and Tor-stopped checks still fail immediately.
             for attempt in range(4):
                 result = image()
-                if result.get('reason') != 'Public image DNS resolution failed' or result['status'] != 502:
+                if result['status'] != 502 or result.get('reason') not in (
+                        'Public image DNS resolution failed',
+                        'Image connection failed; retry through Tor or open externally'):
                     return result
                 if attempt < 3:
                     page.wait_for_timeout(2000)

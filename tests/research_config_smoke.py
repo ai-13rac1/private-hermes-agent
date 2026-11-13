@@ -83,9 +83,14 @@ def main():
             address = json.loads(addresses)['receive_addresses'][0]['encoded_address']
             # Negative control reproduces the original missing-scratch defect
             # against exactly the same wallet, without networking or spending.
+            scratch = root / 'read-only-scratch'
+            scratch.mkdir(mode=0o755)
             denied = docker('run', '--rm', '--network', 'none', '--read-only',
                             '--mount', f'type=volume,src={identity},dst=/var/lib/x402',
                             '--mount', f'type=bind,src={directory},dst=/opt/x402/examples/deployments,readonly',
+                            # Podman supplies writable /tmp even with --read-only.
+                            # Force this negative control's scratch read-only on both engines.
+                            '--mount', f'type=bind,src={scratch},dst=/tmp,readonly',
                             image, 'wallet', 'addresses', check=False)
             assert denied.returncode and 'Read-only file system' in denied.stderr, denied.stderr
             assert address in admin('status').stdout

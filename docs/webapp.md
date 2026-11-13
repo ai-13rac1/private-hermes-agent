@@ -372,8 +372,10 @@ parsed or executed there, including nested frames, resource hints, workers,
 WebRTC/STUN or script navigation. This is a deliberate fallback: CSP alone does
 not confine arbitrary preview JavaScript. Locally rendered sanitized SVG and
 Mermaid diagrams remain; external SVG references are blocked. Active HTML/SVG
-file and plugin-asset responses are attachments with an inert sandbox policy,
-including direct navigation/new tabs. The served preview shells retain their
+file and plugin-asset responses are binary attachments with an inert sandbox
+policy, including direct navigation/new tabs. Binary delivery keeps browsers
+from rendering these active formats inline despite an attachment header.
+The served preview shells retain their
 native sandbox in `browser_native`; private shells only display source text.
 
 Ordinary deliberate external links remain browser navigation. Downloads remain

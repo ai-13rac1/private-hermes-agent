@@ -129,6 +129,10 @@ with sync_playwright() as playwright:
             logout = pending_logout.value
             assert logout.status in (200,302,303)
             assert not [c for c in context.cookies() if 'hermes_session_at' in c['name']]
+            # The old SPA may still be redirecting after logout. A fresh page
+            # checks the same cleared cookie context without racing navigation.
+            page.close()
+            page = context.new_page()
             page.goto(origin + '/login')
             assert fetch(page, '/api/config').status in (401,403)
             context.close()
