@@ -3,7 +3,8 @@
 Status: original G1 passed; P1 is merged; original P2 and P4 are implemented.
 P5 and P6 are implemented on branch `podman-p5` (rebased onto `main` `3161614`)
 and qualified on rootless Podman (P5 evidence below); R1–R3 are resolved there.
-Amendment design gate G1A passed. P7 needs the Docker run; final gate G2 is open.
+Amendment design gate G1A passed. Review of `e2ad623` found further launch and
+qualification defects; the correction work below is active. Final G2 is open.
 Planning baseline: branch `main`, commit `4a08841`. Amendment baseline: branch
 `main`, commit `1d83657`.
 Explicit-selection amendment baseline: branch `rootless-podman-support`, commit
