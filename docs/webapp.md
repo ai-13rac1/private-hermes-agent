@@ -1,4 +1,4 @@
-# Authenticated webapp and optional Tailscale Funnel
+# Authenticated webapp and optional remote ingress
 
 The local webapp is included in the main Compose deployment. It uses native
 Hermes username/password login
@@ -111,6 +111,64 @@ and shuts down the whole deployment without deleting persistent data.
 Local web access is part of the base stack; there is no separate enable flag
 or webapp overlay. Use `make down` to stop the deployment without deleting state.
 
+## Optional onion ingress
+
+`TOR_ONION_ENABLED=false` is the default. The onion service is independent of
+Funnel; localhost remains available with either, both, or neither enabled.
+
+The owning Tor image is always built by ordinary `make build` and `make up`;
+there is no optional onion build or overlay. After building the stack, create an identity:
+
+```sh
+make onion-address
+```
+
+This prints the saved HTTP onion URL. Native Tor generates the files offline in
+a networkless maintenance container; this command neither publishes a descriptor
+nor starts the runtime stack. Build access uses the host's normal connection.
+For a fresh checkout that has only run `make init`, run `make build` first.
+Inspection never builds or pulls images implicitly.
+Creation needs only Tor bind storage, not provider keys, wallets, or valid
+serving settings. First creation/derived-file repair requires runtime Tor's
+container to be removed (`make down`), including paused/restarting containers;
+existing-address inspection works while it is running.
+
+Set `TOR_ONION_ENABLED=true` in `.env`, then run `make up` and open the displayed
+URL in Tor Browser. If enabling before `make init`, create the identity with the
+target first: enabled proxy rendering requires a saved address. Apply feature
+changes to an existing stack with `make down` followed by `make up`. Disable
+with `TOR_ONION_ENABLED=false` and the same procedure. Keys persist through
+shutdown and disable/re-enable. Local port 8080 is reserved while onion ingress
+is enabled, just as 8443 is reserved for enabled Funnel.
+
+The native directory `data/tor/onion-service/` contains `hostname`,
+`hs_ed25519_secret_key`, and `hs_ed25519_public_key`. Back up the entire directory
+and preserve UID 101/GID 102 and native private modes. `make onion-address`
+reconstructs a missing hostname and public key from an intact native secret
+after `make down`. A missing public key alone does not prevent address display;
+enabled native Tor reconstructs it at startup. Missing or malformed secrets
+require backup recovery; neither the
+target nor enabled runtime startup silently generates a replacement identity.
+Reading a saved hostname remains possible without complete key material; that
+reports saved information, not serving readiness. A malformed hostname is
+rejected before rendering HAProxy configuration.
+
+Tor and HAProxy always share an isolated ingress network. The enable flag
+controls native publication and the exact listener/firewall grants, not overlays
+or membership. Only Tor at `10.203.86.2` can connect to the onion frontend at
+`10.203.86.3:8080`. That frontend accepts only the saved hostname (optionally with
+`:80`), strips forwarded headers and supplies HTTP as the trusted scheme.
+Hermes and the executor are not members of this network, and HAProxy receives
+no mount of Tor state. The Tor process has no general private-network exception.
+
+Onion HTTP uses native host-only HttpOnly/SameSite=Lax cookies without Secure;
+Funnel HTTPS retains its native Secure cookies. Each hostname requires login;
+the same credentials/signing key back all paths, with no extra token audience
+isolation. Logout clears that browser origin; credential/signing-key rotation
+invalidates native tokens across ingress paths. Browser image consent is scoped
+to each exact browser origin. Onion access does not override external-content
+policy or route a normal browser's external requests through the stack.
+
 ## Authentication, origins, and authority
 
 The native provider uses scrypt password hashes, 12-hour access tokens, and
@@ -137,7 +195,8 @@ is attached to neither ingress network.
 At startup the proxy installs default-deny IPv4/IPv6 firewall rules. It accepts
 local connections on the host-publication interface (on rootless Podman, from
 the port forwarder over loopback; see [engine differences](architecture.md#rootless-podman))
-and Funnel connections only from the exact Tailscale address to port 8443. With
+and Funnel connections only from the exact Tailscale address to port 8443. The
+optional onion path admits only the exact Tor address to its separate listener. With
 Funnel enabled, `WEBAPP_PORT` must not be 8443. It can initiate connections only
 to Hermes at `10.203.85.2:9120`; established replies are permitted. New connections
 to the host/VM, LAN, Internet, DNS, or other stack services are blocked. IP
@@ -147,7 +206,7 @@ executing HAProxy. Its temporary startup capabilities are not available to
 HAProxy or its children. Operator-controlled engine exec can run as root; it is
 outside the untrusted serving-process boundary.
 
-HAProxy enforces exact Host authorities separately on local and Funnel paths.
+HAProxy enforces exact Host authorities separately on local, Funnel and onion paths.
 It strips Forwarded and every X-Forwarded-* header, then sets scheme and peer
 identity from the selected ingress path. Hermes trusts only the proxy's exact
 backend IP. There is no fixed public_url, so native origin checks use the actual

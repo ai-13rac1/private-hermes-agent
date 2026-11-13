@@ -29,6 +29,7 @@ Compose explicitly selects each service's environment variables:
 | `TS_AUTHKEY` | Optional Tailscale container |
 | `WEBAPP_EXTERNAL_CONTENT` | Deployment validation, Hermes, offline setup and ingress proxy |
 | Funnel enablement, local webapp port and hostname | Deployment workflow and selected ingress components |
+| `TOR_ONION_ENABLED` (default `false`) | Deployment validation, Tor and HAProxy; no conditional overlay |
 
 Generated webapp credentials are kept separately under `config/webapp/`; see
 [webapp setup](webapp.md). The networkless `setup init` command copies native auth settings into
@@ -368,7 +369,7 @@ not by itself change the deployment or replace full application qualification.
 | `x402_treazury-data` named volume | Entire treasury home: wallet state/key, financial journals, catalog cache and onboarding record |
 | `config/x402_treazury/` | Editable research policy |
 | `data/x402_treazury-auth/` | Persistent MCP bearer token, separately mounted from the wallet |
-| `data/tor/` | Tor guard-selection and persistent Tor state |
+| `data/tor/` | Tor guard-selection/state and optional native onion identity under `onion-service/` |
 | `data/tailscale/` | Optional Funnel node enrollment and identity |
 
 `make init` creates missing directories without replacing data. A trusted,
@@ -409,6 +410,18 @@ for upstream reports and the distinction from supported Tor-only restarts.
 Ordinary `make down` preserves persistent data; do not add `--volumes` for recovery.
 
 ## Backup scope
+
+Include `data/tor/onion-service/` with all native key files, not just `hostname`.
+The secret key preserves the onion address and permits impersonating it; protect
+it as private identity material. Restore ownership (container UID 101/GID 102)
+and native modes rather than loosening permissions for host-side inspection.
+Use `make onion-address` to display the saved address, including while serving
+settings are invalid. After `make down` it reconstructs a missing hostname and
+public key from an intact secret. If only the public key is missing, the target
+continues to display the saved hostname without writing; native enabled Tor
+reconstructs that public file at startup. Missing/malformed secrets require
+deliberate backup recovery, not reinitialization or automatic rotation. See
+[onion operation](webapp.md#optional-onion-ingress).
 
 Back up the root `.env` and `config/` as private operator configuration. Protect
 these backups as secrets; `.env` may contain paid API keys and Tailscale

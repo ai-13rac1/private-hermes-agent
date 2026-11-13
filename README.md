@@ -10,7 +10,7 @@ The goal is to let an agent research and write code while keeping your network
 address, inference requests, and agent payment history private, and
 [sandboxing the agent](#service-hardening) from accessing your local machine.
 You can use Hermes through your browser or terminal, and optionally enable public
-HTTPS access through Tailscale Funnel.
+HTTPS access through Tailscale Funnel or Tor Browser access through an onion service.
 
 By default, the webapp also prevents [displayed content](#web-page-previews) from
 bypassing Tor through your own browser: supported external images load through
@@ -44,10 +44,11 @@ still use your browser's connection.
   Rotating wallets and changing the Tor isolation identity reduce the linkability
   of API usage across payments. Hermes receives authenticated tool access while
   wallet files and spending keys stay in a separate container.
-- **HAProxy and optional Tailscale Funnel** provide access to the authenticated
+- **HAProxy, optional Tailscale Funnel and onion ingress** provide access to the authenticated
   webapp. HAProxy supplies the local entry point; Funnel optionally makes it
   reachable over public HTTPS without requiring visitors to join a tailnet.
   Remote access remains separate from the agent's Tor egress.
+  Optional onion ingress lets Tor Browser reach the webapp without Tailscale.
 
 x402_treazury exposes twelve research tool groups covering web, science,
 shopping, world, social, property, travel, health, business, finance, security,
@@ -84,7 +85,7 @@ You need a container engine, Compose 2.36+, `make`, and Python 3. Use either:
 exported value overrides it. The stack adds the Podman overlay files itself. It requires isolated
 bridge networking and Linux GRE support; startup checks reject unsupported
 setups. Its fixed `10.203.80.0/24` through `10.203.84.0/24` networks, local
-ingress `10.203.85.0/24`, and optional Funnel `10.203.87.0/24` must not overlap
+ingress `10.203.85.0/24`, onion ingress `10.203.86.0/24`, and optional Funnel `10.203.87.0/24` must not overlap
 your existing networks.
 
 On rootless Podman, Compose 2.36+ must be the provider of `podman compose`;
@@ -233,8 +234,69 @@ To give Hermes Agent a full Linux graphical desktop environment inside an isolat
 This selects a substantially larger image and enables computer-use
 and browser automation tools for the agent to use.
 
-For remote browser access, follow the [optional Funnel setup](docs/webapp.md#optional-public-funnel).
-Funnel is disabled by default and requires explicit enrollment and activation.
+## Ingress
+
+Local access at **http://127.0.0.1:9120** or **http://localhost:9120** is always
+included. Remote ingress is optional: enable Tailscale Funnel, an onion service,
+or both. Each hostname requires its own login using the same username and saved
+password. Enabling one does not require the other.
+
+### Public HTTPS with Tailscale Funnel
+
+Create a Tailscale enrollment key and allow Funnel for the node in your tailnet
+policy. Add these settings to root `.env`, using your node's exact assigned
+`.ts.net` hostname:
+
+```dotenv
+TAILSCALE_FUNNEL_ENABLED=true
+TAILSCALE_HOSTNAME=private-hermes
+TAILSCALE_FUNNEL_HOST=private-hermes.your-tailnet.ts.net
+TAILSCALE_FUNNEL_PORT=443
+TS_AUTHKEY=your-enrollment-key
+```
+
+Run `make build`, then `make down` and `make up`. Open
+`https://private-hermes.your-tailnet.ts.net` and log in with Hermes credentials.
+Funnel provides **public HTTPS**, not tailnet authorization; visitors do not need
+a Tailscale account. The login cookies are marked Secure. Ports 443, 8443 and
+10000 are supported; include a nondefault port in the URL. You can remove
+`TS_AUTHKEY` after successful enrollment because the node identity is saved.
+
+Set `TAILSCALE_FUNNEL_ENABLED=false` and run `make down` followed by `make up`
+to disable Funnel while preserving its enrollment and other ingress modes.
+See [Funnel setup and troubleshooting](docs/webapp.md#optional-public-funnel).
+
+### Tor onion service
+
+Onion ingress is disabled by default. Its image is included in ordinary
+`make build` and `make up`, even while onion ingress is disabled. Create or
+display your address with:
+
+```sh
+make onion-address
+```
+
+If you have only run `make init` and have not built the stack yet, run
+`make build` first.
+
+Creating the identity is offline and does not publish the service. If the stack
+is already running, use `make down` before first creation or repair. Once saved,
+the same command displays the address while the stack is running.
+
+Add `TOR_ONION_ENABLED=true` to root `.env`, then run `make up`. Open the printed
+`http://…onion` URL in Tor Browser and log in. If changing an existing deployment,
+use `make down` followed by `make up` to apply the setting. Funnel can stay off.
+
+The address and private key are saved together in `data/tor/onion-service/`.
+Back up the whole Tor state directory with its ownership and permissions intact;
+the address alone cannot restore the identity. Repeating `make onion-address`,
+rebuilding, or disabling and re-enabling ingress preserves the saved address.
+Restore damaged keys from backup; the command refuses to replace them silently.
+
+Set `TOR_ONION_ENABLED=false` and apply `make down` followed by `make up` to
+withdraw onion ingress without deleting its key or changing localhost/Funnel
+access. See [onion operation and recovery](docs/webapp.md#optional-onion-ingress)
+and [backup scope](docs/configuration.md#backup-scope).
 
 ## Updates and Backups
 

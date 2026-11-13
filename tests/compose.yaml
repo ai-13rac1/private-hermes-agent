@@ -1,4 +1,17 @@
 services:
+  onion-inspect:
+    volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/tor
+        target: /var/lib/tor
+        read_only: true
+        bind: {create_host_path: false}
+  onion-init:
+    volumes:
+      - type: bind
+        source: ${TEST_DATA_DIR:?disposable test data required}/tor
+        target: /var/lib/tor
+        bind: {create_host_path: false}
   setup-storage:
     volumes:
       - type: bind

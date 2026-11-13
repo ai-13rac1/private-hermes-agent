@@ -99,7 +99,9 @@ Extend the shared placeholder to offer direct in-app loading when supported:
 - Integrate social embeds into the same policy rather than allowing a separate
   provider preference to bypass it. Display and revoke effective grants in one
   settings surface. Handle localhost and Funnel browser state explicitly; do
-  not assume their independent origins share consent storage.
+  not assume their independent origins share consent storage. Include the optional
+  onion HTTP origin in this contract; its ingress reuses the same authentication
+  and content policy, with independently scoped browser consent.
 
 ## Consent-scoped frames and generated previews
 

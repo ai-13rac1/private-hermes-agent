@@ -102,7 +102,7 @@ def run_suite():
         auth = {'password_hash': hash_password(password), 'secret': secrets.token_urlsafe(48)}
         (folder / 'auth.json').write_text(json.dumps(auth))
         (folder / 'password').write_text(password)
-        values = dict(external_content='tor_proxied', funnel_enabled='true', webapp_bind='127.0.0.1',
+        values = dict(external_content='tor_proxied', onion_enabled='false', funnel_enabled='true', webapp_bind='127.0.0.1',
                       webapp_port='19120', webapp_username='admin', funnel_host='webapp-test.example.ts.net',
                       funnel_port='10000', tailscale_hostname='private-hermes')
         (folder / 'proxy.cfg').write_text(render_proxy(values))

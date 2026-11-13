@@ -1,0 +1,11 @@
+# Local native Tor/HAProxy qualification without publishing an onion descriptor.
+services:
+  tor:
+    volumes:
+      - type: bind
+        source: ${ONION_TEST_TORRC:?disposable Tor config required}
+        target: /etc/tor/torrc
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, test, -S, /run/tor-control/control.sock]

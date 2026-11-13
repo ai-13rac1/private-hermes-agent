@@ -75,6 +75,23 @@ webapp-live-test: check
 	python3 -u tests/webapp_smoke.py --live-egress
 
 .PHONY: chat gateway
+.PHONY: onion-address
+onion-address:
+	python3 scripts/onion_address.py
+
+.PHONY: onion-test
+onion-test: check
+	$(COMPOSE) -f compose.yaml build tor hermes executor webapp-proxy
+	python3 scripts/preflight.py private-hermes-onion-test --funnel
+	python3 -u tests/onion_smoke.py
+
+# Explicitly publishes a disposable authenticated onion service for qualification.
+.PHONY: onion-live-test
+onion-live-test: check
+	$(COMPOSE) -f compose.yaml build tor hermes executor webapp-proxy
+	python3 scripts/preflight.py private-hermes-onion-test --funnel
+	python3 -u tests/onion_smoke.py --live
+
 chat:
 	python3 scripts/stack.py compose run --rm --no-deps hermes chat
 gateway: up

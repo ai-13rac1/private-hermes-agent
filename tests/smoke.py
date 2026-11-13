@@ -27,8 +27,12 @@ COMPOSE = [*compose_base(), '-p', 'private-hermes-test', *compose_files(False, e
 
 
 @contextmanager
-def storage_fixture():
-    root = Path(tempfile.mkdtemp(prefix='private-hermes-storage-'))
+def storage_fixture(root=None):
+    if root is None:
+        root = Path(tempfile.mkdtemp(prefix='private-hermes-storage-'))
+    else:
+        root = Path(root)
+        root.mkdir(parents=True)
     initialize_storage(root)
     marker = secrets.token_hex(16)
     (root / '.test-storage').write_text(marker)

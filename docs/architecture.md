@@ -90,6 +90,33 @@ by `make up` to recreate the stack together.
 This preserves persistent data. Tor has its own namespace and can be restarted
 independently; its outage/recovery behavior is qualified separately.
 
+## Optional onion ingress
+
+The base stack always includes isolated `onion-ingress` (`10.203.86.0/24`),
+connecting only Tor (`.2`) and HAProxy (`.3`). `TOR_ONION_ENABLED` defaults false
+and changes publication/listeners/grants, not membership or Compose selection.
+Enabled Tor OUTPUT admits only UID 101 TCP from `10.203.86.2` to
+`10.203.86.3:8080` before private-destination denial. Existing raw PREROUTING
+denial still prevents agent/executor traffic from using this private exception.
+HAProxy admits new connections only from that Tor address on the onion listener;
+its only outbound backend remains `10.203.85.2:9120`. Disabled mode has neither
+new-connection grant nor onion listener/HiddenService configuration. The Podman
+overlay adds `isolate: strict` for this network like the other internal bridges.
+
+`onion-inspect` and `onion-init` are networkless, dependency-free maintenance
+jobs using the existing network image and only the Tor bind. Inspection mounts
+it read-only; initialization runs native Tor with DisableNetwork=1 and drops all
+child capabilities. Its trusted parent retains KILL only to stop/reap the
+UID-101 child; serving Tor receives no extra capability. It preserves native
+keys and reconstructs derived files.
+The host target serializes mutation and requires removal of the runtime Tor
+container before writing, so a paused/restarting service cannot resume as a
+concurrent writer. Reading a saved address has no such restriction.
+Tor itself replaces malformed secret files, so the wrapper checks the native
+secret header/length before repair and enabled runtime start. This guard protects
+identity preservation, not an additional cryptographic identity certification.
+No serving component gains Tor-state access. See [onion operations](webapp.md#optional-onion-ingress).
+
 ## Rootless Podman
 
 Managed container creation checks required bind sources in the effective Compose

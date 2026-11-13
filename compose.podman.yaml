@@ -40,6 +40,8 @@ services:
       PRIVATE_HERMES_PORT_FORWARDER: loopback
 
 networks:
+  onion-ingress:
+    driver_opts: !override {isolate: strict}
   agent-route:
     driver_opts: !override {isolate: strict}
   executor-route:

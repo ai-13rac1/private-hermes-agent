@@ -18,7 +18,7 @@ spec.loader.exec_module(funnel)
 
 
 def values(**changes):
-    defaults = dict(external_content='tor_proxied', funnel_enabled='false', webapp_bind='127.0.0.1',
+    defaults = dict(external_content='tor_proxied', onion_enabled='false', funnel_enabled='false', webapp_bind='127.0.0.1',
                     webapp_port='9120', webapp_username='admin', funnel_host='',
                     funnel_port='443', tailscale_hostname='private-hermes')
     return {**defaults, **changes}

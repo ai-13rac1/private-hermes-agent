@@ -1,6 +1,6 @@
 # Optional onion-service ingress
 
-Status: OI-DESIGN in progress; implementation authorized by the user.
+Status: OI-DESIGN passed; implementation and qualification in progress.
 Follow the [planning workflow](../planning-workflow.md) and
 [repository instructions](../../AGENTS.md) before execution.
 
@@ -137,7 +137,8 @@ For a missing identity, use native Tor with networking disabled in a
 `network_mode: none`, no-dependencies maintenance job mounting only Tor state.
 Prefer a small helper in the existing network component and host Make workflow.
 Serialize mutation with the existing operator operation lock and refuse identity
-creation/repair while the runtime Tor service is running; do not rely solely on
+creation/repair while any runtime Tor container exists (require `make down`);
+restarting/paused containers can otherwise resume as writers. Do not rely solely on
 fresh bind-filesystem locks. Existing-address inspection remains available with
 the runtime running. Never start a second writer to live Tor state.
 
@@ -161,7 +162,8 @@ then terminates and reaps its child. Its own requested SIGTERM is expected even
 if initialization has not installed Tor's handler yet; native errors still fail.
 Use read-only inspection and writable initialization maintenance jobs from the
 existing network image, both with no network/dependencies and only the Tor bind.
-Initialization requires the owning image built explicitly; existing inspection
+The owning image is built by default by ordinary make build/up, even when
+onion ingress is disabled. Fresh pre-start identity creation uses make build; existing inspection
 never builds. Managed initialization/repair checks that runtime Tor is stopped
 under the existing operation lock. Proxy rendering reads only the public hostname;
 runtime Tor checks the secret format before accepting enabled ingress.
@@ -230,6 +232,7 @@ qualification evidence.
   change at OI-FINAL. Split further only if concrete work warrants another
   meaningful security boundary review, not an arbitrary number of gates.
 
+Use Make-only user instructions in README; no special Tor build invocation.
 README Ingress documentation must give usable localhost, Funnel and onion
 instructions: enable flags, address creation/display, Tor Browser use, separate
 logins, disable/re-enable and combinations. Include Funnel's missing first-use
@@ -331,4 +334,29 @@ operator publication, enrollment and financial operations remain outside scope.
   OI-DESIGN: fresh independent read-only review accepted the updated design,
   including the native evidence, with no material findings. Clarified the
   explicit build prerequisite and exact native header bytes as requested.
-- Implementation, both-engine runtime qualification and OI-FINAL: not started.
+- OI-1 implementation: present in the working snapshot, with default-off fixed
+  network ingress, native identity target, scoped firewall/listener changes and
+  maintained operator documentation. Ordinary make build/up includes Tor even
+  when ingress is off; README uses Make-only instructions per user direction.
+- Focused checks: 167 source/model tests and effective Compose validation passed
+  locally and on rootless Podman. Docker's deterministic onion suite passed,
+  including Tor Browser 15.0.26/Gecko 140.17.0 and Chromium 156.0.8078.4.
+  Separate Tor clients passed live rendezvous/authenticated API on both engines,
+  explicitly authorized by the user during execution. Live publication took
+  several minutes; fixture/browser failures afterward were kept distinct from
+  successful rendezvous evidence and corrected without repeating that live check.
+- Implementation review: a fresh read-only reviewer found two material issues:
+  running-only status omitted restarting Tor, and docs overstated public-key-only
+  repair by the display target. Mutation now requires runtime-container removal
+  with make down; Docker restart-loop refusal passed. Docs distinguish missing
+  hostname recovery from native runtime repair of a missing public key, and that
+  latter path passed Docker. Final corrected Podman suite is in progress.
+- Localhost and simulated Funnel native browser authentication, Secure cookie
+  flags, CSRF, terminal streaming and SSH-backed files passed on Docker.
+  Both-engine routing/SSH/Tor-outage regression fixtures are in progress.
+- Host tooling incident: Selenium Manager's initial automatic driver discovery
+  attempted unsolicited Plausible analytics. The Tor Browser fixture now requires
+  a direct cached driver and bypasses the manager, with statistics/offline options
+  set. No stack image or runtime analytics configuration was added.
+- OI-FINAL combined review and phase acceptance: pending. Preserve this plan
+  until the final corrected runtime results and independent review are recorded.

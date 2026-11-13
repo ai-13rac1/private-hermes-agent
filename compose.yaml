@@ -7,6 +7,7 @@ x-hermes-build: &hermes-build
   dockerfile: components/hermes/Dockerfile
 
 x-deployment:
+  onion_enabled: "${TOR_ONION_ENABLED:-false}"
   funnel_enabled: "${TAILSCALE_FUNNEL_ENABLED:-false}"
   webapp_bind: "${WEBAPP_BIND:-127.0.0.1}"
   webapp_port: "${WEBAPP_PORT:-9120}"
@@ -136,6 +137,7 @@ services:
     depends_on:
       setup: {condition: service_completed_successfully}
     environment:
+      TOR_ONION_ENABLED: ${TOR_ONION_ENABLED:-false}
       PRIVATE_HERMES_X402_TREAZURY_SOCKS: "1"
     cap_add: [NET_ADMIN, SETUID, SETGID, SETPCAP, CHOWN, FOWNER, DAC_OVERRIDE]
     volumes:
@@ -150,6 +152,8 @@ services:
       - /run/tor-control:mode=0700
     networks:
       tor-uplink: {}
+      onion-ingress:
+        ipv4_address: 10.203.86.2
       agent-route:
         ipv4_address: 10.203.80.3
       executor-route:
@@ -416,6 +420,42 @@ services:
     command: [gateway, run]
     restart: unless-stopped
 
+  onion-inspect:
+    profiles: [maintenance]
+    image: private-hermes-network:local
+    entrypoint: [python3, /opt/onion.py]
+    command: [inspect]
+    network_mode: none
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    volumes:
+      - type: bind
+        source: ./data/tor
+        target: /var/lib/tor
+        read_only: true
+        bind: {create_host_path: false}
+
+  onion-init:
+    profiles: [maintenance]
+    image: private-hermes-network:local
+    entrypoint: [python3, /opt/onion.py]
+    command: [initialize]
+    network_mode: none
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID, SETPCAP, KILL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:mode=1777]
+    volumes:
+      - type: bind
+        source: ./data/tor
+        target: /var/lib/tor
+        bind: {create_host_path: false}
+
   webapp-proxy:
     image: private-hermes-webapp-proxy:local
     build:
@@ -433,6 +473,7 @@ services:
       WEBAPP_EXTERNAL_CONTENT: ${WEBAPP_EXTERNAL_CONTENT-tor_proxied}
       WEBAPP_PORT: ${WEBAPP_PORT:-9120}
       TAILSCALE_FUNNEL_ENABLED: ${TAILSCALE_FUNNEL_ENABLED:-false}
+      TOR_ONION_ENABLED: ${TOR_ONION_ENABLED:-false}
     depends_on:
       agent-net: {condition: service_healthy}
     volumes:
@@ -447,9 +488,15 @@ services:
       webapp-backend:
         ipv4_address: 10.203.85.3
       webapp-publish: {}
+      onion-ingress:
+        ipv4_address: 10.203.86.3
     restart: unless-stopped
 
 networks:
+  onion-ingress:
+    <<: *isolated
+    ipam:
+      config: [{subnet: 10.203.86.0/24}]
   tor-uplink: {}
   teep-uplink: {}
   agent-route:

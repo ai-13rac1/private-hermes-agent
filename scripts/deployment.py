@@ -253,7 +253,7 @@ def maintenance_compose(all_ingress=False, executor_build=False, extra=()):
     # These operations must not start ingress, inference or the agent with
     # placeholders. Actual treasury policy remains in its mounted configuration.
     # Compose still interpolates unused services and publications.
-    os.environ.update(TAILSCALE_FUNNEL_ENABLED='false', WEBAPP_EXTERNAL_CONTENT='off',
+    os.environ.update(TOR_ONION_ENABLED='false', TAILSCALE_FUNNEL_ENABLED='false', WEBAPP_EXTERNAL_CONTENT='off',
                       WEBAPP_BIND='127.0.0.1', WEBAPP_PORT='9120', WEBAPP_USERNAME='admin',
                       TAILSCALE_FUNNEL_HOST='', TAILSCALE_FUNNEL_PORT='443',
                       TAILSCALE_HOSTNAME='private-hermes', TEEP_HOST_PORT='8337', TEEP_SERVE_ARGS='')
@@ -274,13 +274,18 @@ def maintenance_command(arguments):
         return False
     service, no_deps, _ = _run_target(arguments)
     return no_deps and service in ('hermes-config', 'setup-storage', 'mcp-config',
+                                  'onion-inspect', 'onion-init',
                                   'x402_treazury-inspect', 'x402_treazury-admin')
 
 
 def render(config):
+    onion_host = ''
+    if config.onion:
+        from onion_address import saved_address
+        onion_host = saved_address()
     path = ROOT / 'config/webapp/proxy.cfg'
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(proxy_config(config, loopback_forwarder=engine() == 'podman'))
+    path.write_text(proxy_config(config, loopback_forwarder=engine() == 'podman', onion_host=onion_host))
 
 
 # Compose global options that the stack.py passthrough accepts before the subcommand.

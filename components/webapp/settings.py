@@ -18,6 +18,7 @@ def port(value, name):
 
 @dataclass(frozen=True)
 class Settings:
+    onion: bool
     funnel: bool
     bind: str
     port: int
@@ -33,10 +34,13 @@ class Settings:
         if external_content not in ('tor_proxied', 'ask', 'off', 'browser_native'):
             raise ValueError('WEBAPP_EXTERNAL_CONTENT must be tor_proxied, ask, off or browser_native')
         funnel = boolean(values['funnel_enabled'], 'TAILSCALE_FUNNEL_ENABLED')
+        onion = boolean(values['onion_enabled'], 'TOR_ONION_ENABLED')
         bind = values['webapp_bind']
         if not ipaddress.IPv4Address(bind).is_loopback:
             raise ValueError('WEBAPP_BIND must be an IPv4 loopback address')
         local_port = port(values['webapp_port'], 'WEBAPP_PORT')
+        if onion and local_port == 8080:
+            raise ValueError('WEBAPP_PORT must not be 8080 when onion ingress is enabled')
         username = values['webapp_username']
         if not re.fullmatch(r'[A-Za-z0-9_.@-]+', username):
             raise ValueError('WEBAPP_USERNAME must contain only letters, digits, _, ., @ or -')
@@ -55,7 +59,7 @@ class Settings:
         public_port = port(values['funnel_port'], 'TAILSCALE_FUNNEL_PORT')
         if public_port not in (443, 8443, 10000):
             raise ValueError('TAILSCALE_FUNNEL_PORT must be 443, 8443 or 10000')
-        return cls(funnel, bind, local_port, username, host, public_port, node, external_content)
+        return cls(onion, funnel, bind, local_port, username, host, public_port, node, external_content)
 
 
 def authorities(host, port_number, default_port):
@@ -65,7 +69,7 @@ def authorities(host, port_number, default_port):
     return result
 
 
-def proxy_config(settings, loopback_forwarder=False):
+def proxy_config(settings, loopback_forwarder=False, onion_host=''):
     """Render HAProxy's configuration.
 
     Docker delivers published connections on the publication interface.
@@ -78,7 +82,8 @@ def proxy_config(settings, loopback_forwarder=False):
                           for authority in authorities(host, settings.port, 80)})
     forwarder = 'loopback' if loopback_forwarder else 'interface'
     text = (f'# WEBAPP_EXTERNAL_CONTENT={settings.external_content}\n'
-            f'# PORT_FORWARDER={forwarder}\n') + '''global
+            f'# PORT_FORWARDER={forwarder}\n'
+            f'# TOR_ONION_ENABLED={str(settings.onion).lower()}\n') + '''global
     log stdout format raw local0 notice
 
 defaults
@@ -115,4 +120,9 @@ frontend {name}
     if settings.funnel:
         text += frontend('funnel', '10.203.87.3:8443',
                          authorities(settings.funnel_host, settings.funnel_port, 443), 'https', '10.203.87.2')
+    if settings.onion:
+        if not re.fullmatch(r'[a-z2-7]{56}\.onion', onion_host):
+            raise ValueError('One saved v3 onion hostname is required for onion ingress')
+        text += frontend('onion', '10.203.86.3:8080', authorities(onion_host, 80, 80),
+                         'http', '10.203.86.2')
     return text

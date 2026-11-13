@@ -10,7 +10,7 @@ def run(*args, **kwargs):
     return subprocess.run(args, check=True, text=True, **kwargs)
 
 
-def firewall(forwarder, edge, edge_ip, port, funnel):
+def firewall(forwarder, edge, edge_ip, port, funnel, onion=False):
     """Return the IPv4 iptables-restore input for HAProxy's namespace."""
     if forwarder == 'interface':
         # Docker delivers published connections on the publication interface.
@@ -23,6 +23,8 @@ def firewall(forwarder, edge, edge_ip, port, funnel):
                  f'-A OUTPUT -o lo -p tcp --dport {port} -m conntrack --ctstate NEW -j ACCEPT']
     if funnel:
         rules += ['-A INPUT -s 10.203.87.2/32 -d 10.203.87.3/32 -p tcp --dport 8443 -m conntrack --ctstate NEW -j ACCEPT']
+    if onion:
+        rules += ['-A INPUT -s 10.203.86.2/32 -d 10.203.86.3/32 -p tcp --dport 8080 -m conntrack --ctstate NEW -j ACCEPT']
     return '\n'.join([
         '*filter', ':INPUT DROP [0:0]', ':OUTPUT DROP [0:0]', ':FORWARD DROP [0:0]',
         '-A INPUT -m conntrack --ctstate ESTABLISHED -j ACCEPT',
@@ -56,17 +58,24 @@ def main():
     enabled = os.environ.get('TAILSCALE_FUNNEL_ENABLED', 'false')
     if enabled not in ('true', 'false'):
         raise ValueError('Invalid Funnel enablement')
+    onion = os.environ.get('TOR_ONION_ENABLED', 'false')
+    if onion not in ('true', 'false'):
+        raise ValueError('Invalid onion enablement')
+    if config.splitlines()[2:3] != [f'# TOR_ONION_ENABLED={onion}']:
+        raise ValueError('Onion enablement mismatch: regenerate ingress and recreate services')
+    if onion == 'true' and port == 8080:
+        raise ValueError('Local port conflicts with onion listener')
     addresses = json.loads(run('ip', '-j', '-4', 'addr', capture_output=True).stdout)
     edge = [entry['ifname'] for entry in addresses if entry['ifname'] != 'lo'
             and any(info['scope'] == 'global' for info in entry['addr_info'])
-            and not any(info['local'] in ('10.203.85.3', '10.203.87.3')
+            and not any(info['local'] in ('10.203.85.3', '10.203.86.3', '10.203.87.3')
                         for info in entry['addr_info'])]
     if len(edge) != 1:
         raise ValueError('Expected exactly one host publication interface')
     edge_ip = next(info['local'] for entry in addresses if entry['ifname'] == edge[0]
                    for info in entry['addr_info'] if info['scope'] == 'global')
     os.environ['PRIVATE_HERMES_EDGE_IP'] = edge_ip
-    run('iptables-restore', input=firewall(forwarder, edge[0], edge_ip, port, enabled == 'true'))
+    run('iptables-restore', input=firewall(forwarder, edge[0], edge_ip, port, enabled == 'true', onion == 'true'))
     run('ip6tables-restore', input='\n'.join([
         '*filter', ':INPUT DROP [0:0]', ':OUTPUT DROP [0:0]', ':FORWARD DROP [0:0]',
         'COMMIT', '',

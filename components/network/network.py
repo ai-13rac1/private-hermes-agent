@@ -11,6 +11,8 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from onion import require_secret, read_address
 
 # Block non-public IPv4 destinations even when applications use literal IPs or
 # public DNS returns a private answer. Explicit service grants precede this list.
@@ -129,6 +131,12 @@ def endpoint(role):
 
 
 def router():
+    onion = os.environ.get('TOR_ONION_ENABLED', 'false')
+    if onion not in ('true', 'false'):
+        raise ValueError('TOR_ONION_ENABLED must be exactly true or false')
+    if onion == 'true':
+        require_secret()
+        read_address()
     clients = [('10.203.80.2', '10.203.80.3', '10.204.80.2', '10.204.80.1'),
                ('10.203.81.2', '10.203.81.3', '10.204.81.2', '10.204.81.1')]
     for index, (client, gateway, inner, peer) in enumerate(clients):
@@ -156,6 +164,8 @@ def router():
         ]
     # The Tor process itself also cannot contact host, VM, or private networks.
     outgoing = [f'-A OUTPUT -d {client}/32 -p gre -j ACCEPT' for client, *_ in clients]
+    if onion == 'true':
+        outgoing += ['-A OUTPUT -s 10.203.86.2/32 -d 10.203.86.3/32 -p tcp --dport 8080 -m owner --uid-owner 101 -j ACCEPT']
     outgoing += deny('OUTPUT', networks)
     outgoing += ['-A OUTPUT -m owner --uid-owner 101 -p tcp -j ACCEPT']
     apply(raw, nat, incoming, outgoing)
@@ -168,17 +178,18 @@ def router():
     # Set the control directory owner here: Podman rejects tmpfs uid and gid options.
     os.chown('/run/tor-control', 101, 102)
     print('router: firewall installed; starting Tor without network capabilities', flush=True)
-    config = '/etc/tor/torrc'
+    original = Path('/etc/tor/torrc').read_text()
     if os.environ.get('PRIVATE_HERMES_X402_TREAZURY_SOCKS', '0') == '1':
         socks = Path('/run/tor-x402_treazury')
         os.chown(socks, 101, 102)
         socks.chmod(0o750)
-        original = Path(config).read_text()
         if original.splitlines().count('SocksPort 0') != 1:
             raise ValueError('Expected one disabled SOCKS listener in the base Tor config')
-        rendered = original.replace('SocksPort 0', 'SocksPort unix:/run/tor-x402_treazury/socks IsolateSOCKSAuth GroupWritable RelaxDirModeCheck')
-        config = '/tmp/x402_treazury-torrc'
-        Path(config).write_text(rendered)
+        original = original.replace('SocksPort 0', 'SocksPort unix:/run/tor-x402_treazury/socks IsolateSOCKSAuth GroupWritable RelaxDirModeCheck')
+    if onion == 'true':
+        original += '\nHiddenServiceDir /var/lib/tor/onion-service\nHiddenServiceVersion 3\nHiddenServicePort 80 10.203.86.3:8080\n'
+    config = '/tmp/private-hermes-torrc'
+    Path(config).write_text(original)
     drop(101, 102, '/usr/bin/tor', '-f', config)
 
 

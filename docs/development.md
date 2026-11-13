@@ -44,6 +44,62 @@ Hermes and wallet state use native named volumes; other persistent files live
 in `data/`. Runtime Tor socket IPC also uses a named volume. See
 [configuration and backups](configuration.md) before starting.
 
+## Onion ingress qualification
+
+`make onion-test` uses disposable Tor state and the actual host address target,
+native Tor, HAProxy and pinned Hermes. It disables Tor networking and uses a
+test-only byte proxy from the browser into Tor's namespace; no descriptor is
+published. It covers identity retry/recovery, malformed-secret refusal, backup
+restore, exact ingress, browser-origin login/refresh/logout and WebSockets,
+origin-scoped image consent, forbidden paths, restart/outage and withdrawal.
+Use the existing browser environment via `WEBAPP_BROWSER_PYTHON` and the pinned
+`tests/requirements-browser.txt`. `PLAYWRIGHT_BROWSERS_PATH` may select an
+explicit disposable browser installation.
+
+`make onion-live-test` additionally publishes a disposable authenticated service
+and uses a separate native Tor client for real rendezvous, login and protected
+API access. This is explicit public-network qualification, not part of routine
+`make check` or the nonpublishing onion suite. The client has a test deadline;
+deployment work receives no new runtime deadline or direct transport fallback.
+Stop other fixed-network projects first; cleanup removes only test resources.
+
+For actual Tor Browser semantics, set `TOR_BROWSER_PYTHON` to an environment
+with Selenium, `TOR_BROWSER_BINARY` to the installed browser, and `GECKODRIVER`
+to an existing local driver. The test creates a disposable profile, disables the
+bundled Tor launcher and uses the controlled SOCKS fixture. It retains Tor
+Browser's private cookie partitioning and reads only cookie flags through its
+private-origin cookie API; it never prints session values. The direct driver
+path bypasses Selenium Manager entirely, with its statistics opt-out set too.
+Do not use automatic driver discovery: Selenium Manager has default Plausible
+analytics. Browser fixture results are separate from live Tor rendezvous.
+
+Qualification on 2026-11-13 used Docker 29.9.3 / Compose 5.7.0 on macOS 26.7.1
+ARM64, and rootless Podman 5.4.2 / Compose provider 5.7.1 on Debian 13 ARM64,
+kernel `6.12.116+deb13-arm64` via `debvm23`. Both engines passed the source/model
+checks, including all four onion/Funnel flag combinations. The full deterministic
+onion fixture passed Docker, including actual Tor Browser 15.0.26 (Gecko
+140.17.0), Chromium 156.0.8078.4, native recovery/backup, consent, WebSockets,
+restart-loop refusal and disable/re-enable. The final Podman correction and
+routing regressions are still being qualified; do not infer their completion.
+Separate Tor 0.4.9.16 clients passed live onion rendezvous, authentication and
+protected API access on both engines. Publication took several minutes; bootstrap
+health alone did not establish reachability. Existing localhost/simulated HTTPS
+cookie/auth/streaming regression checks also passed Docker.
+
+The Chromium onion fixture supplies Fetch Metadata explicitly for the consent
+endpoint; stock Chromium does not attach it to this HTTP origin. Actual Tor
+Browser generated the required metadata and passed consent without that fixture
+header. The test-only proxy supports HTTP/CONNECT and SOCKS into Tor's namespace;
+it is neither a production listener nor live rendezvous evidence.
+
+The first host Selenium Manager driver-discovery attempt emitted an unsolicited
+Plausible analytics request. This did not originate in a stack image. The retained
+Tor Browser harness now requires a direct local driver and bypasses the manager;
+do not restore automatic discovery as a test dependency fallback.
+Unchanged browser-content evidence remains in its existing sections; this change
+does not requalify every renderer. Live Funnel enrollment, provider attestation,
+financial settlement and untested platforms remain outside these checks.
+
 ## Qualification and maintenance
 
 ```sh

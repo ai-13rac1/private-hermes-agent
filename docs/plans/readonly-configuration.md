@@ -33,6 +33,9 @@ to the SSH execution boundary are outside scope.
   file mount may conflict with replacement of the mounted inode.
 - Provider keys live in teep's environment, outside Hermes and the executor.
   Read-only configuration would not add confidentiality to those keys.
+- Optional onion ingress keeps the same trusted proxy and native authentication
+  settings. Its generated HAProxy config is separate from agent policy; preserve
+  localhost, Funnel HTTPS and onion HTTP origins when protecting configuration.
 
 ## Invariants
 

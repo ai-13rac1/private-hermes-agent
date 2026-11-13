@@ -260,7 +260,7 @@ class PassthroughTests(unittest.TestCase):
 
     def run_passthrough(self, arguments, selected='podman', model=None, rejected=False):
         settings = deployment.Settings.read(dict(
-            external_content='tor_proxied', funnel_enabled='false', webapp_bind='127.0.0.1', webapp_port='9120',
+            external_content='tor_proxied', onion_enabled='false', funnel_enabled='false', webapp_bind='127.0.0.1', webapp_port='9120',
             webapp_username='admin', funnel_host='', funnel_port='443', tailscale_hostname='private-hermes'))
         model = json.dumps(model or {'services': {'teep': {'networks': {'inference': None}},
                                                 'setup': {'network_mode': 'none'},
@@ -427,7 +427,7 @@ class ComposeModelTests(unittest.TestCase):
         config = model('compose.yaml', 'compose.funnel.yaml')
         internal = {name for name, network in config['networks'].items() if network.get('internal')}
         self.assertEqual(internal, {'agent-route', 'executor-route', 'execution-control', 'inference',
-                                    'mcp-access', 'webapp-backend', 'funnel-link'})
+                                    'mcp-access', 'webapp-backend', 'onion-ingress', 'funnel-link'})
         for name, network in config['networks'].items():
             if name in internal:
                 with self.subTest(network=name):
