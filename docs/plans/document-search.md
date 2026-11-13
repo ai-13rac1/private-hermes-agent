@@ -1,6 +1,8 @@
 # Private document search: xerj and OpenViking comparison
 
 Status: proposed; no document-search services, ingestion, or paid model calls enabled.
+Engine-parity amendment baseline: `rootless-podman-support`, `3f66fa5`.
+Follow the [planning workflow](../planning-workflow.md) before implementation.
 
 ## Objective and selection requirement
 
@@ -92,6 +94,39 @@ Do not introduce arbitrary CPU, memory, storage, or time limits as part of this
 comparison. Measure usage and document native application limits and rejected
 inputs, including xerj's inspected per-PDF limits, rather than silently skipping
 material or weakening isolation to make ingestion succeed.
+
+### Cross-engine feasibility and storage qualification
+
+Target the same candidate images, API/tool contract and optional overlay workflow
+on Docker and rootless Podman. Recheck native package/binary support for the actual
+CPU architecture before building either candidate; record unsupported targets
+rather than adding an emulation or engine adapter layer. Validate candidate and
+explicit comparison overlays with the selected engine and optional ingress layers.
+
+The experiment-directory preference above does not establish that host-backed
+indexes are safe. Identify each candidate's database/locking requirements and
+test fresh-file locks, competing writers, restart recovery and index persistence
+on the actual filesystem. Docker Desktop binds have failed existing stack lock
+qualification. Prefer native named volumes for lock-sensitive state if those
+binds fail; keep originals separate and document volume backup/export. Derived
+indexes may be rebuildable, but incomplete caches must not trigger automatic paid
+re-embedding or make intact originals unavailable for inspection.
+
+Qualify read-only library mounts, missing-source refusal, UID/GID mappings,
+ownership and native-volume initialization on each engine. Reuse existing managed
+bind checks and storage probes plus application-specific checks; do not broaden
+mounts, recursively repair library ownership or expose private PDFs to Hermes or
+the executor. Optional ingestion must not run during ordinary stack initialization.
+
+Accelerated embeddings are a separate feasibility axis from search-engine
+compatibility. Investigate actual device/runtime support for the selected local
+server on each target, including Docker Desktop's VM and rootless Podman device
+permissions. Do not assume GPU passthrough or performance equivalence. Keep the
+same OpenAI-compatible endpoint contract; an unavailable accelerator is an
+explicit target limitation, not permission for privileged mode, broad device or
+host-network access, CPU fallback without disclosure, or a remote-provider
+fallback. A working CPU fixture can qualify integration without qualifying
+accelerated performance.
 
 ## Embedding qualification
 
@@ -205,6 +240,33 @@ responses; they must not automatically index the private library or make paid
 provider calls. Initial paid qualification and full ingestion are explicit
 operator actions. No inferred cost or arbitrary benchmark claim substitutes
 for measurements on this collection.
+
+Before comparison deployment, obtain fresh independent design review of the
+selected pins, storage, least-privilege ingestion/search split and exact network
+grants. In particular, a search service's embedding grant must not make it a
+general inference proxy available to the executor. Coordinate selected MCP grants
+and authoritative policy writers with the related listener, capability-reduction
+and read-only-configuration plans without implementing those plans as dependencies.
+
+On both qualified engines, use public synthetic documents and deterministic
+embedding/chat fixtures to test ingestion, retrieval/provenance, restart/recreation,
+interrupted-ingestion retry, backup/restore and candidate deselection. Prove allowed
+Hermes search and selected embedding access, denied executor/private/host/VM
+access, no direct Internet fallback, and applicable Tor-loss/recovery behavior.
+Exercise ingestion/admin rejection through the agent's actual tool/API authority;
+a smaller advertised tool list alone does not prove the write boundary.
+Keep real-provider/model quality and acceleration measurements separate from
+these integration passes, and do not duplicate paid corpus processing merely to
+test another engine. Record native engine/provider/architecture/filesystem limits.
+Update operating and development guides with the chosen integration and obtain
+fresh final combined review before declaring implemented support. No implementation,
+engine qualification or design acceptance is supplied by this plan amendment.
+
+The engine-parity amendment against `3f66fa5` passed fresh independent read-only
+review together with the listener and interactive-content amendments, with no
+material findings. Local-link targets and `git diff --check` passed; no runtime
+tests were run for these documentation-only changes. Future design,
+implementation and both-engine qualification remain pending.
 
 ## References
 

@@ -8,6 +8,7 @@ Execution follows the [planning workflow](../planning-workflow.md) and
 Planning baseline: branch `main`, commit `2d0ec55`. This revision is planning
 only. At execution, record the actual baseline and completed/reviewed part 1
 revision; do not assume today's official Hermes image is still the runtime.
+Engine-parity amendment baseline: `rootless-podman-support`, `3f66fa5`.
 
 ## Objective and starting state
 
@@ -217,9 +218,10 @@ fresh review brief; do not add duplicate reviews just to satisfy labels.
   shared part 1 invariants and acceptance evidence below. It also serves as
   the P2-3 phase review. Resolve material findings and record exactly which
   formats/providers/browsers passed; do not claim universal compatibility.
-- Commit completion/docs and retain this plan with accurate status and remaining
-  limitations. A bounded fallback is acceptable; an unresolved required security
-  condition cannot be relabeled as completed work.
+- Commit completion/docs and remove the completed plan after final acceptance
+  under the planning workflow, preserving lasting limits in maintained guides.
+  Retain it while gates remain pending. A bounded fallback is acceptable; an
+  unresolved required security condition cannot be relabeled as completed work.
 
 All phases extend the explicit Hermes patches and reproducible asset build from
 part 1, with patch mismatch failures and update-inventory changes as needed.
@@ -227,6 +229,33 @@ No topology change or new service is assumed. Justify any necessary addition
 against an actual boundary rather than hypothetical future provider support.
 
 ## Qualification and acceptance
+
+Use one media/consent/frame implementation and image patch set for Docker and
+rootless Podman. The engine controls server-side Tor retrieval, ingress transport
+and persistent state; the viewer's browser controls direct content loading.
+Neither engine routes viewer requests through Tor or changes browser sandbox/CSP
+semantics. Keep these axes separate from executor computer-use/browser-use, which
+retain their own placement, sandbox and engine-policy qualification.
+
+Run affected backend/streaming and browser-containment checks on both qualified
+engines using the maintained focused browser/ingress matrix. Cover each supported
+browser's relevant security behavior without restoring a full Cartesian product
+of engine, mode, ingress and lifetime cases. New browser-dependent behavior needs
+focused evidence in each claimed browser; reuse unchanged part 1 evidence.
+Use deterministic local media/provider fixtures and simulated HTTPS for Range,
+seeking, redirects, nested dependencies, revocation and cancellation. Keep public
+Tor retrieval/outage/recovery in separate live checks on each engine; a local
+fixture or browser request counter cannot prove Tor routing. Do not repeat public
+HTTPS controls in every browser case or add blanket retries to hide failures.
+
+Trace stream cancellation and client disconnect through Hermes and HAProxy,
+including the Podman ingress forwarder. Qualify reconnect and relevant dependency
+restart/recreation without direct fallback. Verify remembered grants survive
+container recreation and volume backup/restore with their origin scope intact.
+Rootless ownership handling must not loosen permissions or mount the grant store
+into the executor.
+Validate effective base/Funnel models when definitions change. Simulated HTTPS
+and ingress fixtures do not qualify live Funnel or arbitrary providers.
 
 - Retain all part 1 no-unapproved-egress tests in the default policy. Adding a
   player or preview must not widen the main application's source permissions.
@@ -271,6 +300,10 @@ or untested cases rather than requiring production accounts to finish the suite.
   establish that part 1's implementation prerequisite has been met.
 - Authority: local commits and disposable qualification within task scope; no
   live Funnel enrollment, production financial secrets or funded calls.
+- Engine-parity amendment against `3f66fa5`: fresh independent read-only review
+  accepted it together with the listener and document-search amendments, with no
+  material findings. Local-link targets and `git diff --check` passed. No runtime
+  tests were run for these documentation-only changes; future gates remain pending.
 
 Maintain reviewed SHAs, material finding dispositions and focused results here as
 work lands. Report missing review/validation explicitly without generating a
