@@ -106,8 +106,10 @@ adding another preflight framework. Keep inspection, shutdown and offline repair
 available when unrelated deployment settings are invalid; a missing policy may
 block its consumer, not unrelated saved-data access.
 
-Coordinate writer UID/capability requirements with
-[capability reduction](capability-reduction.md). Do not solve rootless ownership
+Coordinate writer UID/capability requirements with the implemented
+[Hermes boundary](../architecture.md#hermes-capability-boundary) and
+[executor capability requirements](../architecture.md#executor-capability-requirements).
+Do not solve rootless ownership
 or read-only mount failures with additional runtime grants, engine sockets,
 privileged containers or a switch to rootful operation. Any engine exception must
 identify the reproduced operation, affected filesystem/target and simplest
@@ -203,7 +205,9 @@ focused evidence; obtain fresh independent design review before runtime edits.
 Then implement the coherent storage, setup, maintenance and consumer changes with
 their tests and updates to configuration/backup and development guides. Obtain
 fresh final combined review after both-engine qualification, before acceptance.
-Reconcile capability-reduction requirements if shared writers or grants change.
+Reconcile shared-writer and capability requirements with the implemented
+boundaries in [architecture](../architecture.md#hermes-capability-boundary) if
+either changes.
 This plan-only amendment supplies no runtime qualification or design-gate pass.
 
 The engine-parity amendment against baseline `1a6d298` received fresh independent

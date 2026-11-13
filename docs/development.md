@@ -231,6 +231,12 @@ permitted, inheritable, ambient and bounding sets. Tests used disposable project
 and did not touch operator volumes. AMD64, live public ingress/Funnel and live
 settlement/providers remain unqualified.
 
+Independent endpoint namespace-owner restart/recreation with attached
+applications was not qualified and is unsupported on both engines. Fresh-stack
+startup and Tor outage/restart checks do not establish namespace reattachment.
+Use the [whole-stack recovery procedure](architecture.md#network-and-execution-boundaries)
+instead; no automatic reattachment or recovery mechanism is provided.
+
 ## Executor desktop qualification
 
 The [architecture guide](architecture.md#executor-capability-requirements) records

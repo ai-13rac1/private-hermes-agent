@@ -2,7 +2,10 @@
 
 Status: deferred; retained for reference, not scheduled implementation work.
 Extraction baseline: branch `main`, commit `9b536d0aefe53776f33eacb8366c8b639f1874ed`.
-Extracted from [capability reduction](../capability-reduction.md).
+This was extracted from the completed capability-reduction work; the implemented
+restricted-privilege result is documented in
+[architecture](../../architecture.md#hermes-capability-boundary) and
+[development](../../development.md#qualification-and-maintenance).
 Follow the [planning workflow](../../planning-workflow.md) before reactivation.
 
 ## Why this is deferred

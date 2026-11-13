@@ -245,8 +245,9 @@ Before comparison deployment, obtain fresh independent design review of the
 selected pins, storage, least-privilege ingestion/search split and exact network
 grants. In particular, a search service's embedding grant must not make it a
 general inference proxy available to the executor. Coordinate selected MCP grants
-and authoritative policy writers with the related listener, capability-reduction
-and read-only-configuration plans without implementing those plans as dependencies.
+and authoritative policy writers with the related listener and
+read-only-configuration plans, and with the implemented capability boundaries,
+without implementing those plans as dependencies.
 
 On both qualified engines, use public synthetic documents and deterministic
 embedding/chat fixtures to test ingestion, retrieval/provenance, restart/recreation,

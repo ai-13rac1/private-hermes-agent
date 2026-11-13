@@ -75,6 +75,14 @@ cannot grant a direct uplink.
   their firewall rules and have no direct fallback. Existing local teep/MCP/SSH
   paths remain usable. Initial startup waits for Tor readiness.
 
+Do not independently restart or recreate `agent-net` or `executor-net` while
+their application containers exist. Namespace-sharing containers can retain the
+old namespace rather than reattach to the replacement; this lifecycle is not
+supported on either engine. For namespace-owner recovery or network-policy
+changes, run `make down` followed by `make up` to recreate the stack together.
+This preserves persistent data. Tor has its own namespace and can be restarted
+independently; its outage/recovery behavior is qualified separately.
+
 ## Rootless Podman
 
 Managed container creation checks required bind sources in the effective Compose
@@ -239,8 +247,8 @@ UID 10000 with empty effective, permitted, inheritable and ambient sets and
 bounding set `0x400c0`; that residual is not authority in the executor's original
 user namespace under `NoNewPrivs=1` with no file capabilities. `SYS_CHROOT`
 remains a functional desktop/Podman Chromium sandbox requirement and is not
-security-only cleanup. See [development checks](development.md#executor-desktop-qualification)
-and the [capability reduction plan](plans/capability-reduction.md).
+security-only cleanup. See [development checks](development.md#executor-desktop-qualification) and the
+[qualification record](development.md#qualification-and-maintenance).
 
 ### Hermes capability boundary
 
