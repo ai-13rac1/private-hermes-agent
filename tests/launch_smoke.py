@@ -25,6 +25,7 @@ def dry_run_checks(override):
                                         f'label=com.docker.compose.project={project}'], text=True).split()
     try:
         for arguments in (['up', '--dry-run', '-d', 'probe-owner'],
+                          ['--dry-run', 'up', '--no-attach', '--dry-run=false', '-d', 'probe-owner'],
                           ['run', '--dry-run', '-d', '--no-deps', 'probe-networked']):
             result = subprocess.run([*command, *arguments], cwd=ROOT, text=True, capture_output=True)
             assert result.returncode == 0, result.stderr

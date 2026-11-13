@@ -358,7 +358,7 @@ CREATE_FLAGS = ('--abort-on-container-exit', '--abort-on-container-failure',
                 '-V', '--renew-anon-volumes', '--timestamps', '--wait', '-y', '--yes')
 
 
-def check_bind_sources(command, rest):
+def check_bind_sources(command, rest, *, dry_run=False):
     """Reject absent required sources before a supported container creation.
 
     Compose resolves paths, profiles and dependency selection. This is a host
@@ -410,7 +410,10 @@ def check_bind_sources(command, rest):
             raise ValueError('Compose scale requires SERVICE=COUNT')
     else:
         raise ValueError(f'Unsupported Compose creation command {action}; use up, create or run.')
-    model = json.loads(_output(*command, 'config', '--format', 'json', *targets))
+    if dry_run:
+        return
+    model = json.loads(_output(*command, 'config', '--format', 'json',
+                               *(['--', *targets] if targets else [])))
     services = model.get('services') or {}
     # A run override supersedes the target mount, never a dependency's mount.
     overrides = {}
@@ -510,9 +513,18 @@ def split_passthrough(arguments):
         if command_dry_run is not None:
             dry_run = command_dry_run
     else:
-        for argument in rest[1:]:
+        arguments = iter(rest[1:])
+        for argument in arguments:
             if argument == '--':
                 break
+            name, equals, _ = argument.partition('=')
+            if name in CREATE_VALUES:
+                # A value spelled --dry-run is still an operand. Native pflag
+                # consumes it, so it must neither skip real launch preparation
+                # nor override an actual global dry-run flag.
+                if not equals:
+                    next(arguments, None)
+                continue
             if argument == '--dry-run' or argument.startswith('--dry-run='):
                 dry_run = _dry_run_flag(argument)
     return files, options, dry_run, rest

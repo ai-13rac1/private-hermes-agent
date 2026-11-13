@@ -79,16 +79,14 @@ def main_unlocked():
                                  'Remove the networking/dependency override before running this job.')
             if rest[0] == 'down':
                 command += ['--profile', '*']
-            if not dry_run:
-                check_bind_sources(command, rest)
+            check_bind_sources(command, rest, dry_run=dry_run)
             run(command + rest)
             if rest[0] == 'down' and not dry_run:
                 remove_networks(command)
             return
         config = settings(extra=files, options=options)
         command = compose(config, extra=files) + options
-        if not dry_run:
-            check_bind_sources(command, rest)
+        check_bind_sources(command, rest, dry_run=dry_run)
         if not dry_run and needs_networks(command, rest):
             prepare_launch(command)
         run(command + rest)

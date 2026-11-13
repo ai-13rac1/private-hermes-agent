@@ -68,7 +68,9 @@ class BindSourceTests(unittest.TestCase):
 
     def test_native_selection_and_option_operands(self):
         render = self.check({'job': {}}, ['up', '--wait-timeout', '42', '--scale=job=2', '-d', 'job'])
-        self.assertEqual(render.call_args.args, ('compose', 'config', '--format', 'json', 'job'))
+        self.assertEqual(render.call_args.args, ('compose', 'config', '--format', 'json', '--', 'job'))
+        render = self.check({'--dry-run': {}}, ['run', '--', '--dry-run'])
+        self.assertEqual(render.call_args.args[-2:], ('--', '--dry-run'))
         render = self.check({'job': {}}, ['scale', 'job=2'])
         self.assertEqual(render.call_args.args[-1], 'job')
         for arguments in (['watch'], ['up', '--watch'], ['future-create'], ['up', '--unknown', 'job'],
@@ -85,6 +87,13 @@ class BindSourceTests(unittest.TestCase):
         # Explicit positive scale overrides the saved zero and needs its bind.
         with self.assertRaisesRegex(RuntimeError, 'Required bind'):
             self.check(services, ['up', '--scale=job=1', 'job'])
+
+    def test_dry_run_validates_command_without_requiring_sources(self):
+        with patch.object(deployment, '_output') as render:
+            deployment.check_bind_sources(['compose'], ['up', 'job'], dry_run=True)
+            render.assert_not_called()
+            with self.assertRaisesRegex(ValueError, 'Unsupported Compose creation'):
+                deployment.check_bind_sources(['compose'], ['watch'], dry_run=True)
 
     def test_noncreating_operations_do_not_render_or_check_sources(self):
         for action in ('config', 'ps', 'exec', 'logs', 'build', 'down', 'stop', 'start', 'restart'):

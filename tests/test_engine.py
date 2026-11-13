@@ -238,6 +238,10 @@ class PassthroughTests(unittest.TestCase):
             (['--dry-run', 'up'], ([], ['--dry-run'], True, ['up'])),
             (['up', '--dry-run'], ([], [], True, ['up', '--dry-run'])),
             (['down', '--dry-run'], ([], [], True, ['down', '--dry-run'])),
+            (['up', '--no-attach', '--dry-run', '-d', 'hermes'],
+             ([], [], False, ['up', '--no-attach', '--dry-run', '-d', 'hermes'])),
+            (['--dry-run', 'up', '--no-attach', '--dry-run=false', 'hermes'],
+             ([], ['--dry-run'], True, ['up', '--no-attach', '--dry-run=false', 'hermes'])),
             (['run', '--dry-run', 'hermes'], ([], [], True, ['run', '--dry-run', 'hermes'])),
             (['run', 'hermes', 'echo', '--dry-run'], ([], [], False, ['run', 'hermes', 'echo', '--dry-run'])),
             (['--dry-run', 'run', '--dry-run=false', 'hermes'],
@@ -330,6 +334,13 @@ class PassthroughTests(unittest.TestCase):
                 with self.subTest(engine=selected, service=service):
                     self.run_passthrough(['run', '--rm', service], selected=selected, rejected=True)
             self.run_passthrough(['run', '--rm', '--no-deps', 'hermes'], selected=selected, rejected=True)
+
+    def test_dry_run_operand_cannot_bypass_engine_preparation(self):
+        for selected in ('docker', 'podman'):
+            self.run_passthrough(['up', '--no-attach', '--dry-run', '-d', 'teep'],
+                                 selected=selected, rejected=True)
+            with self.assertRaisesRegex(ValueError, 'Unsupported Compose creation'):
+                self.run_passthrough(['--dry-run', 'watch'], selected=selected)
 
     def test_ambiguous_run_flags_cannot_select_an_offline_service(self):
         for selected in ('docker', 'podman'):

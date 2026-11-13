@@ -35,7 +35,8 @@ def main():
         override_created = False
         try:
             for arguments in (['run', '--rm', 'bind-absent'], ['run', '--rm', 'bind-dependent'],
-                              ['create', 'bind-absent'], ['up', '-d', 'bind-absent']):
+                              ['create', 'bind-absent'], ['up', '-d', 'bind-absent'],
+                              ['up', '--no-attach', '--dry-run', '-d', 'bind-absent']):
                 result = subprocess.run([*command, *arguments], cwd=ROOT, text=True, capture_output=True)
                 assert result.returncode and 'Required bind source missing' in result.stderr, result.stderr
                 assert not missing.exists(), 'Rejected launch created missing source'
