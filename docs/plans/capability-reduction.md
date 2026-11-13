@@ -1,7 +1,9 @@
 # Capability reduction
 
-Status: proposed; implementation, runtime qualification and independent design
-acceptance are pending. This revision updates the plan only.
+Status: P1 investigation complete; selected reductions are proposed and G1
+independent design acceptance is pending. P2/P3 implementation and P5 combined
+qualification are not started. This revision records P1 evidence only; no
+production privilege or topology change is included.
 Planning baseline: branch `main`, commit
 `0f19d8ee88a383f0e6de7eb72291761015136711`.
 Scope expansion baseline: branch `main`, commit
@@ -272,6 +274,110 @@ Exact existing network service grants and namespace boundaries remain unchanged.
 proposal to change them belongs to separately scoped work and cannot be justified
 as a prerequisite for privilege reduction.
 
+## P1 findings and selected reductions
+
+Evidence was collected on 2026-11-13 with the built Hermes image
+(`sha256:f2ffce3a1503dc67ae595f8fb69759c5a058c1128687844f6e87dd2db53142c1` on
+Docker Desktop ARM64, `5b66f666b34e5a5606d1c8155248b77242853c19dfcea15142f6e59fcfb13869`
+on rootless Podman ARM64), using
+[`tests/capability_bootstrap.py`](../../tests/capability_bootstrap.py) with the
+production entrypoint, a disposable networkless named volume, no operator mounts
+or credentials, and `no-new-privileges`. The Docker host's Compose was 5.7.1; the
+VM's Compose was upgraded from 5.1.4 to checksum-verified 5.7.1. Native profile
+supervision became ready, profile creation/registration, warm permission repair,
+CLI and clean stop passed on both engines. This is focused lifecycle evidence,
+not P5 qualification of the whole stack.
+
+### Hermes capability requirements and PATH exposure
+
+Starting from `--cap-drop ALL`, both engines needed the same six additions:
+
+| Grant | Reproduced failure when omitted (both engines) |
+| --- | --- |
+| `CHOWN` | Native profile supervision did not become ready; bootstrap owns/repairs the data volume. |
+| `DAC_OVERRIDE` | Same readiness failure; root bootstrap reads/writes state owned by the runtime UID. |
+| `FOWNER` | Boot passed, but warm permission repair left `config.yaml` at `0600` instead of `0640`. |
+| `KILL` | Clean stop failed with exit `137` instead of `0`; root supervision could not terminate unprivileged children. |
+| `SETGID` | Native profile supervision did not become ready; the service drop needs the group transition. |
+| `SETUID` | Same readiness failure; the service drop needs the UID transition. |
+
+The selected explicit Hermes list is therefore `CHOWN`, `DAC_OVERRIDE`,
+`FOWNER`, `KILL`, `SETUID`, `SETGID`. It replaces inherited engine defaults that
+the investigation did not use, including `SETPCAP`, `NET_RAW`,
+`NET_BIND_SERVICE`, `SYS_CHROOT`, `MKNOD`, `AUDIT_WRITE`, `SETFCAP` and `FSETID`.
+Root supervision retains the six; dropped Hermes processes had empty effective,
+permitted, inheritable and ambient sets but inherited bounding set `0xeb`. That
+bounding set is not authority while `NoNewPrivs=1` and no file capabilities are
+used. Clearing it would require replacing native `s6-setuidgid` in several scripts
+or adding a privileged helper; that independent lifecycle change is deferred as
+disproportionate to the residual.
+
+A concrete escalation was reproduced on both engines: UID 10000 may write
+`/opt/data/.local/bin` (profile wrappers), that directory preceded system
+directories in the image `PATH`, and the native root static service
+`main-hermes` executes `sleep infinity` by name. UID 10000 can restart that slot
+through the native group control FIFO. A harmless `sleep` placed in the writable
+directory ran as `uid=0(root) gid=0(root)` on both engines. The selected
+intervention is to move `/opt/data/.local/bin` to the end of the image `PATH`
+(after trusted system directories) in `components/hermes/Dockerfile`. Root s6,
+cont-init and wrapper command lookup then resolves trusted paths first, while
+uniquely named profile wrappers still resolve. A prototype with the reordered
+`PATH` passed the same probe on both engines: the service executed
+`/usr/bin/sleep`, no marker was written, and bootstrap/profile/CLI/stop still
+passed. No run-script patch or new supervision component is needed. Removal
+conditions: upstream stops executing root services through a writable `PATH`, or
+profile wrappers move out of `PATH`; retain the probe as the regression check.
+
+### Network and Tor steady state
+
+Measured on the disposable Compose stack: `agent-net` and `executor-net` PID 1
+ran as UID 0 with effective/permitted `NET_ADMIN` only. Tor after `su-exec` ran
+as UID 101/GID 102 with all effective/permitted/inheritable/ambient sets empty,
+but retained bounding set `0x10cb` (`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID`,
+`SETUID`, `NET_ADMIN`).
+
+Selected handoff: after firewall/GRE/route installation and state ownership,
+`agent-net` and `executor-net` irreversibly switch to UID/GID 65534 with cleared
+groups and empty bounding/inheritable/ambient sets, then keep owning the namespace
+and wait for signals. Tor uses the same full `/bin/setpriv` handoff to UID 101 /
+GID 102 instead of `su-exec`. BusyBox `setpriv` lacks the UID and bounding-set
+options, so the network image adds `util-linux`; the proxy image already
+demonstrates the same full `setpriv` options on both engines. Compose adds
+temporary `SETUID`, `SETGID` and `SETPCAP` to the endpoints and `SETPCAP` to Tor;
+all are absent after the handoff. Initialization remains fail-closed, ownership
+repair stays before the drop, and kernel firewall/GRE/route state does not need
+capabilities to persist. No recovery engine or shared policy framework is added.
+
+### Executor investigation
+
+The existing listener grants remain justified by the earlier omission evidence:
+`SYS_CHROOT`, `SETUID` and `SETGID` are native OpenSSH requirements in the tested
+configuration. Source inspection covered `executor-start`, `sshd_config`,
+`start-desktop.sh`, the browser harness/launcher and both variants. The root
+startup script only prepares `/run`/`/tmp` and starts sshd; authenticated sessions
+run as UID 10000 with empty effective/permitted/inheritable/ambient sets, bounding
+set `0x400c0` and `NoNewPrivs=1`. Writable home/workspace content is not executed
+by root, authorized keys and host keys are read-only, PAM and root login are
+disabled, and the desktop/browser processes previously measured as UID 10000
+with empty sets and Chromium's namespace/seccomp sandbox enabled. No further
+executor capability reduction within the P1 complexity budget was found:
+clearing the session bounding set would need a forced-command wrapper with
+privileged capability dropping, a custom OpenSSH lifecycle or file capabilities,
+and the residual is not usable authority under the measured no-new-privs/no-file-
+capability conditions. Record and qualify that residual in P2/P5 rather than
+adding that machinery. Revisit only if native OpenSSH gains a supported
+per-session bounding-set drop or a concrete usable path is demonstrated.
+
+### Cost and deferred alternatives
+
+The selected changes are an image `PATH` line, an explicit Hermes capability
+list, one network image package plus a `setpriv` exec path already used by ingress,
+and explicit Compose grants. They add no service, persisted record, privilege
+broker, recovery engine or topology change. Hermes user-child bounding-set
+clearing, executor session bounding-set clearing, non-root Tailscale and broader
+offline-maintenance minimization remain deferred with the next actions above and
+in P4. Deep Hermes/s6/OpenSSH rewrites and alternate topologies remain excluded.
+
 ## Phases, commits and gates
 
 Commit this plan before implementation. Each phase includes affected consumers,
@@ -349,16 +455,20 @@ alternate-topology acceptance is required.
 
 ### P2 — Harden Hermes and executor privilege boundaries
 
-Replace Hermes's engine-default set with `cap_drop: [ALL]` and an experimentally
-justified explicit list. Audit root s6 supervision, ownership/profile operations,
-children and termination together. Implement the selected focused executor
-hardening within the P1 complexity budget, preserving SSH and both variants' tool
-contracts. Retain demonstrated SSH listener grants unless changed native evidence
-supports a safe reduction; do not equate retaining them with excluding executor
-hardening. If Hermes's explicit list or a further executor reduction cannot be
-qualified within that budget, record an evidence-backed deferral and residual
-exposure. Keep offline maintenance grants unchanged; verify affected consumers
-without opening a separate minimization exercise.
+Replace Hermes's engine-default set with `cap_drop: [ALL]` and
+`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETUID`, `SETGID`. Move the
+user-writable profile wrapper directory after trusted system directories in the
+image `PATH`, and verify that root s6/cont-init/wrapper command lookup no longer
+executes writable-profile content while profile wrappers still resolve. Audit
+root s6 supervision, ownership/profile operations, children and termination
+together. Implement the selected focused executor hardening within the P1
+complexity budget, preserving SSH and both variants' tool contracts. P1 found no
+further executor reduction worth new lifecycle machinery: retain the demonstrated
+SSH listener grants and record the measured session bounding-set residual,
+no-new-privs/file-capability conditions, investigated paths and next action
+instead of adding a forced-command helper or custom SSH lifecycle. Keep offline
+maintenance grants unchanged; verify affected consumers without opening a
+separate minimization exercise.
 
 Consumers: base/engine/executor Compose definitions, Hermes bootstrap/profile
 services, executor images/startup/SSH and browser launchers, and affected
@@ -393,11 +503,16 @@ Keep the existing firewall, GRE links, routes and namespace ownership model;
 change only the post-initialization privilege handoff and its required startup
 grants.
 
-After installing firewall/GRE/routes, have `agent-net` and `executor-net` switch
-to an unprivileged identity, clear groups and irreversibly remove all capability
-sets while continuing to own namespaces and wait for signals. Initialization stays
-fail-closed. Verify Tor's post-drop sets and remove initialization authority where
-necessary using the simplest qualified handoff. Preserve the existing HAProxy drop.
+After installing firewall/GRE/routes and repairing state ownership, have
+`agent-net` and `executor-net` switch with `/bin/setpriv` to UID/GID 65534, clear
+groups and irreversibly empty bounding/inheritable/ambient/effective/permitted
+sets while continuing to own namespaces and wait for signals. Replace Tor's
+`su-exec` handoff with the same full `setpriv` drop to UID 101/GID 102 so its
+bounding set is empty. Add `util-linux` to the network image for the full
+`setpriv` options; BusyBox's applet cannot change UID or the bounding set.
+Compose supplies temporary `SETUID`, `SETGID` and `SETPCAP` to the endpoints and
+`SETPCAP` to Tor, all absent after the handoff. Initialization stays fail-closed.
+Preserve the existing HAProxy drop.
 
 Consumers: network image/startup, Compose startup grants/tmpfs permissions, Tor
 health/control/SOCKS paths, dependency readiness and ingress. Commit scope:
@@ -502,13 +617,14 @@ contracts or authority to expand this work.
 Accept a reduction only when intended privilege is absent, supported operations
 pass and relevant restart/shutdown logs show no permission failures. Document
 justified retained root/grants and explicit deferrals; a deferred item needs a
-concrete next action and must not be described as implemented. Runtime inventory
-and active G1/G2/G3/G5 assessments are pending; G4 is deferred. Source inspection
-alone does not meet acceptance.
-The privilege-reduction proposal remains pending. The former three-candidate
-comparison is deferred and is no longer a requirement of G1 or completion.
-This documentation-only scope reduction supplies no runtime qualification or G1
-acceptance.
+concrete next action and must not be described as implemented. P1 runtime
+inventory is recorded above. G1 design acceptance, P2/P3 implementation and the
+G2/G3/G5 assessments remain pending; G4 is deferred. Source inspection alone does
+not meet acceptance.
+The selected Hermes, network and Tor reductions are proposed from the measured
+P1 lifecycle evidence but are not implemented; the executor retains its current
+listener grants. The former three-candidate topology comparison is deferred and
+is no longer a requirement of G1 or completion.
 
 The plan-only scope expansion at baseline `e2fc800` received a fresh independent
 read-only review with no material findings. Local-link inspection and

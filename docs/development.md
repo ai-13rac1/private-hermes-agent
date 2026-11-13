@@ -89,6 +89,18 @@ Podman, `make podman-paths-test` checks the paths of a running stack, including 
 client on a network without isolation, with positive controls for its DNS, TCP
 and host-loopback probes; it refuses to run unless Podman is selected.
 
+`tests/capability_bootstrap.py` is a focused Hermes privilege/lifecycle probe. It
+runs the production entrypoint in a disposable networkless named volume, with no
+operator mounts, credentials or deployment, and checks native profile supervision,
+profile registration, warm permission repair, CLI and clean stop. `--omit GRANT`
+diagnoses a required capability; `--probe-path` restarts the root static service
+with a harmless marker executable in the writable profile wrapper directory;
+`--expect-closed` asserts the reordered image `PATH` resolves the service from a
+trusted directory and writes no marker. Do not treat a successful boot or a
+capability snapshot as qualification: use the probe to diagnose a specific
+change, then run the affected full checks on each engine. The probe removes its
+container and named volume.
+
 Before the current-main rebase, on 2026-11-13, Docker Desktop ARM64
 (Engine 29.9.3, Compose 5.7.0) passed
 139 unit tests, all four effective models, compilation, the cold-launch/dry-run
