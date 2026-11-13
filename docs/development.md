@@ -76,15 +76,20 @@ analytics. Browser fixture results are separate from live Tor rendezvous.
 Qualification on 2026-11-13 used Docker 29.9.3 / Compose 5.7.0 on macOS 26.7.1
 ARM64, and rootless Podman 5.4.2 / Compose provider 5.7.1 on Debian 13 ARM64,
 kernel `6.12.116+deb13-arm64` via `debvm23`. Both engines passed the source/model
-checks, including all four onion/Funnel flag combinations. The full deterministic
-onion fixture passed Docker, including actual Tor Browser 15.0.26 (Gecko
-140.17.0), Chromium 156.0.8078.4, native recovery/backup, consent, WebSockets,
-restart-loop refusal and disable/re-enable. The final Podman correction and
-routing regressions are still being qualified; do not infer their completion.
+checks (167 tests), including all four onion/Funnel flag combinations. The full
+deterministic onion fixture passed both engines with native recovery/backup,
+public-key-only startup repair, consent, WebSockets, forged forwarding headers,
+restart-loop writer refusal and disable/re-enable. Chromium 156.0.8078.4 was
+exercised on both engines; actual Tor Browser 15.0.26 (Gecko 140.17.0) was
+exercised locally against Docker. The existing routing/SSH/Tor-outage regression
+fixture passed both engines, preserving public Tor egress, private-path denial,
+executor isolation and outage/restart behavior.
 Separate Tor 0.4.9.16 clients passed live onion rendezvous, authentication and
 protected API access on both engines. Publication took several minutes; bootstrap
 health alone did not establish reachability. Existing localhost/simulated HTTPS
-cookie/auth/streaming regression checks also passed Docker.
+cookie/auth/streaming regression checks passed both engines while onion ingress
+was enabled. Lifecycle outage probes use localhost; HTTPS is exercised before
+outage, with its unchanged isolated outage path assessed by source inspection.
 
 The Chromium onion fixture supplies Fetch Metadata explicitly for the consent
 endpoint; stock Chromium does not attach it to this HTTP origin. Actual Tor
@@ -99,6 +104,15 @@ do not restore automatic discovery as a test dependency fallback.
 Unchanged browser-content evidence remains in its existing sections; this change
 does not requalify every renderer. Live Funnel enrollment, provider attestation,
 financial settlement and untested platforms remain outside these checks.
+
+Fresh independent read-only design and final combined reviews accepted onion
+ingress, including production revision `8ae5e57` and the qualified test/doc
+follow-up, with no remaining material findings. The implementation review's
+writer-race finding was resolved by requiring runtime-container removal before
+offline writes; recovery documentation was corrected to distinguish address
+inspection from native derived-file repair. The final reviewer assessed recorded
+evidence without rerunning suites. The completed implementation plan was retired
+under the planning workflow; its history remains in Git.
 
 ## Qualification and maintenance
 

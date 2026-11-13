@@ -43,6 +43,16 @@ with proxy(container, address) as port:
                 headers={'Origin': 'http://localhost:19120',
                          'Cookie': '; '.join(c['name']+'='+c['value'] for c in cookies)})
             assert denied.status == 403
+            forged = context.request.post(origin + '/auth/password-login',
+                headers={'Origin': origin, 'Sec-Fetch-Site': 'same-origin',
+                         'Forwarded': 'proto=https;host=attacker.invalid',
+                         'X-Forwarded-Proto': 'https', 'X-Forwarded-Host': 'attacker.invalid',
+                         'X-Forwarded-For': '127.0.0.1'},
+                data={'provider': 'basic', 'username': 'admin', 'password': Path(password_path).read_text()})
+            assert forged.status == 200
+            issued = [item['value'] for item in forged.headers_array
+                      if item['name'].lower() == 'set-cookie' and item['value'].startswith('hermes_session_at')]
+            assert issued and all('; secure' not in item.lower() for item in issued)
             # Native renewal uses the refresh cookie once access is absent.
             for cookie in sessions:
                 context.clear_cookies(name=cookie['name'])

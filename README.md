@@ -220,8 +220,10 @@ To allow Hermes Agent to show you previews of web pages inside the agent Web UI,
 set `WEBAPP_EXTERNAL_CONTENT=browser_native`
 in `.env`, run `make up`, reload the webapp and start a new conversation.
 
-If IP address privacy is impotant to you, use this mode only with Tor Browser or
-Brave Browser's Private Window with Tor and Tailscale (`TAILSCALE_FUNNEL_ENABLED`); the stack does not detect or verify browser Tor routing in `browser_native` content access mode.
+If IP address privacy is important to you, use this mode only with Tor Browser or
+Brave Browser's Private Window with Tor. For remote access, choose
+[Funnel or onion ingress](#ingress); the stack does not detect or verify browser
+Tor routing in `browser_native` content access mode.
 
 See the [webapp content policy](docs/webapp.md#external-content-policy) for modes and
 limits.

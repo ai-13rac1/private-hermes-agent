@@ -122,6 +122,7 @@ def run_suite(folder, data):
                 'import urllib.request; r=urllib.request.urlopen(urllib.request.Request('
                 '"http://10.203.86.3:8080/login",headers={"Host":'+repr(host)+'}),timeout=5); print(r.status)', user='101:102', check=False)
         assert tor_request().stdout.strip() == '200'
+        assert tor_request(address + ':80').stdout.strip() == '200'
         assert tor_request('a' * 56 + '.onion').returncode
         if live:
             subprocess.run([*engine_command(), 'run', '--rm', '-i', '--network', 'bridge',
@@ -175,6 +176,10 @@ for address in [('10.203.86.3',9120),('10.203.85.2',9120),('10.203.83.3',8337)]:
         if os.environ.get('TOR_BROWSER_PYTHON'):
             subprocess.run([os.environ['TOR_BROWSER_PYTHON'], str(ROOT / 'tests/onion_tor_browser.py'),
                             identifier, address, str(folder / 'password')], check=True)
+        # Reuse the maintained localhost/Funnel checks once while all three
+        # frontends coexist, before restart tests interrupt their connections.
+        subprocess.run([os.environ.get('WEBAPP_BROWSER_PYTHON', sys.executable),
+                        str(ROOT / 'tests/webapp_browser.py'), str(folder / 'password')], check=True)
         for service in ('tor', 'webapp-proxy'):
             smoke.compose('restart', service)
             wait_ready()

@@ -4,7 +4,9 @@ The local webapp is included in the main Compose deployment. It uses native
 Hermes username/password login
 and binds only to host loopback. Funnel optionally publishes the same webapp
 through public HTTPS. No Tailscale account is needed to visit a Funnel endpoint;
-the visitor authenticates with Hermes. Native password authentication is intended
+the visitor authenticates with Hermes. Optional onion ingress provides Tor
+Browser access independently of Funnel, using the same credentials.
+Native password authentication is intended
 upstream for trusted networks/VPN use. Public exposure also exposes the native
 login and session implementation to Internet traffic.
 
@@ -215,7 +217,8 @@ pass through. No additional body/storage/idle-time limits are introduced.
 HAProxy warns about the intentionally infinite client/server timeouts at startup.
 
 The native password throttle allows 10 attempts per 60 seconds per observed
-client address and resets on process restart. Container port publication and Funnel can aggregate
+client address and resets on process restart. Onion visitors share the Tor
+ingress address; container port publication and Funnel can also aggregate
 visitors by ingress address, so this deployment does not claim independent
 per-Internet-client throttling. Supplied client-address headers are discarded.
 

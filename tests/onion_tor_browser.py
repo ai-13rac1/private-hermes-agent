@@ -38,7 +38,10 @@ with proxy(container, address) as port:
         options.set_preference(key, value)
     # An explicit local driver prevents Selenium Manager from running at all.
     # Manager's default automatic discovery sends Plausible usage statistics.
-    service = Service(executable_path=os.environ['GECKODRIVER'], service_args=['--allow-system-access'])
+    driver_path = os.environ.get('GECKODRIVER', '')
+    if not driver_path or not Path(driver_path).is_file():
+        raise SystemExit('Set GECKODRIVER to an existing local driver; automatic discovery is disabled.')
+    service = Service(executable_path=driver_path, service_args=['--allow-system-access'])
     driver = webdriver.Firefox(options=options, service=service)
     try:
         driver.set_page_load_timeout(60)

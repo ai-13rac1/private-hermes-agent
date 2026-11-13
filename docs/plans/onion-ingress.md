@@ -1,6 +1,6 @@
 # Optional onion-service ingress
 
-Status: OI-DESIGN passed; implementation and qualification in progress.
+Status: complete; OI-1 and OI-FINAL accepted. Retire under the planning workflow.
 Follow the [planning workflow](../planning-workflow.md) and
 [repository instructions](../../AGENTS.md) before execution.
 
@@ -339,7 +339,7 @@ operator publication, enrollment and financial operations remain outside scope.
   maintained operator documentation. Ordinary make build/up includes Tor even
   when ingress is off; README uses Make-only instructions per user direction.
 - Focused checks: 167 source/model tests and effective Compose validation passed
-  locally and on rootless Podman. Docker's deterministic onion suite passed,
+  locally and on rootless Podman. Both deterministic onion suites passed,
   including Tor Browser 15.0.26/Gecko 140.17.0 and Chromium 156.0.8078.4.
   Separate Tor clients passed live rendezvous/authenticated API on both engines,
   explicitly authorized by the user during execution. Live publication took
@@ -350,13 +350,21 @@ operator publication, enrollment and financial operations remain outside scope.
   repair by the display target. Mutation now requires runtime-container removal
   with make down; Docker restart-loop refusal passed. Docs distinguish missing
   hostname recovery from native runtime repair of a missing public key, and that
-  latter path passed Docker. Final corrected Podman suite is in progress.
+  latter path passed both engines. Final integrated suites exited zero on Docker
+  and rootless Podman, with all identity, browser, forwarding and lifecycle cases
+  passing. Local Tor Browser used a direct cached driver; Chromium ran on both.
 - Localhost and simulated Funnel native browser authentication, Secure cookie
-  flags, CSRF, terminal streaming and SSH-backed files passed on Docker.
-  Both-engine routing/SSH/Tor-outage regression fixtures are in progress.
+  flags, CSRF, terminal streaming and SSH-backed files passed on both engines.
+  Both-engine routing/SSH/Tor-outage regression fixtures passed. The lifecycle
+  outage probes are localhost transactions; HTTPS is tested before outage and its
+  unchanged isolated outage path assessed by inspection, not a separate transaction.
 - Host tooling incident: Selenium Manager's initial automatic driver discovery
   attempted unsolicited Plausible analytics. The Tor Browser fixture now requires
   a direct cached driver and bypasses the manager, with statistics/offline options
   set. No stack image or runtime analytics configuration was added.
-- OI-FINAL combined review and phase acceptance: pending. Preserve this plan
-  until the final corrected runtime results and independent review are recorded.
+- OI-1/OI-FINAL: accepted by a fresh independent read-only reviewer with no
+  remaining material findings, reviewing production `8ae5e57` plus the qualified
+  test/documentation follow-up. Both final integrated runs exited zero. The
+  reviewer assessed supplied results and source without rerunning checks. Lasting
+  evidence, review, workflow and limitations are in maintained guides; this
+  completed plan can now be removed under the planning workflow.
