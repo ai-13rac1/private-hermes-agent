@@ -184,6 +184,19 @@ def main():
                                     capture_output=True, text=True, check=True)
             assert path.read_text() == changed
             assert not (root / 'data').exists()
+            # Comparison is offline, textual and read-only even with malformed
+            # policy and unrelated invalid deployment settings. Children keep
+            # the engine that owns this fixture, including on Podman-only hosts.
+            previous_mode = path.stat().st_mode & 0o777
+            publish('invalid TOML [')
+            compared = subprocess.run(['make', 'x402_treazury-config-diff'], cwd=root, env=environment,
+                                      capture_output=True, text=True, check=True)
+            assert '--- packaged default (local image)' in compared.stdout
+            assert '+invalid TOML [' in compared.stdout
+            assert path.read_text() == 'invalid TOML ['
+            assert path.stat().st_mode & 0o777 == previous_mode
+            assert not (root / 'data').exists()
+            publish(changed)
             # Broken unrelated network/storage/config paths must not be mounted
             # or initialized by saved-wallet inspection or repeated init.
             network = root / 'config/network/mcp-allowlist.json'
@@ -199,6 +212,9 @@ def main():
                 result = subprocess.run(['make', target], cwd=root, env=environment,
                                         capture_output=True, text=True, check=True)
                 assert address in result.stdout
+            compared = subprocess.run(['make', 'x402_treazury-config-diff'], cwd=root, env=environment,
+                                      capture_output=True, text=True)
+            assert compared.returncode != 0, 'Explicit comparison masked an unreadable policy path'
             meta = ('import sys; sys.path.insert(0,' + repr(str(ROOT / 'scripts')) + '); '
                     'from x402_treazury import Controller; Controller(' + repr(command) + ').admin("activation-failed")')
             subprocess.run([sys.executable, '-c', meta], capture_output=True, text=True, check=True)

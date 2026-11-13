@@ -117,6 +117,21 @@ class SelectorTests(unittest.TestCase):
 
 
 class EngineCommandTests(unittest.TestCase):
+    def test_renderer_build_and_checks_use_the_selected_engine(self):
+        spec = importlib.util.spec_from_file_location('renderer_qualification', ROOT / 'tests/hermes_ui.py')
+        renderer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(renderer)
+        for selected in ('docker', 'podman'):
+            with self.subTest(engine=selected), patch.object(deployment, 'engine', return_value=selected), \
+                    patch.object(renderer, 'run') as run, patch('sys.stdout', new=io.StringIO()):
+                renderer.main()
+                expected = deployment.engine_command()
+            self.assertEqual(run.call_count, 3)
+            for call in run.call_args_list:
+                self.assertEqual(list(call.args[:len(expected)]), expected)
+            for call in run.call_args_list[1:]:
+                self.assertEqual(call.args[call.args.index('--network') + 1], 'none')
+
     def setUp(self):
         deployment.engine.cache_clear()
         deployment.check_engine.cache_clear()
