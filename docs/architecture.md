@@ -77,9 +77,16 @@ cannot grant a direct uplink.
 
 Do not independently restart or recreate `agent-net` or `executor-net` while
 their application containers exist. Namespace-sharing containers can retain the
-old namespace rather than reattach to the replacement; this lifecycle is not
-supported on either engine. For namespace-owner recovery or network-policy
-changes, run `make down` followed by `make up` to recreate the stack together.
+old namespace rather than reattach to the replacement. This is a longstanding
+Docker shared-network-namespace lifecycle limitation, reported in
+[Compose #6626](https://github.com/docker/compose/issues/6626) and
+[Compose #11872](https://github.com/docker/compose/issues/11872); container restart
+policies do not guarantee dependency ordering or namespace reattachment after a
+crash or host restart. Independent owner restart is unsupported on either engine;
+Podman reattachment has not been qualified. This limitation predates the
+capability reductions and is not evidence of a failed privilege drop.
+For namespace-owner recovery or network-policy changes, run `make down` followed
+by `make up` to recreate the stack together.
 This preserves persistent data. Tor has its own namespace and can be restarted
 independently; its outage/recovery behavior is qualified separately.
 

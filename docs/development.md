@@ -64,6 +64,21 @@ initialize/list/call with SSE responses, unselected ports, and Tor failure.
 Tests use separate project volumes and private temporary bind directories, never
 the operator's volumes or `data/` tree. Only disposable test resources are deleted.
 
+Keep `agent-net` and `executor-net` alive while their application containers
+exist. Docker can leave namespace-sharing applications disconnected after an
+owner restart/recreation; automatic reattachment is also unqualified on Podman.
+See the [shared-namespace lifecycle limitation](architecture.md#network-and-execution-boundaries)
+and upstream reports there. If a qualification run interrupts an owner, retain
+diagnostics and tear down/recreate the whole disposable project through its
+normal fixture lifecycle before continuing. Restarting only the owner or
+retrying requests does not establish recovery. Keep cleanup scoped to that test
+project; operator recovery uses `make down` followed by `make up`, preserving data.
+Do not diagnose this known lifecycle failure as a capability regression without
+checking namespace attachment. Tor-only outage/restart tests remain valid because
+applications do not share Tor's namespace. Any future recovery qualification
+must distinguish independent reattachment from whole-project recreation; neither
+fresh startup nor Tor recovery proves independent reattachment.
+
 References: [Hermes backends](https://hermes-agent.nousresearch.com/docs/user-guide/configuration/#terminal-backend-configuration),
 [Hermes security](https://hermes-agent.nousresearch.com/docs/user-guide/security/),
 [Dockurr Tor](https://github.com/dockur/tor),

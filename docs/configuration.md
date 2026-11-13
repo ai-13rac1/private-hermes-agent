@@ -403,6 +403,15 @@ with `make down` followed by `make up` when changing namespace configuration;
 retain persistent data. Rebuild images with `make build` after implementation
 changes. Wallet initialization and funding remain explicit operator actions.
 
+Use the same whole-stack procedure after an `agent-net` or `executor-net`
+failure. Restarting only a namespace owner can leave its applications attached
+to an obsolete namespace, even if the replacement owner is healthy. Docker has
+a known shared-namespace lifecycle limitation; restart policies do not guarantee
+reattachment, and independent owner restart is unsupported on both engines. See
+[namespace ownership and recovery](architecture.md#network-and-execution-boundaries)
+for upstream reports and the distinction from supported Tor-only restarts.
+Ordinary `make down` preserves persistent data; do not add `--volumes` for recovery.
+
 ## Backup scope
 
 Back up the root `.env` and `config/` as private operator configuration. Protect
