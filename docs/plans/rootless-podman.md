@@ -54,11 +54,71 @@ creation and inline-seccomp filename failure on Podman 5.4.2. Keep the installed
    connected, with no new inactivity deadline. Add real TCP unit coverage for
    bytes in both directions and closure from either side. Independently review
    the correction and rerun the affected full browser suites on both engines.
+   The CONNECT observer also needs unbuffered HTTP input before raw socket
+   forwarding: a controlled coalesced-write probe demonstrated lost early tunnel
+   bytes with the original buffered parser. Keep its existing target allowlist
+   and loopback destinations, and cover byte preservation and refused targets
+   with real TCP tests. Wait for exact consent mutation acknowledgements and
+   isolate logout navigation/new-tab exercises from unrelated SPA initialization.
+   Positive live-image bootstrap/recovery may retry the two observed transient
+   502 DNS/connection errors at the existing four-attempt cadence; policy errors
+   and Tor-stopped denial remain immediate, with no weaker transport. The
+   separate positive Tor-exit probe may retry only the observed TLS EOF under
+   that cadence; certificate, HTTP, JSON and non-Tor results still fail directly.
 
 Do not weaken containment assertions, add browser/platform skips, or relax
 transport policy for slow public-network requests. Missing-bind enforcement is
 a separate unresolved runtime requirement; these corrections do not close G2,
 enable Podman executor desktop/browser use, or qualify funded/live Funnel work.
+
+## Missing binds and focused browser qualification (2026-11-13)
+
+Baseline: `rootless-podman-support` at `b078eb1`, including the uncommitted
+qualification corrections listed above. The operator authorizes resolving the
+missing-bind requirement and simplifying browser checks before full qualification.
+
+B1: Add a small operation-scoped bind-source check shared by managed startup,
+Compose passthrough, offline provisioning and treasury container creation. Render
+the actual Compose model, honoring files, interpolation, project directory,
+profiles and target services. Check required (`create_host_path: false`) bind
+sources only for containers that can be created by this operation, respecting
+`--no-deps` and run-volume overrides. Do not block config, inspection, exec,
+shutdown or unrelated repair. Run after responsible initialization and before
+network/container mutation. Reject unsupported launch options explicitly rather
+than guessing targets. Use the same check on both engines; preserve engine-native
+checks as well. Raw Compose bypasses the wrapper and is not repaired. A host-side
+check cannot atomically prevent deletion between validation and mounting; that
+remaining race requires upstream engine/provider enforcement. Test missing and
+existing sources, inactive/unrelated services, dependencies, overrides and
+maintenance, then run a disposable actual-engine missing-bind refusal probe on
+Docker and Podman. No credential printing, automatic source creation or state
+invalidation. Update maintained architecture/development guidance.
+
+B2: Remove chat generation from each content case; seed native history as already
+supported. Keep one actual chat/WebSocket check per ingress. Keep content
+containment and actual HTML/SVG downloads on all three browsers, and all four
+modes, but avoid the redundant full cross-product with HTTPS: test all modes on
+all browsers locally and Chromium ask mode over simulated HTTPS. Dedicated
+Chromium authentication/cookies/origin/terminal checks still exercise both
+ingresses. Browser-specific secure-ingress transport coverage must remain a
+small navigation/auth check for Firefox and WebKit, without repeating full
+content choreography. Preserve consent/revocation, hostile previews, forbidden
+connections, intentional links, media and backend socket-policy tests.
+
+Separate real public Tor exit/image/outage/recovery into `make webapp-live-test`,
+using the same disposable stack and production Tor readiness. Routine webapp
+checks no longer contact public image/exit endpoints; they still use actual
+network/firewall services and may wait for Tor bootstrap. Do not claim this makes
+them fully offline. Full qualification runs both targets plus the core Tor tests.
+Reuse existing positive `eventually(curl)` exit control rather than adding typed
+exception retry branches; every attempt verifies TLS and non-Tor/invalid results
+still fail. Keep single-attempt Tor-stopped denial. Optional Docker desktop tests
+and Podman refusal remain intact. No blanket browser retries or larger timeouts.
+
+Obtain fresh independent design review before implementation and a final combined
+review of B1/B2 and preceding corrections. Commit coherent changes and maintained
+guides. Run focused checks first, then full qualification serially on each engine;
+record public-network failures separately and keep G2 open for unmet requirements.
 
 ## Rebase onto current main (2026-11-13)
 
