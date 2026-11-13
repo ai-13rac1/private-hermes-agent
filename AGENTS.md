@@ -203,6 +203,11 @@ delete private state as a shortcut to simplifying implementation or tests.
   identified snapshot including new files, relevant guides and evidence. Ask
   them to trace consumers/failure paths and challenge unnecessary complexity.
   Reviewers must not author the changes they independently review.
+- Reviewers must not re-run already-run tests, suites or lifecycle qualification
+  as part of a review unless the user specifically asks them to, or unless a new
+  focused check is needed to confirm a suspected finding. Verify from the supplied
+  snapshot, source inspection and recorded evidence, state what was not re-run,
+  and if confirmation is required run only the smallest disposable check needed.
 - Resolve material findings before dependent work. Commit focused corrections;
   re-review and rerun affected checks when changes invalidate earlier evidence.
   Do not require a separate review ceremony for every trivial fixup. Phase
