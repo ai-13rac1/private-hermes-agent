@@ -231,6 +231,28 @@ permitted, inheritable, ambient and bounding sets. Tests used disposable project
 and did not touch operator volumes. AMD64, live public ingress/Funnel and live
 settlement/providers remain unqualified.
 
+Follow-up capability review at `a998dda` restored the native webapp fixture's
+production grants after the core fixture clears them. Effective-model regression
+coverage compares native startup privileges for lean and desktop on both engines;
+the namespace-owner assertion now checks every UID/GID field, empty supplementary
+groups, all capability sets and no-new-privileges, with positive/negative procfs
+regression cases. The 44 engine tests and two identity tests passed; the new model
+test also passed through the actual Podman provider, and the corrected assertions
+passed against all three live namespace owners on both engines.
+
+The full native `tests/webapp_smoke.py` passed with the lean executor on Docker
+Desktop ARM64 (Engine 29.9.3, Compose 5.7.0) and Debian 13 ARM64 rootless Podman
+5.4.2 (Compose 5.7.1). It covered local/simulated HTTPS authentication, interactive
+terminal and SSH file access, gateway restart, credential rotation, repeated
+native recreation, content/consent controls and staged MCP activation. No live
+Funnel enrollment, inference or funded research was used. The first Podman run
+reproduced the documented group-writable SSH-config rejection in the disposable
+archive; the successful run used mode `0644`. Logs are
+`/tmp/capability-review-fix-webapp-{docker,podman}.log` on the Docker host;
+the initial failure remains on the VM as
+`/tmp/capability-review-fix-webapp-podman-archive-permissions.log`. New fixture
+resources were removed; unrelated existing state was preserved.
+
 Independent endpoint namespace-owner restart/recreation with attached
 applications was not qualified and is unsupported on both engines. Fresh-stack
 startup and Tor outage/restart checks do not establish namespace reattachment.
