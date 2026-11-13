@@ -1,4 +1,4 @@
-# Capability reduction and network isolation design
+# Capability reduction
 
 Status: proposed; implementation, runtime qualification and independent design
 acceptance are pending. This revision updates the plan only.
@@ -6,6 +6,8 @@ Planning baseline: branch `main`, commit
 `0f19d8ee88a383f0e6de7eb72291761015136711`.
 Scope expansion baseline: branch `main`, commit
 `e2fc80057bc2aa8906a3a6623f640009d0e3a5a8`.
+Topology-deferral baseline: branch `main`, commit
+`9b536d0aefe53776f33eacb8366c8b639f1874ed`.
 Plan path: `docs/plans/capability-reduction.md`.
 Follow the [planning workflow](../planning-workflow.md) before implementation.
 
@@ -17,11 +19,12 @@ exposure of long-lived processes retaining initialization authority after their
 privileged work ends. Do not select grants merely because another deployment
 calls them minimal, or claim that changing UID removes every capability.
 
-Use the lifecycle evidence to compare retaining GRE, sharing Hermes's namespace
-with Tor while keeping an explicitly proxied executor separate, and connecting
-separate namespaces with veth pairs. Determine whether removing the GRE kernel
-dependency justifies the security, compatibility and operational costs. Retaining
-GRE is an acceptable outcome. No alternative has been selected or qualified.
+Retain the existing GRE topology, separate Hermes/executor/Tor namespaces and
+independent endpoint/router firewalls. The former topology comparison is deferred
+in [alternate network topologies](deferred/alternate-network-topologies.md): GRE
+works on both qualified engines, and we no longer expect compatibility or
+significant security gains from replacing it. That investigation is not a
+prerequisite or acceptance gate for this plan.
 
 Prefer native privilege dropping and small explicit startup changes. Preserve Make
 workflows; retain existing services and namespace ownership until G1 accepts a
@@ -32,10 +35,9 @@ this plan does not promise an entirely rootless stack.
 
 Resource/storage limits, a read-only Hermes root filesystem, image upgrades,
 filesystem redesign, production replacement of supervision/SSH backends and
-financial-policy changes are outside scope. P1 may assess whether an alternative
-would require replacing supervision; such a dependency must be reported and
-separately scoped before implementation. No CPU, memory, PID, disk,
-temporary-storage or log-size limits are included. Live Funnel enrollment/publication, payments, funded wallet
+financial-policy changes and alternate network topologies are outside scope.
+No CPU, memory, PID, disk, temporary-storage or log-size limits are included.
+Live Funnel enrollment/publication, payments, funded wallet
 operations and destructive private-state changes are not authorized by this plan.
 
 ## Current baseline
@@ -172,8 +174,7 @@ engine defaults are nevertheless not evidence of identical effective grants.
 Replace defaults with measured explicit requirements rather than taking the
 union of both engines' defaults. Exact reduced sets remain unqualified.
 
-Investigate native lifecycle reductions with the existing GRE topology first;
-use that result as the cost/security baseline for the alternatives below. Compare
+Investigate native lifecycle reductions with the existing GRE topology. Compare
 starting directly as the service user where native startup supports it, dropping
 identity and all capability sets after privileged initialization, and retaining a
 justified root process with a reduced capability set where the native lifecycle
@@ -185,9 +186,8 @@ Keep engine-specific mount, ownership and networking behavior distinct from
 capability requirements. Inventory actual UID/GID mappings, named-volume/bind and
 tmpfs ownership, namespace ownership and port-binding requirements on each
 qualified target. Rootless container capabilities do not confer authority in the
-host's initial user namespace; assess any veth placement or namespace-access
-proposal on rootless Podman as well as inside Docker Desktop's Linux VM. Do not
-solve a mismatch with a rootful engine, host networking, privileged containers,
+host's initial user namespace; keep that distinction explicit on rootless Podman
+and inside Docker Desktop's Linux VM. Do not solve a mismatch with a rootful engine, host networking, privileged containers,
 engine-socket mounts or an additional host privilege helper.
 
 Seccomp policy remains engine-specific as already accepted, independently of the
@@ -214,7 +214,7 @@ policy or trust-boundary change still requires its own design acceptance.
   application receives `NET_ADMIN`, `NET_RAW`, host networking, privileged mode or
   Docker engine access. Preserve exact SSH, inference and selected MCP grants.
 - Preserve executor denial of Hermes listeners, inference and MCP services,
-  including access indirectly through any proposed proxy. Keep wallet mounts,
+  including access indirectly through existing services. Keep wallet mounts,
   tokens and Tor's private filesystem-backed SOCKS/control sockets scoped to
   their existing owners.
 - Preserve Tor-only public TCP/DNS paths, prohibited host/VM/private destinations,
@@ -239,15 +239,9 @@ policy or trust-boundary change still requires its own design acceptance.
   drop or `no-new-privileges` alone is not proof of empty sets. Distinguish service
   descendants from operator-controlled Docker exec.
 
-The current separate Tor namespace and independent endpoint/router firewalls are
-the comparison baseline. The shared Hermes/Tor candidate deliberately changes
-that boundary. Identify every weakened property and compensating mechanism;
-independent review alone does not authorize accepting a weaker trust boundary.
-Obtain explicit operator acceptance of any such change and reconcile governing
-instructions and maintained architecture before implementation. Preserve host/VM
-denial, Tor-only public egress and executor separation in every candidate. Exact
-existing service grants remain the default; any proposed host grant must name its
-destination and port and requires separate authorization.
+Exact existing network service grants and namespace boundaries remain unchanged. Any
+proposal to change them belongs to separately scoped work and cannot be justified
+as a prerequisite for privilege reduction.
 
 ## Phases, commits and gates
 
@@ -256,7 +250,7 @@ tests, maintained guides and concise evidence; commit coherent passing work at
 phase boundaries. Commit scopes below describe outcomes, not mandatory extra
 commits or permission to commit failing intermediate work.
 
-### P1 — Establish lifecycle evidence and compare isolation designs
+### P1 — Establish lifecycle evidence and select privilege reductions
 
 Capture effective base/Funnel Compose grants on both qualified engines without
 retaining secrets, exact built images, packaged startup scripts and process
@@ -284,75 +278,31 @@ before adding wrapper enforcement. Resolve these decisions before affected edits
   If unavailable, record the concrete blocker and deferral; do not add privileges
   or replace upstream orchestration to force it.
 
-#### Required comparative assessment
+Use narrow disposable experiments only where a lifecycle uncertainty could change
+the selected reduction. Name the question, affected component, supported target
+and acceptance evidence before each experiment. Reuse existing evidence for
+unchanged contracts; leave production state untouched. No topology prototypes or
+comparison of proxy/veth alternatives are required.
 
-Record the assessment in this plan, with concise evidence and unresolved
-questions. Compare these three concrete candidates against the current behavior:
+P1 must recommend measured privilege reductions and justified retained grants
+within the existing topology. Refine P2–P5 only where the lifecycle evidence
+requires it, and reconcile shared consumers with the MCP listener and browser
+plans. Missing decision-critical evidence keeps the affected reduction pending;
+it does not require reopening network design.
 
-| Candidate | Required design detail and evidence |
-| --- | --- |
-| Retain GRE and separate Hermes, executor and Tor namespaces | Establish which startup and steady-state privileges can be reduced without changing topology. Record the kernel dependency, current fail-closed behavior and maintenance cost. |
-| Share Hermes and Tor networking; retain a separate executor with an explicit HTTP proxy | Specify the proxy owner, exact executor grant, HTTP/CONNECT transport through Tor and remote DNS handling. Trace Tor-UID exemption risks, shared loopback/listeners and internal grants. Specify enforcement and checks demonstrating the proxy cannot reach prohibited host/VM/private or agent-only destinations on the executor's behalf. |
-| Retain separate namespaces and connect them with veth pairs | Specify who creates and places each endpoint, how it obtains namespace access, actual capability requirements, rootless Podman feasibility and Docker Desktop VM implications. Trace link recreation, namespace destruction, firewall ordering and startup failure cleanup without a generic recovery service. |
-
-For each candidate, identify affected Compose services, images, helpers,
-configuration, maintenance consumers, tests and permanent guides. Explain setup
-and steady-state authority, added/removed dependencies and components, and native
-component guarantees. Record shared versus engine-specific requirements, including
-any additional host authority a candidate would need; do not assume container
-`NET_ADMIN` grants access to a sibling or host-owned namespace. Assess gains and
-risks relative to retaining GRE, including independent enforcement, Tor outage behavior, local service availability,
-restart/recreation, shutdown and state preservation. Include shared port binding
-and abstract Unix socket exposure where namespaces are shared.
-
-Assess representative executor workloads through the real SSH entry point:
-terminal/Python execution, curl, Git over HTTPS, package downloads and clients
-using direct sockets or ignoring proxy variables. Distinguish supported behavior
-from proposed compatibility losses. Environment variables are client configuration;
-the network firewall must deny direct bypass. Check destination policy for literal
-addresses, DNS answers and redirects, plus Docker embedded DNS, TCP/UDP rpcbind,
-non-loopback IPv6 and unsupported UDP. Include permitted-path controls so an
-unavailable target cannot masquerade as successful isolation.
-
-Use narrow disposable experiments only where an uncertainty could change the
-decision. Name the question, candidate, supported target and acceptance evidence
-before running each experiment. Leave production topology and private state
-untouched; no full implementation or exhaustive prototype of every candidate is
-required. The workload and security checks above define the comparison and future
-implementation acceptance; run them in P1 only as needed to resolve a material
-design uncertainty. Full runtime qualification belongs to the selected approach's
-implementation phases. Reference repositories supply techniques to assess against exact pins:
-`torproxy` at `2a538fd2ad8a09caa7282dffc7d528d6e59d1db1` and `rootless-hermes`
-at `4bda68620b261ab68f3ce06c7cdbdc015308917a`. The latter runs container UID 0
-under a rootless engine and replaces startup; it does not qualify a capability-free
-Hermes lifecycle or this stack's network policy.
-
-P1 must recommend an approach with reasons and retain the other candidates as
-analysis in this plan. Provide implementation phases and acceptance criteria for
-the preferred approach only, including capability reductions, coherent commits,
-review gates, rollback and permanent documentation. Revise P2–P5 to fit that
-proposal before G1 acceptance; their current text is the GRE baseline, not a
-decision to retain it. Reconcile affected plans, particularly MCP listener and
-browser-content work. If material evidence is missing, record a concrete bounded
-experiment and keep the affected decision pending rather than selecting by
-assumption. Avoid separate implementation plans for discarded alternatives.
-
-Commit scope: focused qualification support, comparative assessment and the
-evidence-backed implementation proposal, without production privilege or topology
-changes. Update development guidance for reusable checks; add no evidence subsystem.
+Commit scope: focused qualification support and the evidence-backed privilege
+proposal, without production privilege or topology changes. Update development
+guidance for reusable checks; add no evidence subsystem.
 
 **G1 — Independent design gate:** a fresh read-only reviewer inspects this plan,
-the exact baseline/evidence snapshot and native contracts. Review all three
-candidates, the recommendation and the revised phases for the preferred approach.
-Confirm that gains justify complexity and any compatibility cost, authority is
-supported by lifecycle evidence on both engines, engine exceptions are justified,
-and security claims have sufficient focused evidence. Challenge added services,
-namespace access and duplicate enforcement.
-Record boundary changes requiring operator acceptance, retained root
-justifications, state preservation and allowed/forbidden checks. Retaining GRE
-may pass; unresolved decision-critical evidence keeps the affected gate pending.
-Resolve material findings and required boundary acceptance before production
-edits; commit and re-review material design changes that invalidate acceptance.
+the exact baseline/evidence snapshot and native contracts. Confirm that selected
+reductions justify their complexity, authority is supported by lifecycle evidence
+on both engines, engine exceptions are justified, and security claims have focused
+evidence. Challenge duplicate enforcement and unnecessary startup machinery.
+Review retained root justifications, state preservation and allowed/forbidden
+checks. Resolve material findings before production edits; commit and re-review
+material design changes that invalidate acceptance. No topology comparison or
+alternate-topology acceptance is required.
 
 ### P2 — Reduce application and maintenance capability grants
 
@@ -380,9 +330,9 @@ work. Retaining a justified capability is acceptable.
 
 ### P3 — End network initialization authority before steady state
 
-This phase describes the existing GRE topology. P1 must adapt its consumers,
-handoffs and checks if another design is recommended; G1 reviews that revision
-before implementation.
+Keep the existing firewall, GRE links, routes and namespace ownership model;
+change only the post-initialization privilege handoff and its required startup
+grants.
 
 After installing firewall/GRE/routes, have `agent-net` and `executor-net` switch
 to an unprivileged identity, clear groups and irreversibly remove all capability
@@ -482,13 +432,16 @@ pass and relevant restart/shutdown logs show no permission failures. Document
 justified retained root/grants and explicit deferrals; a deferred item needs a
 concrete next action and must not be described as implemented. Runtime inventory
 and G1–G5 are pending; source inspection alone does not meet acceptance.
-The three-candidate comparison and preferred implementation proposal are also
-pending. This scope expansion supplies no new runtime qualification or G1 acceptance.
+The privilege-reduction proposal remains pending. The former three-candidate
+comparison is deferred and is no longer a requirement of G1 or completion.
+This documentation-only scope reduction supplies no runtime qualification or G1
+acceptance.
 
 The plan-only scope expansion at baseline `e2fc800` received a fresh independent
 read-only review with no material findings. Local-link inspection and
 `git diff --check` passed. This review covers the expanded investigation and gate
-requirements; the future comparative assessment and G1 design remain pending.
+requirements; that historical review does not satisfy G1, and the comparison is
+now deferred.
 
 The engine-parity amendment on `rootless-podman-support`, baseline `391151b`,
 received a fresh independent read-only review with no material findings. Local
@@ -496,6 +449,12 @@ link targets and `git diff --check` passed. It adds shared-grant investigation,
 capability-conditioned seccomp coverage and both-engine phase acceptance; no
 runtime behavior changed or new runtime experiments were performed. This
 plan-only review does not satisfy the future G1 design or implementation gates.
+
+The topology-deferral amendment against baseline `9b536d0` received fresh
+independent read-only review with no material findings. Both plan files passed
+local file/heading link checks and `git diff --check`. This review accepts the
+plan split only; runtime changes, new engine experiments and G1 acceptance remain
+outside this amendment.
 
 Rollback restores prior image/Compose startup behavior and recreates affected
 services while preserving volumes, keys and configuration. For Tailscale ownership
