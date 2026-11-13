@@ -7,11 +7,15 @@ the corrections below are implemented and Docker-qualified. R3 is resolved.
 Amendment design gate G1A passed. The current-main rebase is complete and
 Docker-qualified; fresh review accepted `e28fbde` and the focused fixture
 correction recorded below with no significant findings;
-Native Podman 5.4.2/Compose 5.1.4 qualification of `a94ff16` is partial;
-the [maintained evidence](../development.md#qualification-and-maintenance)
-records passing core/storage checks, runtime missing-bind enforcement failure,
-fixture portability defects and remaining live checks. Full dual-engine G2
-remains open pending their resolution and the explicit Podman follow-up below.
+The missing-bind, fixture and final dry-run operand corrections are implemented
+through `897f91a`.
+Docker and Podman 5.4.2/Compose 5.1.4 runtime qualification passed, including
+the final controlled-browser/cleanup runs. See the
+[maintained evidence](../development.md#qualification-and-maintenance).
+Independent design and correction reviews accepted the source. The requested
+final post-qualification combined review could not run because the review agent
+hit a service usage limit; G2 stays open for that review and the explicit limits
+below.
 Planning baseline: branch `main`, commit `4a08841`. Amendment baseline: branch
 `main`, commit `1d83657`.
 Explicit-selection amendment baseline: branch `rootless-podman-support`, commit
@@ -67,8 +71,9 @@ creation and inline-seccomp filename failure on Podman 5.4.2. Keep the installed
    transport retry helper; JSON and non-Tor results fail outside that helper.
 
 Do not weaken containment assertions, add browser/platform skips, or relax
-transport policy for slow public-network requests. Missing-bind enforcement is
-a separate unresolved runtime requirement; these corrections do not close G2,
+transport policy for slow public-network requests. B1 below covers managed
+missing-bind enforcement; native API enforcement remains an upstream limitation.
+These corrections do not close G2,
 enable Podman executor desktop/browser use, or qualify funded/live Funnel work.
 
 ## Missing binds and focused browser qualification (2026-11-13)
@@ -120,36 +125,43 @@ review of B1/B2 and preceding corrections. Commit coherent changes and maintaine
 guides. Run focused checks first, then full qualification serially on each engine;
 record public-network failures separately and keep G2 open for unmet requirements.
 
-B1/B2 implementation: native model selection plus explicit creation-option parsing
-is shared across the identified consumers; zero-scale shutdown and noncreating
-commands remain available. Actual-engine probes established that CLI `run -v`
-relative sources use the invocation working directory independently of Compose's
-project directory, so the check uses that same directory and leaves model path
-resolution to Compose. Docker and Podman 5.4.2 passed missing-source/no-mutation,
-existing bind-byte, override, dependency/no-deps, zero-scale and offline probes.
-The 154-test unit/model suite passed on Podman; preceding source checks passed on
-Docker, with the final focused regression rerun included in full qualification.
-Fresh independent combined review accepted the source after socket-listener,
-zero-scale and CLI path corrections, with no remaining material findings.
-Focused browser and full dual-engine qualification are in progress; G2 stays open.
+Implementation through `862a74d` uses native model selection and explicit
+creation-option parsing across all identified consumers. CLI `run -v` relative
+sources use the invocation working directory independently of the project
+directory, established by actual mounts on both engines. Actual probes cover
+missing-source/no-mutation, existing bind bytes, named/anonymous and CLI overrides,
+dependency/no-deps, zero scale and unrelated offline jobs. Native Podman also
+refuses a deleted source when starting an existing container without recreating
+it, so the wrapper delegates that native check.
 
-Native controlled B2 assertions passed, but teardown revealed a further native
-lifecycle defect: base-only `down` omits the stopped, profiled treasury service,
-then Podman refuses removal of its shared namespace owner. Include all profiles
-for managed shutdown and disposable fixture teardown, preserve volumes for
-operator shutdown, and surface fixture cleanup failures. Qualify actual cleanup
-of the retained fixture and the final browser run; do not count hidden teardown
-failure as complete qualification. The build-only fixture must also copy the
-executor inheritance and Podman Compose files into its disposable checkout.
+Qualification exposed an additional lifecycle defect: default `down` omitted a
+stopped profiled treasury container, and Podman refused removal of its shared
+namespace owner. Managed and passthrough `down` and fixture teardown now include
+all profiles, preserving operator volumes unless explicitly removed. Fixture
+cleanup reports failure, fails an otherwise successful test and preserves an
+active original exception. A permanent stopped-profile/shared-namespace test
+passes on both engines. The build-only fixture also copies its executor
+inheritance and Podman Compose files.
 
-Lifecycle correction source is independently accepted with no material findings.
-Managed and passthrough `down` include all profiles without adding volume removal;
-selected-service `stop` retains its scope. The shared fixture helper reports
-teardown errors, fails otherwise successful checks and preserves active original
-exceptions. All 157 unit/model tests passed on Docker. Actual all-profile cleanup
-of the retained Podman namespace users/owner completed successfully and left no
-project containers, networks or volumes. The permanent profiled-namespace probe
-and final broader/native runs remain in progress; no full G2 acceptance is claimed.
+Fresh independent design, combined B1/B2 and lifecycle-correction reviews accepted
+the source, with no remaining material findings. The final post-qualification
+combined reviewer failed to start because of a service usage limit. Parent
+self-review traced the resulting creation, shutdown and browser paths; this does
+not replace G2's required independent review. The next action is a fresh read-only
+combined review of the final source and maintained dual-engine evidence. Keep the
+plan until that gate is accepted. Final controlled-browser and cleanup runs
+passed on both engines; the maintained development guide records the evidence.
+
+Final self-review found a dry-run operand ambiguity: native Compose treats
+`up --no-attach --dry-run -d SERVICE` as a real launch, with `--dry-run` consumed
+as a string value. The old splitter instead skipped launch preparation. A
+networkless native Podman negative control confirmed real creation. The splitter
+now consumes known value options before interpreting dry-run flags, and supported
+creation commands are validated even on dry runs. Native model service names are
+forwarded after `--`. Both-engine unit/runtime regressions cover real-launch
+refusal and genuine global dry-run preservation when an operand resembles a
+false flag. This final correction is parent-reviewed and runtime-tested; the
+unavailable final independent gate must include it.
 
 ## Rebase onto current main (2026-11-13)
 
@@ -793,7 +805,7 @@ host policy must not be rejected by a blanket wrapper rule. Do not change host
 policy to perform the check; no Docker runtime rerun is needed for comment/prose
 changes alone.
 
-### P7 — Amendment qualification and final combined review (Docker correction pass qualified; Podman follow-up pending)
+### P7 — Amendment qualification and final combined review (runtime corrections implemented; G2 review open)
 
 Native follow-up on 2026-11-13 used unchanged `a94ff16`, Debian 13 ARM64,
 rootless Podman 5.4.2 and stock Compose 5.1.4. See the maintained evidence above.
@@ -802,10 +814,10 @@ stopping completed a 12-second graceful cleanup. Managed startup/shutdown and
 the dedicated Podman strict-isolation path suite (38/38) also passed. However,
 D2's runtime
 `create_host_path: false` requirement fails: the API creates a missing bind
-source that native Podman refuses. Fresh read-only review confirmed the wrappers
-do not cover every supported launch. Resolve this scoped reliability gap and
-the recorded fixture defects, then rerun affected checks; passing core runtime
-and storage tests do not close G2. No source or provider workaround was applied.
+source that native Podman refuses. That initial snapshot had no workaround.
+B1/B2 above subsequently supplied scoped preflight and fixture corrections, with
+the maintained runtime evidence. Native API enforcement and the final independent
+G2 review remain separate limits; passing runtime suites alone does not close G2.
 
 Run focused P5 checks, then repeat affected P3/runtime checks on Docker Desktop
 and a rootless Podman host with both engines installed. Serialize fixed-subnet
@@ -926,34 +938,21 @@ Never treat the known-defective automatic-selection baseline as qualified merely
 because it was restored. Engine changes do not change state formats or authorize
 volume deletion, wallet reinitialization or automatic cross-engine migration.
 
-## Missing evidence
+## Missing evidence and explicit limits
 
-- The executor desktop and browser automation on Podman: they need a custom
-  seccomp profile that Podman's compatible API cannot apply (F11), so they are
-  Docker-only, and preflight refuses them on Podman. A way to apply the profile
-  on Podman is not designed.
-- P5/P6 and the review corrections are implemented. No Podman is installed on
-  the correction host. Rerun the corrected cold-launch/dry-run fixture, standalone
-  policy checks and research fixture on rootless Podman, plus the P7 endpoint,
-  ingress and lifecycle checks, before closing full dual-engine G2.
-- Linux Docker remains outside the recorded Docker Desktop evidence. The current
-  Docker correction pass and still-valid prior component evidence do not establish
-  support for an untested engine, kernel or architecture.
-- The x402_treazury lifecycle on Podman beyond `x402_treazury-test`:
-  `make x402_treazury-init`, the preparation path up to funding, the live
-  `serving_instance()` and `log_since()` path, `.Config.StopTimeout` for
-  `stop_grace_period: -1s`, and real stops with `--timeout -1` (D2).
-- Restart and recreation of `tor` and the network owners on Podman, with the
-  services that share their namespaces.
-- The Compose version with which `test_storage` passes: 2.26.1 and 2.40.3 both
-  omit `create_host_path: false` from `config` output. Compose 2.36 to 2.39 with
-  Podman, including adoption of pre-created networks, is not tested; P3 used
-  2.40.3.
-- Live Funnel enrollment (only the simulated HTTPS path ran), the Firefox and
-  WebKit content checks on Podman, and other kernels/distributions, for example
-  hosts with `br_netfilter` loaded or restricted unprivileged user namespaces.
-- `research_config_smoke.py`, `endpoint_readiness_smoke.py`, `images_smoke.py`,
-  `context_refs_smoke.py`, `desktop_tools_smoke.py` and `hermes_ui.py` were not
-  run on Podman. They use custom fixture models, `network_mode: none` or no
-  network and do not need deployment overlays, but P5 must route their engine
-  commands correctly and requalify affected behavior.
+- Final independent post-qualification combined review is unavailable because the
+  requested fresh reviewer hit a service usage limit. Next action: review the
+  final source and maintained dual-engine evidence, then assess G2 acceptance.
+- Podman executor desktop/browser automation remains Docker-only and refused by
+  preflight. Its custom seccomp profile cannot be delivered through the tested
+  compatible API; stock Compose 5.7.1 did not fix it. A native delivery handler
+  is not designed or implemented.
+- Native Podman/Compose still ignores `create_host_path: false`. Managed creation
+  has scoped preflight; raw Compose bypasses it, and concurrent source deletion
+  between check and mount needs an upstream fix. No weaker container policy was
+  selected.
+- Live Funnel enrollment, provider attestation and funded settlement are outside
+  this qualification. Simulated HTTPS and unfunded fixtures establish neither.
+- Linux Docker, AMD64, other distributions/kernels, Compose 2.36–2.39 and arbitrary
+  provider/engine combinations are unqualified. Keep the recorded versions and
+  platform scope; model checks alone do not qualify those alternatives.

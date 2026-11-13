@@ -438,8 +438,9 @@ PLAYWRIGHT_BROWSERS_PATH=/tmp/private-hermes-content-browsers \
   WEBAPP_BROWSER_PYTHON=/tmp/private-hermes-browser-tests/bin/python make webapp-test
 ```
 
-The qualified desktop engines are Chromium 156.0.8078.4, Firefox 157.0 and WebKit
-27.2 on the tested arm64 target, with the focused content and ingress matrix above. TCP/TLS canaries cover all three; direct DNS/preconnect NetLog observation
+The qualified browsers are Chromium 156.0.8078.4, Firefox 157.0 and WebKit
+27.2 on the tested arm64 target, with the focused content and ingress matrix
+above. TCP/TLS canaries cover all three; direct DNS/preconnect NetLog observation
 is Chromium-only. Other browsers/platforms are unqualified.
 Fixture HTTPS is not live Funnel qualification. Tor image retrieval has separate
 exit-control/transparent-route evidence; successful same-origin bytes alone

@@ -111,11 +111,11 @@ transient post-restart Tor DNS failure; positive image checks now retry only tha
 exact failure, while Tor-stopped denial stays unchanged. The complete rerun passed.
 Fresh independent reviews accepted combined source `e28fbde` and that focused
 fixture correction with no material findings or compelling simplifications.
-Native Podman v0.23.1 qualification is partial; the remaining gates stay in the
+The native follow-up and remaining review gate are recorded below and in the
 retained plan.
 
 On 2026-11-13, unchanged source `a94ff16` was copied to Debian 13 ARM64
-(`debvm23`, kernel 6.12.116), rootless Podman 5.4.2 with netavark/overlay, and
+(kernel 6.12.116), rootless Podman 5.4.2 with netavark/overlay, and
 the official Docker Compose 5.1.4 binary. The provider works without a PATH
 change when `PODMAN_COMPOSE_PROVIDER=$HOME/.docker/cli-plugins/docker-compose`
 and `CONTAINER_ENGINE=podman` are exported. No provider patch was used.
@@ -138,9 +138,9 @@ false` in its effective model, but the compatibility API starts a container and
 creates the missing source anyway. Native `podman run --mount` refuses it.
 The operation-scoped host preflight now rejects missing required sources for
 managed creation, including offline jobs and supported passthrough launches; raw
-Compose still bypasses it and concurrent host deletion remains an upstream gap. A fresh read-only review confirmed a material reliability
-gap, without a demonstrated credential or network boundary bypass. Plan D2
-remains open. A subsequent side-by-side comparison with the checksum-verified
+Compose still bypasses it and concurrent host deletion remains an upstream gap.
+The original reliability defect had no demonstrated credential or network
+boundary bypass. The final G2 review remains open. A subsequent side-by-side comparison with the checksum-verified
 official [Compose 5.7.1](https://github.com/docker/compose/releases/tag/v5.7.1)
 binary reproduced both missing-bind creation and inline-seccomp filename failure
 on Podman 5.4.2. The installed provider was not replaced; upgrading Compose alone
@@ -183,10 +183,11 @@ bytes with the authenticated response. Direct relay navigation still requires
 403 under its native same-origin Fetch Metadata guard. Full rebuilt-image
 Docker browser qualification passed before the focused-matrix refactor; native
 Podman completed the controlled matrix but failed the separate live Tor control.
-Qualification of the focused suite and new bind preflight is pending.
+The corrected qualification and final controlled-browser/cleanup results are
+recorded below.
 Browser assertions wait for the exact consent-mutation response rather than
-polling potentially stale state; new-tab relay exercises run after chat/media
-checks so they cannot interrupt the fresh SPA's initial stream subscription.
+polling potentially stale state. Extra-tab exercises follow content/media checks;
+chat streaming is qualified separately for each ingress.
 Logout checks use a fresh page in the same cleared cookie context, avoiding a
 race with the old SPA's own redirect while retaining unauthorized API assertions.
 
@@ -436,3 +437,53 @@ and disposable teardown now include all profiles. The fixture helper reports
 cleanup errors and fails otherwise successful tests while preserving an original
 exception. A real stopped-profile/shared-namespace regression case is included in
 `tests/launch_smoke.py`. Operator shutdown preserves volumes unless requested.
+
+
+On 2026-11-13, corrections through `897f91a` passed qualification on
+Docker Desktop ARM64 (Engine 29.9.3, Compose 5.7.0) and Debian 13 ARM64 rootless
+Podman 5.4.2 (netavark/overlay, official Compose 5.1.4). The installed VM provider
+was retained. Results on both engines include:
+
+- Effective models/compilation, packaged-image checks, full TypeScript and 70 UI
+  tests, and artifact-only builds under invalid disposable deployment settings.
+- Cold/dry-run and profiled namespace cleanup; real SSH/Python placement,
+  forbidden paths, selected MCP grants and Tor outage/recovery.
+- Named-volume storage, locks, migration and cleanup; authenticated image/socket
+  policy; editable research policy; endpoint errors/readiness/cancellation;
+  context-reference and twelve desktop/browser policy combinations.
+- Separate live authenticated Tor raster retrieval, exit-control and redirect
+  counter evidence, outage/recovery; unfunded twelve-listener treasury/free API
+  checks and catalog warming; native plugin install/update/dependency persistence.
+
+All 159 unit tests, four effective models and compilation passed on both engines.
+Final controlled three-browser content/ingress suites and cleanup passed on both,
+including stale consent, policy mismatch, credential/ingress failures and staged
+MCP activation. The corrected profiled-namespace cleanup has an actual-engine
+regression test on both engines.
+No blanket browser retries, increased browser deadlines, direct transport or
+weaker TLS verification were added.
+
+Fresh independent design and source-correction reviews accepted the work without
+remaining material findings. The requested final post-qualification combined
+reviewer could not run because it hit a service usage limit. Parent self-review
+is complete; it does not substitute for that independent gate. The retained
+[Podman plan](plans/rootless-podman.md) records the next review and platform limits.
+Podman executor computer/browser tools remain refused because of seccomp profile
+delivery; operator webapp/browser qualification is a separate capability. Live
+Funnel, provider attestation, funded settlement and other platforms remain
+unqualified. Existing Docker optional-executor evidence remains historical and
+was not rerun for this host-helper/fixture correction.
+
+Final self-review also reproduced a native dry-run parsing ambiguity:
+`up --no-attach --dry-run -d SERVICE` launches for real because the apparent flag
+is an option value. The wrapper now consumes value options before interpreting
+flags; dry-run still validates supported creation commands, and service names are
+forwarded after `--`. Unit tests exercise both engines' preparation/refusal, and
+actual-engine probes verify missing-bind refusal plus genuine global dry-run
+preservation with flag-like operands. The final independent review remains
+unavailable and must include this correction.
+
+The final resource audit found no current-run qualification containers, networks
+or volumes on either engine. Two older Docker webapp fixture volumes dated
+2026-11-09 were preserved; they predate this run and are absent from the current
+model. Normal deployment state and unrelated resources were preserved.
