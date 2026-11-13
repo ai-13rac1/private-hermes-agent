@@ -7,15 +7,16 @@ confidential-computing inference through Teep, and paid research APIs through
 x402_treazury.
 
 The goal is to let an agent research and write code while keeping your network
-address, inference requests, and agent payment history private, and sandboxing
-the agent from accessing your local machine. You can use Hermes through your
-browser or terminal, and optionally enable public HTTPS access through Tailscale
-Funnel.
+address, inference requests, and agent payment history private, and
+[sandboxing the agent](#service-hardening) from accessing your local machine.
+You can use Hermes through your browser or terminal, and optionally enable public
+HTTPS access through Tailscale Funnel.
 
-By default, the webapp also prevents displayed content from bypassing Tor through
-your own browser: supported external images load through the stack's Tor gateway,
-and active external content is blocked. You can use a normal browser with these
-protections; deliberate external link clicks still use your browser's connection.
+By default, the webapp also prevents [displayed content](#web-page-previews) from
+bypassing Tor through your own browser: supported external images load through
+the stack's Tor gateway, and active external content is blocked. You can use
+a normal browser with these protections; deliberate external link clicks
+still use your browser's connection.
 
 ## Components and the problems they solve
 
@@ -108,103 +109,82 @@ Set `NEARAI_API_KEY` in the generated root `.env` for the default NearAI
 run `make up` to choose another default. See [inference configuration](docs/configuration.md#host-inference-access)
 for model selection and the local OpenAI-compatible endpoint.
 
-Start the stack (including cached image builds):
+To build and start the stack:
 
 ```sh
 make up
 ```
 
-Open **http://127.0.0.1:9120** and log in as `admin` with the password saved in
-`config/webapp/password`. Tor bootstrapping can take several minutes.
-`make init` preserves existing configuration and credentials; add new settings
-to an existing `.env` explicitly using [`.env.example`](.env.example).
-Startup rebuilds changed image inputs and reuses the selected engine's cache for
-unchanged layers. Builds may need Internet access. Use `make build` to build ahead of time.
+Builds need Internet access, and use your host's default networking for this purpose, not Tor.
 
-Use the terminal client with:
+Once the stack is up, open **http://127.0.0.1:9120** and log in as `admin` with
+the password saved in the file `config/webapp/password`.
+
+If you prefer terminal use, you can use the terminal client with:
 
 ```sh
 make chat
 ```
 
-For an optional desktop inside the SSH executor, set `COMPUTER_USE_ENABLED=true`
-in `.env`, then run `make down` and `make up`. This selects a substantially larger
-image and enables computer-use and browser automation tools when ready. The
-desktop supports the qualified Docker and rootless Podman setups. See
-[desktop configuration and qualification status](docs/configuration.md#optional-executor-desktop).
+## Paid Research APIs and Cryptocurreny Wallet
 
-For remote browser access, follow the [optional Funnel setup](docs/webapp.md#optional-public-funnel).
-Funnel is disabled by default and requires explicit enrollment and activation.
+The stack includes [x402_treazury](https://github.com/mikeperry-tor/x402_treazury/),
+which gives Hermes Agent a full set of x402 APIs to conduct web searches, web page access,
+and access a large collection of data services using privacy-enhanced [x402 micropayments](https://x402.org/).
 
-To enable website preview tools, set `WEBAPP_EXTERNAL_CONTENT=browser_native`
-in `.env`, run `make up`, reload the webapp and start a new conversation.
-These previews currently require this mode and load external content through
-**your browser's connection, outside the stack's Tor gateway**. Use this mode
-only with Tor Browser or Brave Browser's Private Window with Tor; the stack does
-not detect or verify browser Tor routing. Keep the default `tor_proxied` to
-retain the webapp's protections in a normal browser. Executor desktop viewing
-and browser automation do not require `browser_native`. See the
-[webapp content policy](docs/webapp.md#external-content-policy) for modes and limits.
-
-## Enable paid research when ready
-
-Edit `config/x402_treazury/research_desk.toml` to adjust wallet funding policy,
-payment caps, source/tool selections, or instructions.
-
-`make up` and `make x402_treazury-prepare` display differences from the packaged
-defaults, including intentional customizations, without replacing your policy.
-Run `make x402_treazury-config-diff` to inspect them separately; see
-[research configuration](docs/x402_treazury.md#edit-the-research-configuration).
-
-You can restore this file to the defaults by removing it: `make x402_treazury-config`
-and `make x402_treazury-init` below will create this file if missing; both commands
-preserves an existing file. You can also edit the `config/x402_treazury/research_desk.toml`
-**before or after** `make x402_treazury-init`: initialization does not freeze the
-policy or require it to be finalized.
-
-For config changes after the stack is running, stop with `make down`, edit, then
-restart with `make up`; there is no hot reload. Starting with a changed policy
-can spend funds under its automatic funding settings. Keep the deployment's
-network, state paths, and listener settings intact, and use the documented
-procedure when renaming wallet groups to preserve their wallets. See
-[configuration and wallet renaming](docs/x402_treazury.md#edit-the-research-configuration).
-
-Follow the [x402_treazury onboarding guide](docs/x402_treazury.md) to create a
+to create a
 treasury and back it up before depositing ZEC:
 
 ```sh
 make x402_treazury-init
 ```
 
-The provided `research_desk.toml` uses a `[wallet_boostrap]` stanza that
-prepares only `general` initially, with a randomized $2-3 USDC allocation plus
-Zcash fees and bridge costs. If you just want to try out some light x402 usage,
-an initial funding of $5 worth of ZEC is plenty. For continued usage, ~$20
-worth of ZEC will fully fund all four wallet groups in a staggered fashion,
-triggered by the first use of an API call from each group.
+The provided `config/x402_treazury/research_desk.toml` (created after `make
+x402_treazury_init`) has 12 MCP endpoints organized by topic, automatically
+connected to your Hermes Agent. Funding this wallet with $5 worth of ZEC will
+enable all endpoints sharing a pair of ~$2.50 USDC wallets.
 
-If you remove the `[wallet_bootstrap]` stanza, preparation funds all declared
-managed groups at during the following `make x402_treazury-prepare` step; this
-prevents any of the other wallet group's API calls from ever being funded by the
-initial shared bootstrap wallet, but the immediate consecutive nature of these
-swaps likely makes them easy to correlate on the Base blockchain. It also will
-make the prepare step take much longer before you can get going, and require
-~$12 worth of ZEC to fund these wallets, before you are able to use all APIs.
+This will get you started, but the privacy properties of x402_treazury increase
+if you add $20 worth of ZEC. The 12 MCP endpoints will then be separated across
+four independent wallet groups after your agent uses an API from a group for the
+first time. This avoids linking research across broad high-level areas.
 
-After adjusting your wallet selection and funding the displayed shielded receive
-address with sufficient ZEC, ensure the stack is up (`make up`), then run:
+You can still start with $5 worth of ZEC to try it out, and then add more ZEC to
+the agent's shielded wallet at any time; the four isolated wallet groups will
+then be created as you use those topics.
+
+The actual USDC wallet addresses also rotate to reduce long-term linkability of
+your research over time. See the
+[x402_treazury README](https://github.com/mikeperry-tor/x402_treazury/#how-it-works) for
+details on this process and the privacy properties it provides.
+
+After funding the displayed shielded receive address with sufficient ZEC, ensure
+the stack is up (`make up`), then run:
 
 ```sh
 make x402_treazury-prepare
 ```
 
-Preparation funds the selected bootstrap wallets, warms provider catalogs, and
-connects research tools without restarting Hermes. It can spend ZEC and USDC
-under the configured policy and will wait for spendable funds while the webapp
-remains available, but the agent will be unable to use any x402_treazury APIs
-until funding and catalog warming complete.
+Preparation funds a single initial shared bootstrap wallet, warms provider
+catalogs, and connects research tools without restarting Hermes. The 12 MCP
+endpoints will be added to Hermes Agent automatically, but the agent will be
+unable to use any x402_treazury APIs until funding and catalog warming complete.
 
-Use `make x402_treazury-status` to inspect current wallet funding status (this also works while the stack is down).
+Use `make x402_treazury-status` to inspect current wallet funding status and shielded ZEC fudning address (this also works while the stack is down).
+
+See the [x402_treazury README](https://github.com/mikeperry-tor/x402_treazury/blob/main/README.md),
+[README_ADVANCED.md](https://github.com/mikeperry-tor/x402_treazury/blob/main/README_ADVANCED.md),
+and this repository's [x402_treazury onboarding guide](docs/x402_treazury.md)
+for more information.
+
+If the upstream research desk config changes, or you make local changes to `config/x402_treazury/research_desk.toml`, then `make up` and `make x402_treazury-prepare` display differences
+from the packaged defaults. Run `make x402_treazury-config-diff` to inspect them separately.
+
+You can restore this file to the defaults by removing it: `make x402_treazury-config`
+will create this file if missing (but preserves an existing file).
+
+For config changes after the stack is running, stop with `make down`, edit, then
+restart with `make up`; there is no hot reload.
 
 ## Living Dangerously: Full wallet access
 
@@ -233,42 +213,70 @@ As with everything else in this stack, all swaps are conducted over Tor. Swaps u
 > other than by enabling this feature and politely asking your agent to please
 > send you its remaining ZEC. **Be kind to your agents!**
 
-## Everyday operation
+## Web Page Previews
 
-Use `make up` and `make down` to start and stop the deployment. Ordinary shutdown
-preserves conversations, configuration, wallets, and executor work. **Do not use
-Compose `down -v` for routine shutdown:** it deletes application volumes,
-including wallets and conversations. Backups must include the named volumes as
-well as local configuration and data; see [backup scope](docs/configuration.md#backup-scope).
+The default stack protects you from IP address leaks through your own web browser,
+regardless of browser version, through a Browser Content Security Policy and internal
+Tor proxy that loads basic images and videos through Tor, and blocks all other content.
+This policy only covers content within the Hermes Agent Web UI. Any links you
+click on will load through your browser's default network.
 
-Use `make check-updates` to check stack versions and `make plugins` to manage
-persistent Hermes plugins. See [updates, plugins, and privacy defaults](docs/updates-and-plugins.md)
-for applying updates and understanding plugin authority.
+To allow Hermes Agent to show you previews of web pages inside the agent Web UI,
+set `WEBAPP_EXTERNAL_CONTENT=browser_native`
+in `.env`, run `make up`, reload the webapp and start a new conversation.
 
-For startup diagnostics:
+If IP address privacy is impotant to you, use this mode only with Tor Browser or
+Brave Browser's Private Window with Tor and Tailscale (`TAILSCALE_FUNNEL_ENABLED`); the stack does not detect or verify browser Tor routing in `browser_native` content access mode.
 
-```sh
-python3 scripts/stack.py compose logs -f hermes tor executor
+See the [webapp content policy](docs/webapp.md#external-content-policy) for modes and
+limits.
+
+## Browser and Computer Use
+
+To give Hermes Agent a full Linux graphical desktop environment inside an isolated docker service, set `COMPUTER_USE_ENABLED=true` in `.env`, then run `make down` and
+`make up`.
+
+This selects a substantially larger image and enables computer-use
+and browser automation tools for the agent to use.
+
+For remote browser access, follow the [optional Funnel setup](docs/webapp.md#optional-public-funnel).
+Funnel is disabled by default and requires explicit enrollment and activation.
+
+## Updates and Backups
+
+The stack will automatically update componet images with the following sequence:
+
+```bash
+make down
+git pull
+make up
 ```
 
-Use the deployment-aware `scripts/stack.py compose` wrapper for other Compose
-operations so your enabled options are included.
+Use `make check-updates` to check stack versions and `make plugins` to manage
+persistent Hermes plugins. See [updates, plugins, and privacy
+defaults](docs/updates-and-plugins.md) for applying plugin updates and
+understanding plugin authority.
+
+Backups must include the named volumes as well as local configuration and data; see [backup scope](docs/configuration.md#backup-scope).
 
 ## Service hardening
 
 Private Hermes adds substantially stronger containment than the
 [stock Hermes v0.23.1 Compose setup](https://github.com/NousResearch/hermes-agent/blob/v0.23.1/docker-compose.yml),
-which uses host networking. The additional controls limit what malicious tool
-output, prompt-injected commands, or a compromised service can reach:
+which uses host networking.
+
+The additional controls limit what malicious tool output, prompt-injected
+commands, or a compromised service can reach:
 
 - **Network containment:** Hermes and its executor have isolated networks and
-  default-deny firewalls. These block access to host/VM services, private networks
+  default-deny firewalls. These block access to host/VM services, private networks,
   and cloud metadata addresses, and prevent direct Internet fallback if Tor fails.
-  Only explicitly required internal connections are allowed.
-- **Code and secret separation:** model-issued code runs as an unprivileged user
-  in the SSH executor, without mounts for agent state, provider keys or wallets.
-  This limits theft or modification of those files by generated code. Teep owns
-  provider keys; x402_treazury owns wallet keys.
+  Only explicitly required internal connections are allowed. Tor egress does not
+  cover Teep's direct provider connection or your browser's connection to the webapp.
+- **Code and secret separation:** Agent code and desktop usage runs as an
+  unprivileged user in the SSH executor, without mounts for agent config, provider
+  keys or wallets. This limits theft or modification of those files by generated code.
+  Different agent profiles share the same code and desktop environment.
 - **Reduced service privileges:** services drop default container capabilities
   and receive only those needed for their work, with privilege escalation through
   setuid executables and file capabilities blocked. The executor and most
@@ -280,30 +288,8 @@ output, prompt-injected commands, or a compromised service can reach:
 
 These controls reduce exposure and the damage a compromise can cause; they do
 not guarantee protection against kernel/container-engine exploits or a compromised
-host. Agent sessions share one executor, and authenticated webapp operators and
-installed plugins retain administrative agent authority. See
-[architecture and isolation](docs/architecture.md) for exact boundaries and
-[development and qualification](docs/development.md) for tested coverage and limits.
+host.
 
-## Privacy and access limits
-
-An authenticated webapp user has administrative agent authority. The browser's
-interactive terminal runs in the agent container and is separate from the
-model's SSH code executor. Plugins also run with agent privileges. Only grant
-access to people and plugins you trust.
-
-The default `WEBAPP_EXTERNAL_CONTENT=tor_proxied` protects against automatic
-external requests from displayed content exposing your browser's network address.
-Supported external raster images load through the authenticated gateway over
-Tor; active previews and external players have non-loading fallbacks.
-Deliberate external link clicks and browser-native previews use your browser's
-own connection. Downloaded documents opened outside the webapp may also contact
-external services outside Tor.
-See [webapp content policy](docs/webapp.md#external-content-policy)
-for image consent, other policy modes, and current limits.
-
-Tor egress does not cover Teep's direct provider connection or your browser's
-connection to the webapp. The container boundaries do not protect against a
-compromised host or container engine. For exact grants and trust boundaries, see
+For exact grants and trust boundaries, see
 [architecture and isolation](docs/architecture.md). For build procedures and
 test coverage, see [development and qualification](docs/development.md).

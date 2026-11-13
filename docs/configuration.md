@@ -167,8 +167,7 @@ Debian desktop image and make those tools available when their SSH dependencies 
 present. Apply with `make down` followed by `make up`; startup builds the selected
 image and recreates affected services. Start a new conversation to refresh the
 advertised tools. A profile can still exclude either tool. `browser_cdp`,
-`browser_dialog` and `browser_vault` remain disabled. `WEBAPP_EXTERNAL_CONTENT`
-keeps its separate meaning; there is no second preference for browser automation.
+`browser_dialog` and `browser_vault` remain disabled.
 
 Docker selects this wrapper's pinned Moby-derived seccomp profile with Chromium
 namespace allowances. Rootless Podman uses its native default seccomp policy for
@@ -216,9 +215,6 @@ Qualification evidence and platform/surface limitations are recorded in the
 [development guide](development.md#executor-desktop-qualification).
 
 ## Host inference access
-
-See [updates and plugins](updates-and-plugins.md) for the version-check/update
-workflow, persistent user plugins, and privacy defaults independent of notifications.
 
 The recommended provider is NearAI via teep's `neardirect` backend. Set
 `NEARAI_API_KEY` in `.env`. `make up` refuses to start when no provider API key
@@ -453,7 +449,7 @@ project root; it is concurrency coordination, not wallet state or a backup input
 [editing research policy](x402_treazury.md#edit-the-research-configuration) and
 [staged onboarding](x402_treazury.md).
 
-## External-content policy rollout
+## External-content policy
 
 `WEBAPP_EXTERNAL_CONTENT` accepts exactly `tor_proxied`, `ask`, `off`, or
 `browser_native`. An absent root setting defaults to `tor_proxied`; an explicitly
