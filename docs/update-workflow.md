@@ -15,6 +15,9 @@ integration checks; the maintained component guides own the operating contracts.
    omitted test fixtures and executor dependency pins against that same revision.
    Keep reference checkouts read-only; their tag alone does not prove packaged
    image contents.
+   Update the packaged Hermes version in `README.md` and the release tag in its
+   stock Compose comparison link together. Inspect that release's Compose file
+   and revise the hardening comparison if upstream defaults have changed.
 3. Check the native build recipe and toolchain before rebasing patches. Prefer
    upstream's locked installation mechanism in disposable build stages. Verify
    every patched Python target and the rebuilt renderer reach the final image.

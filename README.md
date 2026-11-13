@@ -19,7 +19,7 @@ protections; deliberate external link clicks still use your browser's connection
 
 ## Components and the problems they solve
 
-- **Hermes Agent** provides chat, tool use, skills, and subagent orchestration.
+- **Hermes Agent v0.23.1** provides chat, tool use, skills, and subagent orchestration.
   Its webapp and terminal client let you work with the same persistent agent.
 - **SSH code executor** runs model-issued shell commands and Python code in a
   separate container and workspace. It keeps that code away from the agent's
@@ -257,7 +257,7 @@ operations so your enabled options are included.
 ## Service hardening
 
 Private Hermes adds substantially stronger containment than the
-[stock Hermes Compose setup at the packaged revision](https://github.com/NousResearch/hermes-agent/blob/3b421578588243f920886e6fe79a6faa87ea026e/docker-compose.yml),
+[stock Hermes v0.23.1 Compose setup](https://github.com/NousResearch/hermes-agent/blob/v0.23.1/docker-compose.yml),
 which uses host networking. The additional controls limit what malicious tool
 output, prompt-injected commands, or a compromised service can reach:
 
