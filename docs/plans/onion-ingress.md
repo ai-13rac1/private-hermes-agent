@@ -1,10 +1,12 @@
 # Optional onion-service ingress
 
-Status: planned; implementation has not started. This task creates the plan only.
+Status: OI-DESIGN in progress; implementation authorized by the user.
 Follow the [planning workflow](../planning-workflow.md) and
 [repository instructions](../../AGENTS.md) before execution.
 
 Planning baseline: branch `main`, `e4bfd20e2fc29526e162cc42ec2d1c097049ca06`.
+Implementation baseline: branch `onion-ingress`,
+`458802f0f655a21d23faece244eb8e4bc9c2816e`.
 At execution, record the actual implementation baseline and reconcile intervening
 changes. Preserve unrelated untracked files; they are outside this plan.
 
@@ -127,8 +129,8 @@ building images or validating unrelated serving/provider/treasury settings.
 Use the selected engine's existing maintenance path and a read-only Tor-state
 mount for inspection when host permissions prevent direct access. Missing local
 images/engine access get explicit errors; inspection does not pull implicitly.
-Creation may build only the owning network image if needed, and prepare only
-the required Tor bind path. Explain build network access separately from offline
+Creation requires an explicit prior build of the owning network image and prepares
+only the required Tor bind path. Explain build network access separately from offline
 key generation. Keep the entire root `.env` out of container environments.
 
 For a missing identity, use native Tor with networking disabled in a
@@ -146,6 +148,23 @@ temporary process cleanly; do not wait for public bootstrap or invent an
 operational failure deadline. If this contract fails, revise this narrow design
 and independently review it before implementation; do not add a crypto library
 or alternative daemon speculatively.
+
+The local Docker native experiment passed creation and reconstruction of both
+derived files on Tor 0.4.9.16. It also demonstrated that Tor replaces malformed
+secret files (empty, truncated, or invalid header). Add a narrow pre-start check
+for its native 96-byte secret format and exact 32-byte header
+`b'== ed25519v1-secret: type0 ==\x00\x00\x00'`;
+this protects identity preservation where native behavior does not. Do not add
+crypto or compare independently derived identity records. The offline helper
+supervises native Tor with DisableNetwork=1, waits for complete native files,
+then terminates and reaps its child. Its own requested SIGTERM is expected even
+if initialization has not installed Tor's handler yet; native errors still fail.
+Use read-only inspection and writable initialization maintenance jobs from the
+existing network image, both with no network/dependencies and only the Tor bind.
+Initialization requires the owning image built explicitly; existing inspection
+never builds. Managed initialization/repair checks that runtime Tor is stopped
+under the existing operation lock. Proxy rendering reads only the public hostname;
+runtime Tor checks the secret format before accepting enabled ingress.
 
 Interrupted creation must preserve any saved secret and let native Tor finish
 derived files on retry. A lone hostname/public file without its secret cannot
@@ -295,7 +314,9 @@ No shared sessions/SSO, distinct origin credentials, token audience redesign,
 onion HTTPS certificates, onion client authorization, vanity keys, automatic
 rotation, discovery UI, Onion-Location advertising, new egress mode or
 browser-native interactive-content work. No implementation or public deployment
-is authorized by this planning-only task.
+was authorized by the planning-only task. Implementation and disposable Docker
+and remote Podman qualification are now authorized by the execution request;
+operator publication, enrollment and financial operations remain outside scope.
 
 - Planning source inspection: complete against the baseline above.
 - Plan validation: local-link targets and staged `git diff --check` passed;
@@ -304,5 +325,10 @@ is authorized by this planning-only task.
   against the planning baseline with no material findings. Incorporated its
   clarifications on pre-start orphan-key refusal and canonical hostname
   validation. No suites or native experiments were run by the reviewer.
-- OI-DESIGN native experiment and design acceptance: pending.
+- OI-DESIGN native experiment: passed locally on Docker 29.9.3, Tor 0.4.9.16;
+  native 0600 files, 0700 directory; derived-file repair preserved secret/address.
+  Malformed-secret replacement reproduced and motivates the scoped format check.
+  OI-DESIGN: fresh independent read-only review accepted the updated design,
+  including the native evidence, with no material findings. Clarified the
+  explicit build prerequisite and exact native header bytes as requested.
 - Implementation, both-engine runtime qualification and OI-FINAL: not started.
