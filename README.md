@@ -177,12 +177,6 @@ See the [x402_treazury README](https://github.com/mikeperry-tor/x402_treazury/bl
 and this repository's [x402_treazury onboarding guide](docs/x402_treazury.md)
 for more information.
 
-If the upstream research desk config changes, or you make local changes to `config/x402_treazury/research_desk.toml`, then `make up` and `make x402_treazury-prepare` display differences
-from the packaged defaults. Run `make x402_treazury-config-diff` to inspect them separately.
-
-You can restore this file to the defaults by removing it: `make x402_treazury-config`
-will create this file if missing (but preserves an existing file).
-
 For config changes after the stack is running, stop with `make down`, edit, then
 restart with `make up`; there is no hot reload.
 
@@ -252,12 +246,20 @@ git pull
 make up
 ```
 
+If the upstream x402_treazury research_desk.toml config changes during update,
+or you make local changes to `config/x402_treazury/research_desk.toml`, then
+`make up` and `make x402_treazury-prepare` display differences from the packaged
+defaults. You can restore this file to the defaults by removing it: `make
+x402_treazury-config` will create this file if missing (but preserves an
+existing file).
+
 Use `make check-updates` to check stack versions and `make plugins` to manage
 persistent Hermes plugins. See [updates, plugins, and privacy
 defaults](docs/updates-and-plugins.md) for applying plugin updates and
 understanding plugin authority.
 
-Backups must include the named volumes as well as local configuration and data; see [backup scope](docs/configuration.md#backup-scope).
+Backups must include the named volumes as well as local `config` and `data`
+directories; see [backup scope](docs/configuration.md#backup-scope).
 
 ## Service hardening
 
