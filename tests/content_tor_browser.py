@@ -20,7 +20,18 @@ with sync_playwright() as p:
               const data=await response.json();
               return {status:response.status,raster:typeof data.data_url==='string' && data.data_url.startsWith('data:image/png;base64,'),reason:data.detail};
             }''')
-        result = image()
+        def image_after_bootstrap():
+            # Bootstrap health does not guarantee that a particular exit can
+            # resolve this host immediately. Match the existing allowed-path
+            # retry cadence; other errors and Tor-stopped checks still fail.
+            for attempt in range(4):
+                result = image()
+                if result.get('reason') != 'Public image DNS resolution failed' or result['status'] != 502:
+                    return result
+                if attempt < 3:
+                    page.wait_for_timeout(2000)
+            return result
+        result = image_after_bootstrap()
         assert result['status']==200 and result['raster'], result
         print('READY_TOR_DOWN',flush=True)
         assert input()=='down'
@@ -28,7 +39,7 @@ with sync_playwright() as p:
         assert result['status']==502 and not result['raster'], result
         print('READY_TOR_RESTART',flush=True)
         assert input()=='restart'
-        result=image()
+        result=image_after_bootstrap()
         assert result['status']==200 and result['raster'], result
         print('PASS: authenticated public raster retrieval, Tor loss without direct fallback, explicit retry after Tor recovery',flush=True)
     finally:
