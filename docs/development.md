@@ -111,7 +111,62 @@ transient post-restart Tor DNS failure; positive image checks now retry only tha
 exact failure, while Tor-stopped denial stays unchanged. The complete rerun passed.
 Fresh independent reviews accepted combined source `e28fbde` and that focused
 fixture correction with no material findings or compelling simplifications.
-Native Podman v0.23.1 runtime qualification remains pending in the retained plan.
+Native Podman v0.23.1 qualification is partial; the remaining gates stay in the
+retained plan.
+
+On 2026-11-13, unchanged source `a94ff16` was copied to Debian 13 ARM64
+(`debvm23`, kernel 6.12.116), rootless Podman 5.4.2 with netavark/overlay, and
+the official Docker Compose 5.1.4 binary. The provider works without a PATH
+change when `PODMAN_COMPOSE_PROVIDER=$HOME/.docker/cli-plugins/docker-compose`
+and `CONTAINER_ENGINE=podman` are exported. No provider patch was used.
+The 143 unit tests, four models, compilation, all selected lean/Funnel/treasury
+image builds, full storage/migration/locking suite, packaged image/tool-policy
+and URL-reference checks, full TypeScript/70 UI tests, endpoint cancellation,
+readiness/errors/restart, and complete main SSH/MCP/Tor outage/recovery suite
+passed. Managed `make up` and ordinary `make down` passed with dummy inference
+credentials and no wallet initialization. The dedicated Podman path suite passed
+38/38, including non-isolated-client denial, positive probe controls, strict
+network inspection and HAProxy's absent default route. The deployment was left
+stopped, its generated state preserved, and leftover disposable fixture volumes
+removed explicitly by their exact project labels.
+A networkless signal-handler probe completed 12-second cleanup both
+with the configured unlimited timeout and explicit Compose `--timeout -1`.
+Podman's native inspection stores the configured timeout as unsigned maximum.
+
+This is not complete qualification. The following findings remain unresolved:
+
+- **Missing bind sources:** Compose preserves `bind.create_host_path: false`
+  in its effective model, but the compatibility API starts a container and
+  creates the missing source anyway. Native `podman run --mount` refuses it.
+  Existing launch checks do not enforce this requirement for all supported
+  passthrough launches. A fresh read-only review confirmed a material
+  reliability/fail-closed gap, without a demonstrated credential or network
+  boundary bypass. Plan D2 remains open.
+- **Cold launches:** the API splits the fixture's multiword `python -c` health
+  check argument, preventing its dependency from becoming healthy. Production
+  health checks use scripts or `CMD-SHELL`; the launch fixture still needs repair.
+- **Research policy:** the missing-scratch negative control assumes Docker's
+  `--read-only` behavior. Podman automatically supplies writable temporary
+  filesystems, so the negative control succeeds and stops the remaining suite.
+- **Image canaries:** the disposable TLS directory retains `0700`, preventing
+  container UID 10000 from reading it on this Linux host.
+- **Webapp:** authentication, local/simulated HTTPS ingress, restart/rotation,
+  terminal/file boundaries and Chromium/Firefox's first content mode passed.
+  WebKit rejects the relay fixture PNG, whose IDAT checksum is invalid. The exact
+  bytes also fail standalone WebKit data-URI decoding without containers or
+  network; the complete content/failure matrix remains unqualified.
+- **Fixture cleanup:** subordinate-UID bind cleanup launches `setup` after
+  `down --volumes`, recreating its two empty named application volumes. The
+  helper should mount only its disposable bind data.
+
+Live checks also encountered a three-second Tor DNS timeout, an unfunded treasury
+Tor-check TLS EOF, and a plugin environment GitHub-wheel download timeout; the
+treasury and plugin suites did not pass. No weaker transport was selected.
+The VM's checkout umask produced a group-writable public SSH configuration;
+setting `components/hermes/ssh-client.conf` to `0644` was required by OpenSSH
+before the successful core rerun. Source content was unchanged. Host browser
+prerequisites were installed separately. Executor desktop/browser use remains
+explicitly refused with Podman; no inference, funds or live Funnel was tested.
 
 Component-specific checks and limits are documented in the
 [webapp](webapp.md#verification-and-current-limits),

@@ -7,7 +7,11 @@ the corrections below are implemented and Docker-qualified. R3 is resolved.
 Amendment design gate G1A passed. The current-main rebase is complete and
 Docker-qualified; fresh review accepted `e28fbde` and the focused fixture
 correction recorded below with no significant findings;
-full dual-engine G2 remains open pending the explicit Podman follow-up below.
+Native Podman 5.4.2/Compose 5.1.4 qualification of `a94ff16` is partial;
+the [maintained evidence](../development.md#qualification-and-maintenance)
+records passing core/storage checks, runtime missing-bind enforcement failure,
+fixture portability defects and remaining live checks. Full dual-engine G2
+remains open pending their resolution and the explicit Podman follow-up below.
 Planning baseline: branch `main`, commit `4a08841`. Amendment baseline: branch
 `main`, commit `1d83657`.
 Explicit-selection amendment baseline: branch `rootless-podman-support`, commit
@@ -66,8 +70,9 @@ independent review accepted this engine-neutral fixture change, and the complete
 rerun passed. A separate fresh combined review accepted `e28fbde`, independently
 passed all 143 unit tests and checked the range-diff, with no significant findings
 or compelling simplifications. No application transport or policy was weakened.
-Native Podman runtime qualification of this v0.23.1 combination remains pending;
-rerun the selected-engine fixtures and the full G2 items below on a Linux host.
+The subsequent Linux/Podman follow-up is partially qualified, as recorded in P7
+and the maintained guide; resolve its findings and complete the remaining G2
+items before accepting dual-engine qualification.
 
 ## Review correction scope (2026-11-13)
 
@@ -657,6 +662,18 @@ policy to perform the check; no Docker runtime rerun is needed for comment/prose
 changes alone.
 
 ### P7 — Amendment qualification and final combined review (Docker correction pass qualified; Podman follow-up pending)
+
+Native follow-up on 2026-11-13 used unchanged `a94ff16`, Debian 13 ARM64,
+rootless Podman 5.4.2 and stock Compose 5.1.4. See the maintained evidence above.
+D2's model-serialization check now passes, and configured/explicit unlimited
+stopping completed a 12-second graceful cleanup. Managed startup/shutdown and
+the dedicated Podman strict-isolation path suite (38/38) also passed. However,
+D2's runtime
+`create_host_path: false` requirement fails: the API creates a missing bind
+source that native Podman refuses. Fresh read-only review confirmed the wrappers
+do not cover every supported launch. Resolve this scoped reliability gap and
+the recorded fixture defects, then rerun affected checks; passing core runtime
+and storage tests do not close G2. No source or provider workaround was applied.
 
 Run focused P5 checks, then repeat affected P3/runtime checks on Docker Desktop
 and a rootless Podman host with both engines installed. Serialize fixed-subnet
