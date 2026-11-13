@@ -1,6 +1,8 @@
 # Read-only runtime configuration
 
 Status: proposed; no runtime changes made.
+Engine-parity planning baseline: `rootless-podman-support`, `1a6d298`.
+Follow the [planning workflow](../planning-workflow.md) before implementation.
 
 ## Objective
 
@@ -66,6 +68,51 @@ Inspect the exact pinned Hermes image before choosing a design:
    the deployment. Prefer a mechanism that protects policy while retaining
    normal preference edits when it provides the required enforcement.
 
+### Shared design and engine-specific evidence
+
+Target one policy model, storage layout and administrative workflow for Docker
+and rootless Podman. Investigate native managed policy first; do not introduce
+engine-specific policy formats, writer services or a generic publication system.
+For native policy, trace runtime precedence through profiles, environment and
+other writable configuration sources, and verify the protected values actually
+govern consumers. Describe the limits of enforcement in a process that can load
+operator-authorized writable plugins; a read-only file does not make arbitrary
+runtime code obey it.
+
+For a mount-based design, compare a single-file read-only bind with a dedicated
+read-only configuration directory whose writable administrative mount supports
+atomic replacement. Check which layout the pinned Hermes supports without
+changing its home or moving mutable databases onto host binds. A directory bind
+may avoid a pinned file inode, but does not establish safe hot reload, prevent
+partial multi-file reads or remove the need for a documented application step.
+Compare native-volume delivery only if host binds demonstrate a concrete blocker;
+any separate policy volume must have a justified owner, publication workflow and
+backup scope. Select one approach rather than implementing all candidates.
+
+Measure actual mounts and reads on both engines, including the qualified Docker
+Desktop filesystem and native rootless Podman. Inventory container UID/GID 10000,
+host/subordinate-ID mappings, parent traversal permissions and any ownership
+changes caused by volume initialization. Permissions alone do not establish
+runtime immutability: prove the read-only mount and absence of writable aliases,
+including an overlapping Hermes-data mount. Avoid recursive ownership repair,
+automatic bind relabeling or loosening private-file modes to resolve a mismatch.
+Additional host security-label requirements, if encountered, need explicit
+target-specific investigation; do not claim untested host support.
+
+Required bind sources must use the existing managed creation checks. On the
+qualified Podman API, Compose's `create_host_path: false` alone does not enforce
+missing-source refusal. Exercise both engine paths without changing provider or
+adding another preflight framework. Keep inspection, shutdown and offline repair
+available when unrelated deployment settings are invalid; a missing policy may
+block its consumer, not unrelated saved-data access.
+
+Coordinate writer UID/capability requirements with
+[capability reduction](capability-reduction.md). Do not solve rootless ownership
+or read-only mount failures with additional runtime grants, engine sockets,
+privileged containers or a switch to rootful operation. Any engine exception must
+identify the reproduced operation, affected filesystem/target and simplest
+shared alternative before design acceptance.
+
 ## Candidate mount-based workflow
 
 If a complete read-only configuration file is the appropriate design:
@@ -89,19 +136,31 @@ If a complete read-only configuration file is the appropriate design:
    for rollback. Never solve a migration failure by making runtime policy
    writable or disabling the migration without understanding its requirements.
 
+Preserve current-format configuration, credentials and operator choices on retries
+and interrupted publication. Identify the authoritative source and make individual
+publications atomic using the existing operation coordination where needed.
+Document any required stop/recreate ordering, particularly when multiple files
+must change together; do not add a transaction journal or recovery service.
+Backup and restore must include the selected policy source and preserve its
+ownership without granting runtime write access.
+
 A managed-policy design needs an equivalent documented editing, validation,
 application, migration, and rollback workflow, even if preference files remain
 writable.
 
 ## Qualification
 
-Use disposable data and the real production entrypoint. Check:
+Use the same disposable fixtures and real production entrypoints on both qualified
+engines. Validate effective base/Funnel Compose mounts and actual runtime mount
+permissions; rendered `read_only` settings alone are not evidence. Check:
 
 - Fresh provisioning and migration from a populated writable configuration,
   preserving unrelated settings and existing key identities.
 - Startup, CLI and gateway operation, supported profiles, and restart behavior.
 - An attempted runtime write or atomic replacement of protected configuration
-  fails, including attempts through any alternate mounted path.
+  fails, including attempts through any alternate mounted path. Test runtime
+  application processes and retained root supervision separately; include direct
+  writes, rename/unlink and permission/ownership changes where applicable.
 - Operator edits succeed through the maintenance path, are validated before
   publication, and become the effective configuration after the documented
   application step. Confirm the loaded values, not just the source file.
@@ -114,9 +173,23 @@ Use disposable data and the real production entrypoint. Check:
   integration checks still pass.
 - A representative upgrade/migration and rollback preserve configuration and
   data. Do not claim general upgrade compatibility from one startup test.
+- Missing required policy sources fail without creating a replacement directory
+  or starting the affected service; offline repair and unrelated inspection work.
+- Host/admin atomic replacement while a container exists has the documented
+  visibility on each engine; recreation loads the new value and rollback restores
+  the previous value. Check configured values through the real consuming path.
+- Interrupted validation/publication and repeated initialization preserve the
+  authoritative configuration, identities and unrelated mutable state. Invalid
+  candidates leave the last valid source intact. Backup/restore preserves the
+  selected layout and rootless ownership mappings.
 
-Run `make check` and `make test` for implementation changes, together with
-focused initialization, administrative editing, and migration checks.
+Run `make check` and `make test` on both engines for implementation changes,
+together with focused initialization, administrative editing and migration checks.
+Include desktop/browser policy consumers when the selected protected keys affect
+them. Reuse existing storage, bind-mount and maintenance fixtures; serialize tests
+sharing deployment resources. Use no operator secrets, paid calls or live Funnel
+enrollment. Record image/engine/provider/filesystem versions and unavailable
+coverage; current platform limits in the development guide still apply.
 
 ## Acceptance and rollout
 
@@ -124,6 +197,20 @@ Implement only after the authoritative configuration mechanism and all affected
 user workflows are understood. Document which policy is protected, what remains
 mutable, and how to make a legitimate change. If protection requires changing a
 supported workflow, provide its concrete replacement as part of the same change.
+
+First commit the pinned-consumer/writer inventory, selected shared design and
+focused evidence; obtain fresh independent design review before runtime edits.
+Then implement the coherent storage, setup, maintenance and consumer changes with
+their tests and updates to configuration/backup and development guides. Obtain
+fresh final combined review after both-engine qualification, before acceptance.
+Reconcile capability-reduction requirements if shared writers or grants change.
+This plan-only amendment supplies no runtime qualification or design-gate pass.
+
+The engine-parity amendment against baseline `1a6d298` received fresh independent
+read-only review with no material findings. Local-link target checks and
+`git diff --check` passed. Runtime tests were not run for this documentation-only
+change; design selection, design acceptance and implementation qualification
+remain pending.
 
 Rollback must restore the previous image, configuration source, and mount
 arrangement while preserving state volumes. Runtime configuration protection
