@@ -40,11 +40,20 @@ creation and inline-seccomp filename failure on Podman 5.4.2. Keep the installed
    MIME delivery. Preserve body bytes, attachment/nosniff/sandbox headers, all
    deployment modes, trusted SPA/auth/preview exceptions and raster/media paths.
    A fresh independent design review accepted this narrow correction. Keep
-   actual click/new-tab download assertions; assert binary MIME and unchanged
-   downloaded bytes for plugin and relay consumers. Rebuild Hermes and run
+   actual click/new-tab plugin download assertions; assert binary MIME and
+   unchanged clicked-download bytes for plugin and relay consumers. Preserve
+   the native relay's 403 for direct new-tab navigation lacking same-origin
+   Fetch Metadata. Rebuild Hermes and run
    packaged-image and full three-browser ingress/content/failure suites on both
    engines. Update the maintained webapp and qualification guides, then obtain
    fresh final review of the combined corrections before their completion commit.
+3. Correct the demonstrated simulated-TLS fixture connection leak: its two
+   copy operations currently wait for each other after a peer closes, leaving
+   pending bridge tasks. Finish on the first closed direction, cancel residual
+   copying and close both sockets; preserve streaming while both peers remain
+   connected, with no new inactivity deadline. Add real TCP unit coverage for
+   bytes in both directions and closure from either side. Independently review
+   the correction and rerun the affected full browser suites on both engines.
 
 Do not weaken containment assertions, add browser/platform skips, or relax
 transport policy for slow public-network requests. Missing-bind enforcement is
