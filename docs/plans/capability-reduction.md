@@ -8,6 +8,8 @@ Scope expansion baseline: branch `main`, commit
 `e2fc80057bc2aa8906a3a6623f640009d0e3a5a8`.
 Topology-deferral baseline: branch `main`, commit
 `9b536d0aefe53776f33eacb8366c8b639f1874ed`.
+Hardening-scope amendment baseline: branch `main`, commit
+`4041e1104dd12095e6cf215d32e3cdc4c65aaf77`.
 Plan path: `docs/plans/capability-reduction.md`.
 Follow the [planning workflow](../planning-workflow.md) before implementation.
 
@@ -16,7 +18,10 @@ Follow the [planning workflow](../planning-workflow.md) before implementation.
 Reduce unnecessary Linux capabilities and retained root authority while preserving
 startup, execution, maintenance, ingress and shutdown. Address the concrete
 exposure of long-lived processes retaining initialization authority after their
-privileged work ends. Do not select grants merely because another deployment
+privileged work ends. Also investigate concrete privilege-escalation and escape
+paths available to rogue, jailbroken or malfunctioning model code in the executor,
+and to a compromised executor browser. Hermes hardening remains a priority in its
+own administrative trust domain. Do not select grants merely because another deployment
 calls them minimal, or claim that changing UID removes every capability.
 
 Retain the existing GRE topology, separate Hermes/executor/Tor namespaces and
@@ -33,11 +38,30 @@ state marker, recovery engine or generic privilege-management framework. Retain
 justified root processes and grants where the owning component requires them;
 this plan does not promise an entirely rootless stack.
 
+Keep meaningful Hermes and executor hardening investigation in scope; existing
+zero-capability runner children do not by themselves exhaust that work. Support
+both lean and desktop executors on Docker and rootless Podman. Desktop must retain
+full supported computer-use and browser-use, including Chromium's own sandbox.
+Lean and desktop may have different justified hardening levels; do not broaden
+lean privileges simply to match desktop or disable desktop features to obtain a
+smaller grant list.
+
+Prefer native facilities and changes to this wrapper's own code. A coherent,
+revision-bound source adaptation comparable in scope to the existing
+[SSH browser-use integration](../updates-and-plugins.md#derived-hermes-build-and-patch-maintenance)
+is acceptable when it closes a concrete exposure and preserves supported workflows.
+Assess total conceptual and lifecycle cost, not patch-file count. Defer reductions
+that require deep Hermes/s6/OpenSSH rewrites, replacing supervision or SSH, or an
+accumulating set of independent new patches and lifecycle mechanisms. P1 must
+identify the proposed intervention, consumers, evidence and removal conditions;
+this allowance does not select or authorize an uninvestigated runtime design.
+
+Non-root Tailscale and further reduction of offline maintenance grants are deferred
+below. Preserve their current behavior; neither investigation blocks this plan.
 Resource/storage limits, a read-only Hermes root filesystem, image upgrades,
-filesystem redesign, production replacement of supervision/SSH backends and
-financial-policy changes and alternate network topologies are outside scope.
-No CPU, memory, PID, disk, temporary-storage or log-size limits are included.
-Live Funnel enrollment/publication, payments, funded wallet
+filesystem redesign, financial-policy changes and alternate network topologies
+are outside scope. No CPU, memory, PID, disk, temporary-storage or log-size limits
+are included. Live Funnel enrollment/publication, payments, funded wallet
 operations and destructive private-state changes are not authorized by this plan.
 
 ## Current baseline
@@ -56,7 +80,7 @@ snapshot or a qualified reduction.
 | `agent-net`, `executor-net` | Yes | No drop. After firewall, GRE and route installation, Python waits for signals as root with `NET_ADMIN`. |
 | `tor` | Yes | After network setup, state ownership repair and SOCKS-directory preparation, `su-exec 101:102` executes Tor. Full post-drop capability sets remain to be measured. |
 | `webapp-proxy` | Yes | After firewall installation, `setpriv` switches to UID/GID 10005, clears supplementary groups and removes bounding, inheritable and ambient capabilities before HAProxy. Its maintained contract also requires empty effective/permitted sets. |
-| Optional `tailscale` | Yes | No drop configured. The Python wrapper starts upstream `containerboot` in userspace networking mode; qualification must inspect the complete child tree. |
+| Optional `tailscale` | Yes | No drop configured. The Python wrapper starts upstream `containerboot` in userspace networking mode; non-root conversion is deferred. |
 | `setup`, `setup-storage`, `mcp-config` | Yes | No drop. Short networkless jobs exit after ownership/provisioning work; they bypass native image bootstrap. |
 | `teep` | No | Starts as UID/GID 10002. |
 | `x402_treazury`, `x402_treazury-setup`, `x402_treazury-inspect`, `x402_treazury-admin` | No | Start as UID/GID 10003; serving and online setup also receive group 102 for the private Tor socket. |
@@ -100,7 +124,7 @@ unprivileged configuration and profile-only disconnect paths.
   `ed6480b33c6eb67c9cbd203ed42b9fb57e361986725b6856def71b7a3d9e276c`
   (recorded as 1.104.4). Userspace networking uses no capabilities, but
   `data/tailscale` is root-owned mode 0700. Non-root `containerboot` behavior,
-  scratch paths and state access remain investigation items.
+  scratch paths and state access remain deferred investigation items.
 - Executor: Alpine 3.24 with OpenSSH. Teep source:
   `789918ea606826650447a7f1930b917521d3d135`; treasury source:
   `4346421a1a4d0d53fc31e246ff6fde27f634a9f6`. Record actual built image IDs and
@@ -142,8 +166,9 @@ default seccomp policy. Its desktop-only profile based on pinned modern Moby
 policy adds `clone`, `setns`, `unshare`. Both lean and desktop Podman use their
 native engine policy, as accepted for native desktop adoption. Neither selection
 adds container capabilities; namespace support exposes user-namespace kernel paths. Child-namespace capabilities are not parent-network
-namespace authority. Keep lean on the engine default: Docker's desktop syscall allowance does not
-justify changing its lean default. Podman already permits the required sandbox
+namespace authority. Lean currently uses the engine default: Docker's desktop
+syscall allowance does not justify broadening lean's policy. Any proposed tighter
+policy needs a concrete exposure, supported delivery and native qualification. Podman already permits the required sandbox
 with its native default; its policy is not identical to the Docker profile.
 Browser/GUI/driver/model processes must have no effective/permitted capabilities
 in the executor's original user namespace. ARM64 runtime checks found Xvnc,
@@ -154,7 +179,7 @@ neither join the parent-owned network namespace nor create raw sockets there;
 UID 101 still used Tor and failed during its outage, then recovered through Tor.
 The [development guide](../development.md#executor-desktop-qualification) records
 platform and surface limits. Further process-tree/capability qualification belongs
-to this plan; these focused SSH experiments do not satisfy G1–G5 or authorize
+to this plan; these focused SSH experiments do not satisfy the active design/final gates or authorize
 topology changes.
 
 Browser-use implementation reuses that executor and desktop profile. The Python
@@ -167,8 +192,10 @@ omission evidence remains applicable and need not be repeated for Python package
 
 ## Engine parity and investigation strategy
 
-Target one explicit startup capability list per service in base Compose and one
-shared privilege-dropping implementation for Docker and rootless Podman. The
+Target an explicit startup capability list per service/executor variant and a
+shared privilege-dropping implementation for Docker and rootless Podman. Variant
+differences must follow real workload requirements and use existing Compose
+selection, without a new policy framework. The
 current Podman overlays do not override capability grants; Hermes's inherited
 engine defaults are nevertheless not evidence of identical effective grants.
 Replace defaults with measured explicit requirements rather than taking the
@@ -187,11 +214,13 @@ capability requirements. Inventory actual UID/GID mappings, named-volume/bind an
 tmpfs ownership, namespace ownership and port-binding requirements on each
 qualified target. Rootless container capabilities do not confer authority in the
 host's initial user namespace; keep that distinction explicit on rootless Podman
-and inside Docker Desktop's Linux VM. Do not solve a mismatch with a rootful engine, host networking, privileged containers,
+and inside Docker Desktop's Linux VM. Do not solve a mismatch with a rootful
+engine, host networking, privileged containers,
 engine-socket mounts or an additional host privilege helper.
 
-Seccomp policy remains engine-specific as already accepted, independently of the
-shared capability target. Engine-default filters can condition syscall permission
+The accepted seccomp baseline remains engine-specific, independently of the
+shared capability target. This plan may investigate a focused tightening, but no
+policy change is selected by this amendment. Engine-default filters can condition syscall permission
 on the container's configured capabilities. Native Podman desktop experiments
 found that omitting container `SYS_CHROOT` also blocked Chromium's child-namespace
 chroot through the default filter, despite zero runner effective/permitted
@@ -258,7 +287,7 @@ identity/capability snapshots in disposable resources. Trace bootstrap, steady s
 profile operations, SSH authentication and shutdown. Check native guarantees
 before adding wrapper enforcement. Resolve these decisions before affected edits:
 
-- Which Hermes/maintenance operations need each capability? Hermes candidates
+- Which Hermes runtime/bootstrap operations need each capability? Hermes candidates
   include `CHOWN`, `SETUID`, `SETGID`, `DAC_OVERRIDE`; investigate `FOWNER`, `KILL`
   and other grants only against concrete uses and reproducing checks.
 - Distinguish ordinary UID-10000 application code from retained root supervision.
@@ -272,11 +301,25 @@ before adding wrapper enforcement. Resolve these decisions before affected edits
   `SETGID` or `SETPCAP` additions against the reduced steady-state authority.
 - What does Tor retain after `su-exec`? Can irreversible removal preserve state,
   health/control paths and private socket ownership/access?
-- Does pinned Tailscale `containerboot` support a fully non-root userspace lifecycle?
-  Trace scratch paths, CLI socket permissions, state contents/ownership, child
-  cleanup and enrollment reuse. Select a fixed image user only after this check.
-  If unavailable, record the concrete blocker and deferral; do not add privileges
-  or replace upstream orchestration to force it.
+- What additional containment is practical for runner/model code and compromised
+  browser processes in each executor variant? Trace the real SSH and browser
+  entrypoints, reachable root listener/startup code, writable-home/workspace inputs,
+  executable ownership and privileged helpers, inherited capability sets and
+  namespace/syscall exposure. Check existing read-only mounts, no-new-privileges,
+  native SSH privilege separation and Chromium sandbox guarantees first. Only
+  pursue gaps with a concrete path or demonstrated unnecessary authority; do not
+  turn this into a generic syscall allowlist or speculative hardening framework.
+- Existing SSH omission experiments justify the current listener grants, not a
+  conclusion that further executor hardening is impossible. Reuse those results;
+  do not rerun omissions without a changed owning contract. Prefer closing exposed
+  paths or tightening child authority over removing a demonstrated listener need.
+  A changed SSH capability requirement needs its own native evidence.
+- For each candidate, state the exposure, expected reduction, lean/desktop and
+  engine impact, affected consumers and cumulative patch/lifecycle cost. Reject
+  unsupported feature loss; defer candidates needing deep rewrites or independent
+  new mechanisms beyond the coherent intervention budget. If no further safe
+  executor reduction is found, record the specific paths investigated, blockers
+  and residual authority rather than treating existing grants as a blanket waiver.
 
 Use narrow disposable experiments only where a lifecycle uncertainty could change
 the selected reduction. Name the question, affected component, supported target
@@ -304,29 +347,45 @@ checks. Resolve material findings before production edits; commit and re-review
 material design changes that invalidate acceptance. No topology comparison or
 alternate-topology acceptance is required.
 
-### P2 — Reduce application and maintenance capability grants
+### P2 — Harden Hermes and executor privilege boundaries
 
 Replace Hermes's engine-default set with `cap_drop: [ALL]` and an experimentally
 justified explicit list. Audit root s6 supervision, ownership/profile operations,
-children and termination together. Review executor and offline maintenance sets
-separately; remove grants only when native lifecycle evidence supports doing so.
-Preserve unprivileged jobs and their mount scope; do not merge repair into setup.
+children and termination together. Implement the selected focused executor
+hardening within the P1 complexity budget, preserving SSH and both variants' tool
+contracts. Retain demonstrated SSH listener grants unless changed native evidence
+supports a safe reduction; do not equate retaining them with excluding executor
+hardening. If Hermes's explicit list or a further executor reduction cannot be
+qualified within that budget, record an evidence-backed deferral and residual
+exposure. Keep offline maintenance grants unchanged; verify affected consumers
+without opening a separate minimization exercise.
 
-Consumers: `compose.yaml`, Hermes bootstrap/profile services, executor SSH,
-provisioning and maintenance callers. Commit scope: reductions, focused checks
+Consumers: base/engine/executor Compose definitions, Hermes bootstrap/profile
+services, executor images/startup/SSH and browser launchers, and affected
+provisioning/maintenance callers. Commit scope: reductions, focused checks
 and retained-grant rationale in `docs/architecture.md`, `docs/configuration.md`
 and `docs/development.md` as applicable.
 
 Acceptance: fresh/repeated setup, representative existing permissions, CLI and
 gateway/profile lifecycle, SSH terminal/Python execution, repair/disconnect,
-restart/recreation and clean shutdown pass. Record retained root processes/grants
+restart/recreation and clean shutdown pass. Qualify lean terminal/Python/file
+operations and desktop computer-use/browser-use through production entrypoints on
+both engines. For each selected hardening change show the formerly available
+privilege/path is denied and intended workloads still succeed; a capability
+snapshot alone is insufficient. Include Chromium namespace/seccomp diagnostics,
+parent-network namespace/raw-socket denial, credential/state isolation and relevant
+failure/restart behavior. Preserve native authorized tool RPC without widening
+executor network grants. Record retained root processes/grants
 and what fails without them. Executed code has empty effective, permitted,
 inheritable and ambient sets; measure and justify any bounding-set inheritance
 from native SSH rather than implying every set is cleared by the UID transition.
 
-**G2 — Application/maintenance gate:** fresh independent review of the phase
-snapshot, supervision/SSH failure paths and focused evidence before dependent
-work. Retaining a justified capability is acceptable.
+**G2 — Application security assessment:** include the resulting Hermes/executor
+changes, supervision/SSH/browser failure paths, justified retained authority and
+focused evidence in the consolidated review described under P5. An intermediate
+fresh review is required before dependent work when this phase changes a security
+boundary or mechanism on which that work relies; the phase label alone does not
+require an additional review conversation.
 
 ### P3 — End network initialization authority before steady state
 
@@ -353,53 +412,66 @@ blocks public egress while established local grants remain usable. Exercise nati
 namespace-sharing recovery; document required application recreation rather than
 adding a recovery engine.
 
-**G3 — Network authority gate:** fresh independent review of startup/steady-state
-grants, firewall order, namespace ownership, dependency failure/restart evidence
-and unchanged ingress isolation.
+**G3 — Network security assessment:** include startup/steady-state grants,
+firewall order, namespace ownership, dependency failure/restart evidence and
+unchanged ingress isolation in the consolidated review under P5. Apply the same
+before-dependent-work rule as G2 when a material security change creates a dependency.
 
-### P4 — Qualify optional non-root Tailscale
+### P4 — Deferred work (not a completion gate)
 
-If G1 establishes native support, start the wrapper/child tree as a fixed
-unprivileged image user with all capabilities dropped. Change trusted storage
-preparation only for the Tailscale leaf and existing contents actually requiring
-ownership adjustment. Preserve enrollment bytes and retry behavior; diagnose
-missing material instead of reenrolling or deleting state.
+Non-root Tailscale is deferred. Keep userspace networking, all capabilities
+dropped, read-only root, no-new-privileges, exact-name verification, empty initial
+forwarding and shutdown reset. The PrivateOnyxApp reference runs its Nginx frontend
+gateway non-root but supplies no qualification of non-root `containerboot`; its
+working userspace Funnel is not evidence for that reduction here. Revisit only
+when this optional ingress component is separately prioritized. The first action
+would be a bounded pinned-containerboot lifecycle probe covering scratch/socket
+access, persistent state ownership, enrollment reuse and clean child termination.
+Preserve enrollment bytes and avoid reenrollment or destructive ownership repair.
+No such probe or ownership change is required for this plan.
 
-Consumers: `compose.funnel.yaml`, Tailscale image/wrapper, provisioning storage,
-Funnel lifecycle fixtures and webapp/configuration guidance. Commit scope: the
-coherent non-root lifecycle, state-preservation checks and docs, or an evidence-backed
-deferral with a concrete next action if native support is unavailable.
+Further offline maintenance grant reduction is deferred. Retain the existing
+networkless jobs, explicit `CHOWN`, `FOWNER`, `DAC_OVERRIDE` grants, mount scopes and
+separate unprivileged repair paths. Revisit if a concrete overgrant or privileged
+input path is demonstrated; the next action is to reproduce that operation and
+check native ownership requirements. Maintenance regression checks required by
+Hermes/executor changes remain in scope. A demonstrated material defect in an
+affected path must be resolved before dependent work, not hidden by this deferral.
 
-Acceptance: disposable fixtures cover first-use state creation, existing state
-permissions, repeated setup, restart/recreation and clean child termination.
-Exact-name checks, empty forwarding on startup and reset on shutdown remain intact.
-Demonstrate non-root operation with empty capability sets and unchanged proxy/network
-grants. Controlled fixtures do not establish live enrollment/public HTTPS; record
-unavailable native/live coverage explicitly.
-
-**G4 — Optional ingress gate:** fresh independent review of native boot support,
-identity/ownership preservation and shutdown/failure behavior. If this is the final
-implementation phase, G4 and G5 may share one fresh review covering both scopes.
+P4 and the former G4 optional-ingress gate are inactive. Neither deferred item
+requires implementation, runtime experiments or a separate review to complete
+this plan.
 
 ### P5 — Combined qualification and completion
 
-Run `make check` and `make test` on both qualified engines for the resulting
-implementation, plus focused production-entrypoint, process-set and lifecycle
-checks above. Validate effective
-base/Funnel Compose models for changed definitions on each engine. Cover lean and
-desktop executors, real SSH/model-Python placement, computer-use and browser-use,
-including Chromium's namespace/seccomp sandbox after any executor grant change.
+Use one shared qualification matrix for P2/P3 and the resulting combined change,
+organized by engine, executor variant and affected contract. Run focused checks as
+changes land, then `make check` and `make test` on both qualified engines for the
+resulting implementation. Reuse those results at intermediate/final assessment
+when their inputs remain unchanged; do not rerun full suites per phase or gate.
+Run any remaining affected lean/desktop, computer-use/browser-use and lifecycle
+checks once on the combined result, reusing still-valid phase evidence. Recheck
+Chromium's real namespace/seccomp sandbox after changes to executor capabilities,
+syscall policy, identity or launch behavior. Lean need not run desktop-only tests.
+Validate effective base/Funnel/engine/executor models for changed definitions;
+unchanged optional ingress needs no new enrollment or state-conversion exercise.
+
 Use native production entrypoints and actual process capability sets; mock/model
-parity alone does not qualify either engine. Each phase's applicable lifecycle,
-state-preservation and security checks must pass on both engines before its gate;
-unavailable target evidence stays pending. Retain the existing platform limits in
-the development guide rather than claiming coverage of all Docker/Podman hosts.
-Every security phase needs allowed/forbidden-path evidence and relevant
-failure/restart checks before its
-gate, not just static inspection. Serialize fixtures sharing fixed networks; use
+parity alone does not qualify either engine. Each changed security contract needs
+allowed/forbidden-path evidence and relevant failure/restart/state-preservation
+checks on both engines. Missing target evidence stays pending. Record justified
+variant differences and retained exposure without claiming equal hardening or
+coverage of untested platforms. Serialize fixtures sharing fixed networks; use
 disposable volumes and no operator secrets/state or paid calls. Do not run resource
-exhaustion workloads. Reuse still-valid evidence; repeat checks only for changed
-inputs, failures or unresolved concerns.
+exhaustion workloads. Repeat checks only for changed inputs, failures or unresolved
+concerns.
+
+Keep fresh independent G1 design and G5 final combined reviews. The final review
+should cover G2 and G3 together with the complete evidence and maintained guides.
+Use additional fresh intermediate review only for meaningful security/phase changes
+requiring assessment before dependent work under the planning workflow. Commit
+coherent passing work at phase boundaries; consolidation does not waive review of
+material changes or allow unresolved findings to flow into dependent work.
 
 **G5 — Final combined gate:** a fresh independent reviewer assesses the complete
 result, relevant unchanged security contracts, corrections, maintained guides and
@@ -431,7 +503,8 @@ Accept a reduction only when intended privilege is absent, supported operations
 pass and relevant restart/shutdown logs show no permission failures. Document
 justified retained root/grants and explicit deferrals; a deferred item needs a
 concrete next action and must not be described as implemented. Runtime inventory
-and G1–G5 are pending; source inspection alone does not meet acceptance.
+and active G1/G2/G3/G5 assessments are pending; G4 is deferred. Source inspection
+alone does not meet acceptance.
 The privilege-reduction proposal remains pending. The former three-candidate
 comparison is deferred and is no longer a requirement of G1 or completion.
 This documentation-only scope reduction supplies no runtime qualification or G1
@@ -456,9 +529,15 @@ local file/heading link checks and `git diff --check`. This review accepts the
 plan split only; runtime changes, new engine experiments and G1 acceptance remain
 outside this amendment.
 
+The hardening-scope amendment against baseline `4041e11` received fresh
+independent read-only review with no material findings. All 15 local file/heading
+links and `git diff --check` passed. This accepts the plan amendment only;
+G1 design acceptance, selected reductions and both-engine runtime qualification
+remain pending. No runtime changes or new engine experiments were performed.
+
 Rollback restores prior image/Compose startup behavior and recreates affected
-services while preserving volumes, keys and configuration. For Tailscale ownership
-changes, document the exact prior leaf/content ownership and a trusted offline
-reverse operation before rollout; preserve enrollment bytes. Do not delete state,
+services while preserving volumes, keys and configuration. Preserve any executor
+variant selection and restore prior source patches/security policy together with
+the matching images; no Tailscale ownership change is included. Do not delete state,
 regenerate identities, disable `no-new-privileges` or broaden network access to
 work around a failed reduction.
