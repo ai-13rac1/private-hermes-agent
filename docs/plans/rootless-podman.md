@@ -63,8 +63,8 @@ creation and inline-seccomp filename failure on Podman 5.4.2. Keep the installed
    Positive live-image bootstrap/recovery may retry the two observed transient
    502 DNS/connection errors at the existing four-attempt cadence; policy errors
    and Tor-stopped denial remain immediate, with no weaker transport. The
-   separate positive Tor-exit probe may retry only the observed TLS EOF under
-   that cadence; certificate, HTTP, JSON and non-Tor results still fail directly.
+   separate positive Tor-exit probe reuses the existing TLS-verifying curl
+   transport retry helper; JSON and non-Tor results fail outside that helper.
 
 Do not weaken containment assertions, add browser/platform skips, or relax
 transport policy for slow public-network requests. Missing-bind enforcement is
@@ -119,6 +119,19 @@ Obtain fresh independent design review before implementation and a final combine
 review of B1/B2 and preceding corrections. Commit coherent changes and maintained
 guides. Run focused checks first, then full qualification serially on each engine;
 record public-network failures separately and keep G2 open for unmet requirements.
+
+B1/B2 implementation: native model selection plus explicit creation-option parsing
+is shared across the identified consumers; zero-scale shutdown and noncreating
+commands remain available. Actual-engine probes established that CLI `run -v`
+relative sources use the invocation working directory independently of Compose's
+project directory, so the check uses that same directory and leaves model path
+resolution to Compose. Docker and Podman 5.4.2 passed missing-source/no-mutation,
+existing bind-byte, override, dependency/no-deps, zero-scale and offline probes.
+The 154-test unit/model suite passed on Podman; preceding source checks passed on
+Docker, with the final focused regression rerun included in full qualification.
+Fresh independent combined review accepted the source after socket-listener,
+zero-scale and CLI path corrections, with no remaining material findings.
+Focused browser and full dual-engine qualification are in progress; G2 stays open.
 
 ## Rebase onto current main (2026-11-13)
 

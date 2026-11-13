@@ -136,8 +136,9 @@ Podman's native inspection stores the configured timeout as unsigned maximum.
 This is not complete qualification. Compose preserves `bind.create_host_path:
 false` in its effective model, but the compatibility API starts a container and
 creates the missing source anyway. Native `podman run --mount` refuses it.
-Existing launch checks do not enforce this requirement for all supported
-passthrough launches. A fresh read-only review confirmed a material reliability
+The operation-scoped host preflight now rejects missing required sources for
+managed creation, including offline jobs and supported passthrough launches; raw
+Compose still bypasses it and concurrent host deletion remains an upstream gap. A fresh read-only review confirmed a material reliability
 gap, without a demonstrated credential or network boundary bypass. Plan D2
 remains open. A subsequent side-by-side comparison with the checksum-verified
 official [Compose 5.7.1](https://github.com/docker/compose/releases/tag/v5.7.1)
@@ -180,7 +181,9 @@ design review accepted this narrow fix. Browser tests retain actual click and
 new-tab plugin download requirements and compare plugin/relay clicked-download
 bytes with the authenticated response. Direct relay navigation still requires
 403 under its native same-origin Fetch Metadata guard. Full rebuilt-image
-browser qualification is pending.
+Docker browser qualification passed before the focused-matrix refactor; native
+Podman completed the controlled matrix but failed the separate live Tor control.
+Qualification of the focused suite and new bind preflight is pending.
 Browser assertions wait for the exact consent-mutation response rather than
 polling potentially stale state; new-tab relay exercises run after chat/media
 checks so they cannot interrupt the fresh SPA's initial stream subscription.
@@ -416,3 +419,12 @@ parsers. The observer and read-only authenticated probes add no treasury state.
 Closing the controller's input pipe cancels the remote probe, including when the
 controller exits unexpectedly. Protocol waits remain cancellable without an
 additional startup deadline. Reporting cadence is independent of failure policy.
+
+The focused qualification workflow runs `python3 tests/bind_mount_smoke.py` on
+each engine before the core and browser suites. It uses only networkless,
+disposable project containers and public fixtures, proving missing required
+sources are refused without directory/container/network creation while existing,
+overridden and unrelated offline jobs remain usable. Run `make webapp-test` and
+`make webapp-live-test` serially: the former concentrates UI/ingress boundaries,
+the latter retains public Tor image/outage/recovery evidence. See the
+[webapp test matrix](webapp.md) for retained cross-browser coverage.

@@ -74,6 +74,18 @@ inside an application cannot grant a direct uplink.
 
 ## Rootless Podman
 
+Managed container creation checks required bind sources in the effective Compose
+model before creating containers or networks. This applies to both engines,
+including offline setup/treasury jobs and `stack.py compose up/create/run/scale`.
+Checks follow selected services and dependencies; `--no-deps` excludes dependency
+mounts, and run-volume overrides replace mounts at the same target. Noncreating
+inspection, shutdown and exec remain available. Unsupported creation commands
+and watch recreation are refused; use explicit supported commands. Bare Compose
+bypasses this check. It prevents ordinary missing-source mistakes but cannot
+prevent concurrent host deletion after checking; Podman 5.4.2's compatible API
+still lacks native enforcement of `create_host_path: false`.
+
+
 The same topology and boundaries apply on rootless Podman. `CONTAINER_ENGINE`
 (`docker` or `podman`, from the environment or root `.env`, default `docker`)
 selects the engine; any other value is an error, never a fallback.

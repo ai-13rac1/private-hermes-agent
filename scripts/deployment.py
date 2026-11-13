@@ -302,7 +302,7 @@ RUN_FLAG_OPTIONS = ('--build', '-d', '--detach', '--dry-run', '-i', '--interacti
                     '--remove-orphans', '--rm', '-P', '--service-ports', '--use-aliases')
 
 
-def _run_target(rest):
+def _run_target(rest, volumes=None):
     """Find the service and launch flags before a run's container command."""
     arguments, no_deps, dry_run = iter(rest[1:]), False, None
     for value in arguments:
@@ -312,8 +312,11 @@ def _run_target(rest):
             return value, no_deps, dry_run
         name, equals, operand = value.partition('=')
         if name in RUN_VALUE_OPTIONS:
-            if not equals and next(arguments, None) is None:
+            value = operand if equals else next(arguments, None)
+            if value is None:
                 return None, no_deps, dry_run
+            if name in ('-v', '--volume') and volumes is not None:
+                volumes.append(value)
         elif name in RUN_FLAG_OPTIONS:
             if name == '--no-deps':
                 no_deps = not equals or operand in ('true', '1', 't', 'T', 'TRUE', 'True')
@@ -325,8 +328,11 @@ def _run_target(rest):
             for index, letter in enumerate(value[1:], start=1):
                 short = '-' + letter
                 if short in RUN_VALUE_OPTIONS:
-                    if index == len(value) - 1 and next(arguments, None) is None:
+                    operand = value[index + 1:] or next(arguments, None)
+                    if operand is None:
                         return None, no_deps, dry_run
+                    if short == '-v' and volumes is not None:
+                        volumes.append(operand)
                     break
                 if short not in RUN_FLAG_OPTIONS:
                     raise ValueError(f'Unsupported Compose run option {short}; use separate supported flags.')
@@ -338,6 +344,109 @@ def _run_target(rest):
 def _dry_run_flag(value):
     # Go/pflag's accepted false spellings; malformed values fail in Compose.
     return value.partition('=')[2] not in ('false', 'False', 'FALSE', '0', 'f', 'F')
+
+
+# These are creation options whose operands must not be mistaken for services.
+CREATE_VALUES = ('--attach', '--no-attach', '--exit-code-from', '--pull', '--scale',
+                 '-t', '--timeout', '--wait-timeout')
+CREATE_FLAGS = ('--abort-on-container-exit', '--abort-on-container-failure',
+                '--always-recreate-deps', '--attach-dependencies', '--build', '-d',
+                '--detach', '--dry-run', '--force-recreate', '--menu', '--no-build',
+                '--no-color', '--no-deps', '--no-log-prefix', '--no-recreate',
+                '--no-start', '--quiet-build', '--quiet-pull', '--remove-orphans',
+                '-V', '--renew-anon-volumes', '--timestamps', '--wait', '-y', '--yes')
+
+
+def check_bind_sources(command, rest):
+    """Reject absent required sources before a supported container creation.
+
+    Compose resolves paths, profiles and dependency selection. This is a host
+    preflight, not atomic enforcement against concurrent host filesystem changes.
+    """
+    if not rest or rest[0] in NO_NETWORKS or rest[0] in ('start', 'restart'):
+        return
+    action, volumes, targets, no_deps = rest[0], [], [], False
+    scales = {}
+    if action == 'run':
+        target, no_deps, _ = _run_target(rest, volumes)
+        if target is None:
+            raise ValueError('Compose run requires a service')
+        targets = [target]
+    elif action in ('up', 'create'):
+        arguments = iter(rest[1:])
+        for value in arguments:
+            if value == '--':
+                targets.extend(arguments)
+                break
+            if not value.startswith('-'):
+                targets.append(value)
+                continue
+            name, equals, operand = value.partition('=')
+            if name in CREATE_VALUES:
+                operand = operand if equals else next(arguments, None)
+                if operand is None:
+                    raise ValueError(f'{name} needs a value')
+                if name == '--scale':
+                    service, separator, count = operand.partition('=')
+                    if not separator or not count.isdigit():
+                        raise ValueError('Use --scale SERVICE=COUNT')
+                    scales[service] = int(count)
+            elif name in CREATE_FLAGS:
+                if name == '--no-deps':
+                    no_deps = _dry_run_flag(value)
+            else:
+                raise ValueError(f'Unsupported Compose creation option {name}; use separate supported flags.')
+        if no_deps and any(x.split('=')[0] == '--always-recreate-deps' for x in rest[1:]):
+            raise ValueError('Do not combine --no-deps and --always-recreate-deps')
+    elif action == 'scale':
+        for value in rest[1:]:
+            name, separator, count = value.partition('=')
+            if not separator or not count.isdigit() or name.startswith('-'):
+                raise ValueError('Use Compose scale SERVICE=COUNT with explicit services')
+            targets.append(name)
+            scales[name] = int(count)
+        if not targets:
+            raise ValueError('Compose scale requires SERVICE=COUNT')
+    else:
+        raise ValueError(f'Unsupported Compose creation command {action}; use up, create or run.')
+    model = json.loads(_output(*command, 'config', '--format', 'json', *targets))
+    services = model.get('services') or {}
+    # A run override supersedes the target mount, never a dependency's mount.
+    overrides = {}
+    for volume in volumes:
+        parts = volume.split(':')
+        if len(parts) == 1:
+            overrides[parts[0]] = None  # anonymous volume
+        elif len(parts) in (2, 3):
+            source, destination = parts[:2]
+            if source.startswith(('/', '.', '~')) or '/' in source:
+                path = Path(source).expanduser()
+                if not path.is_absolute():
+                    # CLI run-volume sources use the invocation cwd, independently
+                    # of --project-directory (verified with actual mounts).
+                    path = ROOT / path
+                overrides[destination] = str(path)
+            else:
+                overrides[destination] = None  # named volume
+        else:
+            raise ValueError('Unsupported Compose run volume syntax')
+    for name, service in services.items():
+        if action != 'run' and scales.get(name, service.get('scale', service.get('deploy', {}).get('replicas', 1))) == 0:
+            continue
+        if no_deps and targets and name not in targets:
+            continue
+        mounts = {mount['target']: mount for mount in service.get('volumes', [])}
+        if action == 'run' and name == targets[0]:
+            for destination, source in overrides.items():
+                mounts[destination] = {'type': 'bind', 'source': source,
+                                       'bind': {'create_host_path': False}} if source else {'type': 'volume'}
+        for mount in mounts.values():
+            if mount['type'] != 'bind' or mount.get('bind', {}).get('create_host_path', True):
+                continue
+            source = mount.get('source')
+            if not source or not Path(source).exists():
+                raise RuntimeError(f'Required bind source missing for service {name}: {source}. '
+                                   'Restore the source or run its documented initialization before launching.')
 
 
 def needs_networks(command, rest):

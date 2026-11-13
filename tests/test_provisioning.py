@@ -106,10 +106,11 @@ class ProvisioningTests(unittest.TestCase):
             self.assertFalse((root / 'config/x402_treazury/research_desk.toml').exists())
 
     def test_failed_canonical_setup_reports_logs_and_exit_code(self):
-        with patch.object(provisioning.subprocess, 'run') as run, \
+        with patch.object(provisioning, 'check_bind_sources') as binds, patch.object(provisioning.subprocess, 'run') as run, \
                 patch.object(provisioning.subprocess, 'check_output', side_effect=['setup-id\n', '7\n']):
             with self.assertRaisesRegex(RuntimeError, 'Offline setup failed.*exit 7'):
                 provisioning.initialize_setup(['docker', 'compose'])
+            binds.assert_called_once_with(['docker', 'compose'], ['up', '--no-deps', 'setup'])
         self.assertEqual(run.call_count, 2)
         self.assertEqual(run.call_args_list[0].args[0][-1], 'setup')
         self.assertEqual(run.call_args_list[1].args[0][-4:], ['logs', '--tail', '40', 'setup'])

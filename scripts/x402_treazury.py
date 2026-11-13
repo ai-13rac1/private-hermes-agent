@@ -13,7 +13,7 @@ import subprocess
 import sys
 import threading
 import time
-from deployment import ROOT, engine_command, needs_networks, prepare_launch, maintenance_compose
+from deployment import ROOT, engine_command, check_bind_sources, needs_networks, prepare_launch, maintenance_compose
 from provisioning import initialize_research_config, research_config_diff, report_research_config_diff
 
 
@@ -85,6 +85,7 @@ class Controller:
         self.command, self.root = command, Path(root)
 
     def call(self, *arguments, **kwargs):
+        check_bind_sources(self.command, arguments)
         if needs_networks(self.command, arguments):
             prepare_launch(self.command)
         return subprocess.run([*self.command, *arguments], cwd=self.root, text=True, check=True, **kwargs)

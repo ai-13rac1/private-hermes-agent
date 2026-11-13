@@ -58,7 +58,7 @@ x402_treazury-test: check
 	python3 scripts/preflight.py private-hermes-x402-treazury-test
 	python3 -u tests/x402_treazury_smoke.py
 
-.PHONY: webapp-credentials webapp-rotate webapp-test
+.PHONY: webapp-credentials webapp-rotate webapp-test webapp-live-test
 webapp-credentials:
 	python3 scripts/webapp-credentials.py
 webapp-rotate:
@@ -67,6 +67,12 @@ webapp-test: check
 	$(COMPOSE) -f compose.yaml build hermes executor webapp-proxy
 	python3 scripts/preflight.py private-hermes-webapp-test --funnel
 	python3 -u tests/webapp_smoke.py
+
+# Explicit public-network Tor image/outage/recovery qualification.
+webapp-live-test: check
+	$(COMPOSE) -f compose.yaml build hermes executor webapp-proxy
+	python3 scripts/preflight.py private-hermes-webapp-test --funnel
+	python3 -u tests/webapp_smoke.py --live-egress
 
 .PHONY: chat gateway
 chat:

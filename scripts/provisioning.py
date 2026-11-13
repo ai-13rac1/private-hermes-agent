@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-from deployment import ROOT, engine_command
+from deployment import ROOT, engine_command, check_bind_sources
 
 
 def setup_container(command):
@@ -16,6 +16,7 @@ def setup_container(command):
 def initialize_setup(command):
     # --wait expects a running/healthy service and can reject a successfully
     # exited one-shot. Wait for this container's exit status explicitly instead.
+    check_bind_sources(command, ['up', '--no-deps', 'setup'])
     subprocess.run([*command, 'up', '-d', '--no-deps', '--force-recreate', 'setup'], cwd=ROOT, check=True)
     identifier = setup_container(command)
     if not identifier:

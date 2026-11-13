@@ -39,7 +39,7 @@ class PassthroughSettingsTests(unittest.TestCase):
                 patch.object(deployment, 'compose_base', return_value=self.provider), \
                 patch.object(stack, 'compose_base', return_value=self.provider), \
                 patch.object(sys, 'argv', ['stack.py', 'compose', *arguments]), \
-                patch.object(stack, 'run') as run, patch.object(stack, 'prepare_launch') as prepare:
+                patch.object(stack, 'run') as run, patch.object(stack, 'prepare_launch') as prepare, patch.object(stack, 'check_bind_sources'):
             if error:
                 with self.assertRaisesRegex(ValueError, error):
                     stack.main_unlocked()

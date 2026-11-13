@@ -57,6 +57,36 @@ def browser_checks(password_path, mode="full"):
     subprocess.run([browser_python, str(ROOT / 'tests/webapp_browser.py'), str(password_path), mode], check=True)
 
 
+def live_egress_checks(folder):
+    # Separate real-route evidence: Tor exit control plus transparent
+    # redirect counters around an actual authenticated image retrieval.
+    exit_response = smoke.eventually(lambda: smoke.curl('hermes', 'https://check.torproject.org/api/ip'))
+    assert json.loads(exit_response.stdout)['IsTor'] is True
+    def tor_redirect_count():
+        table = smoke.compose('exec','-T','tor','iptables','-t','nat','-L','PREROUTING','-n','-v','-x').stdout
+        return sum(int(line.split()[0]) for line in table.splitlines()
+                   if 'REDIRECT' in line and '10.204.80.2' in line and 'tcp' in line)
+    before = tor_redirect_count()
+    child = subprocess.Popen([os.environ.get('WEBAPP_BROWSER_PYTHON', sys.executable),
+                              str(ROOT / 'tests/content_tor_browser.py'), str(folder / 'password')],
+                             stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
+    try:
+        assert child.stdout.readline().strip() == 'READY_TOR_DOWN'
+        assert tor_redirect_count() > before, 'No agent transparent Tor redirect activity during real image retrieval'
+        smoke.compose('stop','tor')
+        child.stdin.write('down\n'); child.stdin.flush()
+        assert child.stdout.readline().strip() == 'READY_TOR_RESTART'
+        smoke.compose('up','-d','--no-deps','--wait','--wait-timeout','600','tor')
+        child.stdin.write('restart\n'); child.stdin.flush()
+        output, _ = child.communicate()
+        print(output,end='',flush=True)
+        assert child.returncode == 0
+        print('PASS: real image retrieval has separate Tor exit and transparent-route counter evidence',flush=True)
+    finally:
+        if child.poll() is None:
+            child.terminate(); child.wait()
+
+
 def run_suite():
     browser_python = os.environ.get('WEBAPP_BROWSER_PYTHON', sys.executable)
     ready = subprocess.run([browser_python, '-c',
@@ -95,6 +125,10 @@ def run_suite():
             smoke.compose('up', '-d', '--no-build', '--wait', '--wait-timeout', '600')
             assert not smoke.compose('ps', '-q', 'tailscale').stdout.strip(), 'Real Tailscale must never start in tests'
             wait_ready()
+            if '--live-egress' in sys.argv:
+                live_egress_checks(folder)
+                failed = False
+                return
             if os.environ.get('COMPUTER_USE_ENABLED', 'false') == 'true':
                 subprocess.run([browser_python, str(ROOT / 'tests/computer_use_browser.py'),
                                 str(folder / 'password')], check=True)
@@ -275,42 +309,6 @@ print(base64.b64encode(p.read_bytes()).decode())
             smoke.compose('up','-d','--no-deps','--force-recreate','webapp-proxy')
             wait_ready()
             print('PASS: gateway/ingress mismatch and stale generated policy fail closed; corrected recreation restores access',flush=True)
-            # Separate real-route evidence: Tor exit control plus transparent
-            # redirect counters around an actual authenticated image retrieval.
-            smoke.python('hermes', """import json,ssl,time,urllib.error,urllib.request
-for attempt in range(4):
- try:
-  with urllib.request.urlopen('https://check.torproject.org/api/ip',timeout=60) as response:
-   assert json.load(response)['IsTor'] is True
-  break
- except urllib.error.URLError as error:
-  # Observed transient exit TLS EOF, not certificate errors or HTTP/policy failures.
-  if not isinstance(error.reason,ssl.SSLEOFError) or attempt==3: raise
-  time.sleep(2)
-""")
-            def tor_redirect_count():
-                table = smoke.compose('exec','-T','tor','iptables','-t','nat','-L','PREROUTING','-n','-v','-x').stdout
-                return sum(int(line.split()[0]) for line in table.splitlines()
-                           if 'REDIRECT' in line and '10.204.80.2' in line and 'tcp' in line)
-            before = tor_redirect_count()
-            child = subprocess.Popen([os.environ.get('WEBAPP_BROWSER_PYTHON', sys.executable),
-                                      str(ROOT / 'tests/content_tor_browser.py'), str(folder / 'password')],
-                                     stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
-            try:
-                assert child.stdout.readline().strip() == 'READY_TOR_DOWN'
-                assert tor_redirect_count() > before, 'No agent transparent Tor redirect activity during real image retrieval'
-                smoke.compose('stop','tor')
-                child.stdin.write('down\n'); child.stdin.flush()
-                assert child.stdout.readline().strip() == 'READY_TOR_RESTART'
-                smoke.compose('up','-d','--no-deps','--wait','--wait-timeout','600','tor')
-                child.stdin.write('restart\n'); child.stdin.flush()
-                output, _ = child.communicate()
-                print(output,end='',flush=True)
-                assert child.returncode == 0
-                print('PASS: real image retrieval has separate Tor exit and transparent-route counter evidence',flush=True)
-            finally:
-                if child.poll() is None:
-                    child.terminate(); child.wait()
             # Financial preparation is represented by a controlled result here;
             # serving is the real unfunded Rust fixture, with native Hermes RPC.
             sys.path.insert(0, str(ROOT / 'scripts'))

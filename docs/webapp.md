@@ -412,14 +412,22 @@ deployment stacks first because inference/MCP fixture subnets are shared.
 This destination fixture does not establish that its local fetches used Tor.
 
 `make webapp-test` uses the built image, disposable native message/tool history,
-SSH files, local media, controlled browser TCP/TLS canaries, and local/simulated
-Funnel ingress. Its inference endpoint is a deterministic local fixture with no
-uplink or provider calls; actual Teep routing is qualified separately by `make test`.
-Browser image-success fixtures control the same-origin image API response; real
-backend retrieval is independently exercised by `images-test` and the real Tor
-image check. Direct Chromium NetLog observes canary DNS/TCP/preconnect activity;
-a reserved `.invalid` positive-control lookup cannot select an HTTP endpoint.
-No production wallets, paid calls or real Tailscale enrollment are used.
+SSH files, local media, controlled browser TCP/TLS canaries, and simulated HTTPS.
+All four content modes run on Chromium, Firefox and WebKit locally. Chromium ask
+mode additionally exercises content/consent over HTTPS; Firefox and WebKit have
+small HTTPS navigation/authentication checks. Dedicated Chromium tests cover
+both ingress paths' authentication, cookies, origin enforcement, terminal and
+one actual chat/WebSocket exchange. Content cases render seeded native history
+without repeatedly starting inference. This preserves browser-specific downloads,
+previews, consent, media, forbidden requests and intentional link behavior.
+
+`make webapp-live-test` separately checks real authenticated image retrieval,
+Tor-exit control, transparent-route counters, Tor outage and recovery using the
+same disposable fixture. Run both targets for full qualification. Routine webapp
+tests avoid public image/exit endpoints but still wait for actual Tor bootstrap;
+they are not fully offline. Positive exit-control transport attempts use the
+existing bounded curl retry helper with TLS verification; JSON/non-Tor results
+fail. No production wallets, paid calls or real Funnel enrollment are used.
 
 Install every browser used by this suite in the explicit test environment:
 
@@ -431,8 +439,7 @@ PLAYWRIGHT_BROWSERS_PATH=/tmp/private-hermes-content-browsers \
 ```
 
 The qualified desktop engines are Chromium 156.0.8078.4, Firefox 157.0 and WebKit
-27.2 on the tested arm64 target, with all four modes and both fixture ingress
-paths. TCP/TLS canaries cover all three; direct DNS/preconnect NetLog observation
+27.2 on the tested arm64 target, with the focused content and ingress matrix above. TCP/TLS canaries cover all three; direct DNS/preconnect NetLog observation
 is Chromium-only. Other browsers/platforms are unqualified.
 Fixture HTTPS is not live Funnel qualification. Tor image retrieval has separate
 exit-control/transparent-route evidence; successful same-origin bytes alone

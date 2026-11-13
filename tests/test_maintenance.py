@@ -50,7 +50,7 @@ class MaintenanceScopeTests(unittest.TestCase):
         for command in commands:
             with patch.dict(os.environ, BAD), patch.object(sys, 'argv', ['stack.py', 'compose', *command]), \
                     patch.object(stack, 'settings', side_effect=AssertionError('unrelated validation')), \
-                    patch.object(stack, 'run') as run:
+                    patch.object(stack, 'run') as run, patch.object(stack, 'check_bind_sources'):
                 stack.main()
             self.assertEqual(run.call_args.args[0][-len(command):], command)
         for command in (['up'], ['run', '--rm', '--no-deps', 'hermes', 'gateway', 'run'],

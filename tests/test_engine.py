@@ -296,7 +296,7 @@ class PassthroughTests(unittest.TestCase):
                                     (['run', '--rm', '--no-deps', 'transitive'], True),
                                     (['run', '--rm', '--no-deps', 'offline-admin'], False),
                                     (['run', '--rm', '--no-deps', 'setup'], False),
-                                    (['scale', 'tor=1'], True), (['some-future-command'], True),
+                                    (['scale', 'tor=1'], True),
                                     (['--dry-run', 'up'], False), (['ps'], False), (['config'], False),
                                     (['up', '--dry-run'], False), (['run', '--dry-run', 'hermes'], False),
                                     (['run', 'hermes', 'echo', '--dry-run'], True),

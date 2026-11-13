@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-from deployment import (ROOT, check_engine, compose, compose_base, compose_files, prepare_launch, remove_networks, render,
+from deployment import (ROOT, check_bind_sources, check_engine, compose, compose_base, compose_files, prepare_launch, remove_networks, render,
                         settings, maintenance_compose, maintenance_command, needs_networks, split_passthrough)
 from auth import validate
 from x402_treazury import Controller, operation_lock
@@ -77,12 +77,16 @@ def main_unlocked():
             if rest[0] == 'run' and needs_networks(command, rest):
                 raise ValueError('Offline maintenance jobs require network_mode: none for the job and its dependencies. '
                                  'Remove the networking/dependency override before running this job.')
+            if not dry_run:
+                check_bind_sources(command, rest)
             run(command + rest)
             if rest[0] == 'down' and not dry_run:
                 remove_networks(command)
             return
         config = settings(extra=files, options=options)
         command = compose(config, extra=files) + options
+        if not dry_run:
+            check_bind_sources(command, rest)
         if not dry_run and needs_networks(command, rest):
             prepare_launch(command)
         run(command + rest)
@@ -113,13 +117,16 @@ def main_unlocked():
         report_research_config_diff(command, ROOT)
         initialize_setup(command)
         infrastructure = ['tor', 'agent-net', 'executor-net', 'executor', 'teep']
+        check_bind_sources(command, ['up', '--no-deps', *infrastructure])
         prepare_launch(command)
         run(command + ['up', '-d', '--wait', '--no-deps', *infrastructure])
         controller = Controller(command, ROOT)
         # Setup already removed research registrations. The recreated gateway
         # reads that configuration without needing an old gateway's control RPC.
+        check_bind_sources(command, ['up', '--no-deps', 'webapp-proxy', 'hermes'])
         run(command + ['up', '-d', '--no-deps', '--force-recreate', 'webapp-proxy', 'hermes'])
         if config.funnel:
+            check_bind_sources(command, ['up', '--no-deps', 'tailscale'])
             run(command + ['up', '-d', '--no-deps', 'tailscale'])
         controller.startup()
 
