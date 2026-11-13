@@ -32,6 +32,7 @@ services:
     entrypoint: [/bin/sleep]
     command: [infinity]
     cap_drop: [ALL]
+    cap_add: !reset []
     environment:
       HERMES_HOME: /opt/data
       AGENT_ONLY_SENTINEL: must-not-reach-executor

@@ -4,7 +4,8 @@ services:
     init: false
     entrypoint: !reset null
     command: [gateway, run]
-    cap_drop: !override [NET_ADMIN, NET_RAW]
+    # Restore the production grants cleared by the unprivileged core fixture.
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETUID, SETGID]
   setup:
     volumes:
       - type: bind

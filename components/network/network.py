@@ -1,7 +1,8 @@
 """Own the agent/executor network namespaces and a separate transparent router.
 
-Only this trusted service has NET_ADMIN. Application containers share its
-namespace, but have neither network administration nor raw-packet capability.
+Only this trusted service has NET_ADMIN during initialization. Application
+containers share its namespace, but have neither network administration nor
+raw-packet capability. Steady-state owners drop identity and all capability sets.
 """
 import ipaddress
 import json
@@ -51,6 +52,18 @@ def apply(raw, nat, incoming, outgoing):
         '*filter', ':INPUT DROP [0:0]', ':OUTPUT DROP [0:0]', ':FORWARD DROP [0:0]',
         '-A INPUT -i lo -j ACCEPT', '-A OUTPUT -o lo -j ACCEPT', 'COMMIT', '',
     ]))
+
+
+def drop(uid, gid, *command):
+    os.execv('/bin/setpriv', ['setpriv', f'--reuid={uid}', f'--regid={gid}',
+                              '--clear-groups', '--bounding-set=-all', '--inh-caps=-all',
+                              '--ambient-caps=-all', '--no-new-privs', *command])
+
+
+def wait():
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    while True:
+        signal.pause()
 
 
 def deny(chain, networks):
@@ -111,10 +124,8 @@ def endpoint(role):
     apply(['-A OUTPUT -d 127.0.0.11/32 -j DROP'], [], incoming, outgoing)
     run('ip', 'route', 'replace', 'default', 'via', peer, 'dev', 'tor-route')
     Path('/tmp/network-ready').touch()
-    print(f'{role}: firewall and default route installed', flush=True)
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    while True:
-        signal.pause()
+    print(f'{role}: firewall and default route installed; dropping privilege', flush=True)
+    drop(65534, 65534, sys.executable, os.path.abspath(__file__), 'wait')
 
 
 def router():
@@ -168,7 +179,7 @@ def router():
         rendered = original.replace('SocksPort 0', 'SocksPort unix:/run/tor-x402_treazury/socks IsolateSOCKSAuth GroupWritable RelaxDirModeCheck')
         config = '/tmp/x402_treazury-torrc'
         Path(config).write_text(rendered)
-    os.execvp('su-exec', ['su-exec', '101:102', '/usr/bin/tor', '-f', config])
+    drop(101, 102, '/usr/bin/tor', '-f', config)
 
 
 if __name__ == '__main__':
@@ -177,5 +188,7 @@ if __name__ == '__main__':
         router()
     elif role in ('agent', 'executor'):
         endpoint(role)
+    elif role == 'wait':
+        wait()
     else:
-        raise SystemExit('Expected router, agent, or executor')
+        raise SystemExit('Expected router, agent, executor, or wait')

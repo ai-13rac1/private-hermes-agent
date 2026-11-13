@@ -42,4 +42,8 @@ COPY components/hermes/public_images.py /opt/hermes/hermes_cli/private_public_im
 COPY components/hermes/browser_policy.py /opt/hermes/hermes_cli/private_browser_policy.py
 COPY components/hermes/computer_use.py /opt/hermes/hermes_cli/private_computer_use.py
 COPY components/hermes/browser_use.py /opt/hermes/hermes_cli/private_browser_use.py
+# Keep the user-writable profile wrapper directory last so root s6, cont-init
+# and wrapper command lookup cannot execute profile content. Unique profile
+# wrapper names still resolve for the unprivileged application.
+ENV PATH=/opt/hermes/bin:/opt/hermes/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/data/.local/bin
 ENV HERMES_WEBAPP_DIST=/opt/hermes/apps/desktop/dist-webapp

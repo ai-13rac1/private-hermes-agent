@@ -20,9 +20,11 @@ Hermes agent ── private SSH ── executor (/workspace, no agent volume or 
 
 No application receives a container-engine socket, host networking, privileged mode,
 `NET_ADMIN`, or `NET_RAW`. The trusted `agent-net` and `executor-net` services
-configure routes and firewall rules before applications start, then remain as
-stable namespace owners. Tor is in a third namespace; impersonating Tor's UID
-inside an application cannot grant a direct uplink.
+configure routes and firewall rules before applications start, then drop to
+UID/GID 65534 with every capability set empty and remain as stable namespace
+owners. Tor is in a third namespace and likewise drops to UID 101/GID 102 with
+empty sets after initialization; impersonating Tor's UID inside an application
+cannot grant a direct uplink.
 
 ## Network and execution boundaries
 
@@ -167,7 +169,8 @@ Podman stack, including a client on a network without isolation.
 - Tor: `dockurr/tor:0.4.9.16`, pinned by digest in
   `components/network/Dockerfile`. The derived image adds our firewall/route setup
   and local authenticated bootstrap health check. Tor runs as UID 101 after
-  initialization; there is no TCP control API, TCP SOCKS service, or HTTP proxy.
+  initialization with empty capability sets; there is no TCP control API, TCP
+  SOCKS service, or HTTP proxy.
   A private SOCKS Unix socket is mounted only into the x402_treazury container.
 - Hermes: derived from official v0.23.1, with base digest and explicit source
   checks in `components/hermes/`. Runtime and maintenance share the derived
@@ -231,8 +234,31 @@ layers enabled; nested user-namespace root was unable to rejoin the parent-owned
 network namespace or create a raw socket in it.
 Keep effective/permitted capability evidence for runner processes distinct from
 the root listener's grants and from namespace-local browser sandbox capabilities.
-See [development checks](development.md#executor-desktop-qualification) and the
-[capability reduction plan](plans/capability-reduction.md).
+Both-engine Docker/Podman qualification measured authenticated runner sessions at
+UID 10000 with empty effective, permitted, inheritable and ambient sets and
+bounding set `0x400c0`; that residual is not authority in the executor's original
+user namespace under `NoNewPrivs=1` with no file capabilities. `SYS_CHROOT`
+remains a functional desktop/Podman Chromium sandbox requirement and is not
+security-only cleanup. See [development checks](development.md#executor-desktop-qualification)
+and the [capability reduction plan](plans/capability-reduction.md).
+
+### Hermes capability boundary
+
+Hermes starts as root for the native s6 bootstrap and supervision. Its explicit
+container grants are `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETUID` and
+`SETGID`; both-engine lifecycle probes showed each is required for profile
+readiness, permission repair or clean shutdown. Engine defaults not used by that
+lifecycle, including `NET_ADMIN`, `NET_RAW`, `SETPCAP`, `SYS_CHROOT` and `MKNOD`,
+are dropped. Dropped application processes have empty effective, permitted,
+inheritable and ambient sets; they inherit bounding set `0xeb`, which is not
+authority under `NoNewPrivs=1` with no file capabilities. Clearing that bounding
+set would require replacing the native s6 drop or adding a helper and is deferred.
+
+Root services and profile wrappers share a `PATH`. The user-writable profile
+wrapper directory `/opt/data/.local/bin` is placed last so root s6, cont-init and
+wrapper command lookup prefers trusted directories, while uniquely named profile
+wrappers still resolve. This closes the demonstrated path where a UID-10000
+`sleep` in the writable directory ran as root after restarting the static service.
 
 Additional Hermes controls were reviewed: `HERMES_WRITE_SAFE_ROOT` guards
 selected file tools but not arbitrary shell code; Python `code_execution.mode:

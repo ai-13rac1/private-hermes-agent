@@ -28,7 +28,7 @@ x-network: &network
     context: .
     dockerfile: components/network/Dockerfile
   cap_drop: [ALL]
-  cap_add: [NET_ADMIN]
+  cap_add: [NET_ADMIN, SETUID, SETGID, SETPCAP]
   security_opt: [no-new-privileges:true]
   read_only: true
   tmpfs: [/tmp:mode=1777]
@@ -137,7 +137,7 @@ services:
       setup: {condition: service_completed_successfully}
     environment:
       PRIVATE_HERMES_X402_TREAZURY_SOCKS: "1"
-    cap_add: [NET_ADMIN, SETUID, SETGID, CHOWN, FOWNER, DAC_OVERRIDE]
+    cap_add: [NET_ADMIN, SETUID, SETGID, SETPCAP, CHOWN, FOWNER, DAC_OVERRIDE]
     volumes:
       - type: bind
         source: ./data/tor
@@ -386,7 +386,8 @@ services:
       agent-net: {condition: service_healthy}
       executor: {condition: service_healthy}
       teep: {condition: service_healthy}
-    cap_drop: [NET_ADMIN, NET_RAW]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETUID, SETGID]
     security_opt: [no-new-privileges:true]
     volumes:
       - hermes-data:/opt/data

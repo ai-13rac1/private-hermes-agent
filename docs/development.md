@@ -221,6 +221,16 @@ Component-specific checks and limits are documented in the
 [x402_treazury](x402_treazury.md#stop-and-test), and
 [updates and plugins](updates-and-plugins.md) guides.
 
+On 2026-11-13, the implemented capability reductions passed `make test`
+(including `make check` and all effective models), `make computer-use-test`,
+`make browser-use-test`, `python3 tests/launch_smoke.py` and `make storage-test`
+on Docker Desktop ARM64 and rootless Podman ARM64. The focused native Hermes
+probe passed with the trusted `PATH`; steady-state inspection found Tor at UID
+101/GID 102 and both namespace endpoints at UID/GID 65534 with empty effective,
+permitted, inheritable, ambient and bounding sets. Tests used disposable projects
+and did not touch operator volumes. AMD64, live public ingress/Funnel and live
+settlement/providers remain unqualified.
+
 ## Executor desktop qualification
 
 The [architecture guide](architecture.md#executor-capability-requirements) records
@@ -228,7 +238,16 @@ OpenSSH capability-removal experiments and their exact failure reasons. The
 three existing listener grants are demonstrated requirements for that tested
 configuration, not desktop grants. Repeat the affected evidence when replacing
 OpenSSH, its account model or privilege-separation setup; do not repeat this
-investigation merely because another GUI package is added.
+investigation merely because another GUI package is added. The Alpine lean
+listener retains the same grants by conservative inference; P5/lean SSH
+qualification exercises it on both engines.
+
+Both-engine lifecycle qualification measured authenticated runner sessions at
+UID 10000 with empty effective, permitted, inheritable and ambient sets and
+bounding set `0x400c0`. That bounding set is not original-namespace authority
+under `NoNewPrivs=1` and absent file capabilities; `SYS_CHROOT` is also a
+functional desktop/Podman Chromium sandbox requirement, so do not clear it as a
+security-only cleanup.
 
 The optional desktop build uses Debian rather than Alpine. Run the packaged
 policy checks with `python3 tests/desktop_tools_smoke.py`. Run

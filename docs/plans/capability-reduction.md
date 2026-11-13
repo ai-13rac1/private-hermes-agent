@@ -1,9 +1,9 @@
 # Capability reduction
 
-Status: P1 investigation complete; selected reductions are proposed and G1
-independent design acceptance is pending. P2/P3 implementation and P5 combined
-qualification are not started. This revision records P1 evidence only; no
-production privilege or topology change is included.
+Status: P1 investigation and G1 design acceptance complete; P2 and P3 are
+implemented and the P5 combined lifecycle, desktop and browser qualification
+passed on Docker and rootless Podman. G5 final combined review is pending. The
+plan remains active until G5 acceptance and the completion cleanup.
 Planning baseline: branch `main`, commit
 `0f19d8ee88a383f0e6de7eb72291761015136711`.
 Scope expansion baseline: branch `main`, commit
@@ -66,12 +66,12 @@ are outside scope. No CPU, memory, PID, disk, temporary-storage or log-size limi
 are included. Live Funnel enrollment/publication, payments, funded wallet
 operations and destructive private-state changes are not authorized by this plan.
 
-## Current baseline
+## P1 baseline (before the selected changes)
 
-The source of truth is [base Compose](../../compose.yaml), including inherited
-fields, and [the optional Funnel overlay](../../compose.funnel.yaml). These tables
-record source and packaged-startup inspection, not a live process/capability
-snapshot or a qualified reduction.
+The source of truth for this historical snapshot is [base Compose](../../compose.yaml),
+including inherited fields, and [the optional Funnel overlay](../../compose.funnel.yaml).
+These tables record source and packaged-startup inspection at the P1 baseline, not
+the implemented P2/P3 state; see "P2/P3 implementation and P5 qualification" below.
 
 ### Root inventory
 
@@ -80,7 +80,7 @@ snapshot or a qualified reduction.
 | `hermes` | Yes | The official dispatcher invokes `/init`; after bootstrap, `main-wrapper.sh` uses `s6-setuidgid hermes` for the requested gateway/CLI command (UID/GID 10000). Profile supervision also drops to Hermes. Outer s6 supervision and its no-op `main-hermes` sleep remain root; enabled dashboard code drops separately. |
 | `executor` | Yes | OpenSSH drops authenticated sessions/commands to runner UID/GID 10000. The listener retains root for privilege separation and session creation. |
 | `agent-net`, `executor-net` | Yes | No drop. After firewall, GRE and route installation, Python waits for signals as root with `NET_ADMIN`. |
-| `tor` | Yes | After network setup, state ownership repair and SOCKS-directory preparation, `su-exec 101:102` executes Tor. Full post-drop capability sets remain to be measured. |
+| `tor` | Yes | After network setup, state ownership repair and SOCKS-directory preparation, `su-exec 101:102` executed Tor. P1 measured empty effective/permitted/inheritable/ambient sets with bounding set `0x10cb`; P3 replaces that handoff. |
 | `webapp-proxy` | Yes | After firewall installation, `setpriv` switches to UID/GID 10005, clears supplementary groups and removes bounding, inheritable and ambient capabilities before HAProxy. Its maintained contract also requires empty effective/permitted sets. |
 | Optional `tailscale` | Yes | No drop configured. The Python wrapper starts upstream `containerboot` in userspace networking mode; non-root conversion is deferred. |
 | `setup`, `setup-storage`, `mcp-config` | Yes | No drop. Short networkless jobs exit after ownership/provisioning work; they bypass native image bootstrap. |
@@ -92,11 +92,11 @@ snapshot or a qualified reduction.
 
 | Service | Current container capability configuration |
 | --- | --- |
-| `hermes` | Selected engine defaults minus `NET_ADMIN` and `NET_RAW` |
+| `hermes` | P1 baseline: selected engine defaults minus `NET_ADMIN` and `NET_RAW`; P2 replaces this with the explicit six-grant list. |
 | `setup`, `setup-storage`, `mcp-config` | All dropped; `CHOWN`, `FOWNER`, `DAC_OVERRIDE` added |
 | `executor` | All dropped; `SETUID`, `SETGID`, `SYS_CHROOT` added |
-| `agent-net`, `executor-net` | All dropped; `NET_ADMIN` added |
-| `tor` | All dropped; `NET_ADMIN`, `SETUID`, `SETGID`, `CHOWN`, `FOWNER`, `DAC_OVERRIDE` added |
+| `agent-net`, `executor-net` | P1 baseline: all dropped; `NET_ADMIN` added. P3 adds temporary `SETUID`, `SETGID`, `SETPCAP`. |
+| `tor` | P1 baseline: all dropped; `NET_ADMIN`, `SETUID`, `SETGID`, `CHOWN`, `FOWNER`, `DAC_OVERRIDE` added. P3 adds temporary `SETPCAP`. |
 | `webapp-proxy` | All dropped; `NET_ADMIN`, `SETUID`, `SETGID`, `SETPCAP` added for startup, then irreversibly removed from serving processes |
 | Optional `tailscale`, `teep`, all `x402_treazury` services/jobs, `hermes-config` | All dropped |
 
@@ -287,7 +287,7 @@ Docker Desktop ARM64, `5b66f666b34e5a5606d1c8155248b77242853c19dfcea15142f6e59fc
 on rootless Podman ARM64), using
 [`tests/capability_bootstrap.py`](../../tests/capability_bootstrap.py) with the
 production entrypoint, a disposable networkless named volume, no operator mounts
-or credentials, and `no-new-privileges`. The Docker host's Compose was 5.7.1; the
+or credentials, and `no-new-privileges`. The Docker host's Compose was 5.7.0; the
 VM's Compose was upgraded from 5.1.4 to v5.7.1, verified against the published
 `checksums.txt` (SHA-256 `faea103e645cf3a1fa0a0414a19835206b2d0f21e31dcc67e75fe63767481568`)
 and binary SHA-256
@@ -311,8 +311,8 @@ Starting from `--cap-drop ALL`, both engines needed the same six additions:
 
 The probe now also asserts that startup logs contain no permission failures and
 that `/run/hermes-service` is owned by UID/GID 10000 with mode `0755`; the
-strengthened baseline passed and the `FOWNER` omission failed that assertion on
-both engines. The selected explicit Hermes list is therefore `CHOWN`, `DAC_OVERRIDE`,
+strengthened all-grants PATH prototype passed and the `FOWNER` omission failed
+the clean-startup log assertion on both engines. The selected explicit Hermes list is therefore `CHOWN`, `DAC_OVERRIDE`,
 `FOWNER`, `KILL`, `SETUID`, `SETGID`. It replaces inherited engine defaults that
 the investigation did not use, including `SETPCAP`, `NET_RAW`,
 `NET_BIND_SERVICE`, `SYS_CHROOT`, `MKNOD`, `AUDIT_WRITE`, `SETFCAP` and `FSETID`.
@@ -380,9 +380,12 @@ capabilities to persist. No recovery engine or shared policy framework is added.
 
 The existing listener grants remain justified by the earlier omission evidence:
 `SYS_CHROOT`, `SETUID` and `SETGID` are native OpenSSH requirements in the tested
-configuration. Source inspection covered `executor-start`, `sshd_config`,
+configuration. The listener evidence is from the Debian desktop image; applying
+the same grants to the Alpine lean listener is a conservative inference that P5
+qualifies on both engines. Source inspection covered `executor-start`, `sshd_config`,
 `start-desktop.sh`, the browser harness/launcher and both variants. The root
-startup script only prepares `/run`/`/tmp` and starts sshd; authenticated sessions
+startup script only prepares `/run`/`/tmp`, runs a fixed `setpriv` cleanup of the
+runner's runtime links, and starts sshd; authenticated sessions
 run as UID 10000 with empty effective/permitted/inheritable/ambient sets, bounding
 set `0x400c0` and `NoNewPrivs=1`. Writable home/workspace content is not executed
 by root, authorized keys and host keys are read-only, PAM is not enabled and root
@@ -487,6 +490,8 @@ alternate-topology acceptance is required.
 
 ### P2 — Harden Hermes and executor privilege boundaries
 
+Status: implemented and qualified on both engines (see P2/P3/P5 evidence below).
+
 Replace Hermes's engine-default set with `cap_drop: [ALL]` and
 `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETUID`, `SETGID`. Move the
 user-writable profile wrapper directory after trusted system directories in the
@@ -529,6 +534,8 @@ boundary or mechanism on which that work relies; the phase label alone does not
 require an additional review conversation.
 
 ### P3 — End network initialization authority before steady state
+
+Status: implemented and qualified on both engines (see P2/P3/P5 evidence below).
 
 Keep the existing firewall, GRE links, routes and namespace ownership model;
 change only the post-initialization privilege handoff and its required startup
@@ -636,6 +643,34 @@ After final acceptance, preserve lasting contracts/evidence/limits in maintained
 guides, resolve inbound links and remove the completed plan in the completion or
 focused cleanup commit. Do not archive it or remove it while gates remain pending.
 
+## P2/P3 implementation and P5 qualification
+
+The implemented reductions are the P1-selected set: `cap_drop: [ALL]` plus
+`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETUID` and `SETGID` for Hermes; the
+Hermes image `PATH` places the writable profile wrapper directory last; the
+network image adds `util-linux`; the namespace endpoints and Tor re-exec through
+full `setpriv` with empty capability sets; and Compose supplies only the temporary
+`NET_ADMIN`/`SETUID`/`SETGID`/`SETPCAP` and Tor ownership grants needed before the
+handoff. The executor production configuration is unchanged; its measured
+bounding-set/Chromium residual is recorded in the architecture and development
+guides.
+
+Qualification on 2026-11-13 used Docker Desktop ARM64 (Engine 29.9.3, Compose
+5.7.0) and the Debian 13 ARM64 VM with rootless Podman 5.4.2 and Compose 5.7.1.
+`make test` (including `make check` and all effective models) passed on both
+engines. `make computer-use-test`, `make browser-use-test`,
+`python3 tests/launch_smoke.py`, and `make storage-test` also passed on both,
+including real desktop input, Chromium namespace/seccomp diagnostics,
+parent-namespace denial, browser-harness lifecycle, Tor outage/recovery, cold
+launch/offline maintenance, repeated setup/identity preservation and native
+volume locking. The focused P2 probe passed on both with trusted `/usr/bin/sleep`
+and no writable-PATH marker. The P3 stack check measured Tor at UID 101/GID 102
+and both endpoints at UID/GID 65534 with empty effective, permitted, inheritable,
+ambient and bounding sets; readiness, dependent startup, Tor health and clean
+shutdown still passed. Tests used disposable projects and never touched the
+Docker host's funded treasury volumes. Not covered: AMD64, live public ingress or
+Funnel enrollment, live settlement/providers, and untested platforms.
+
 ## Related plans, acceptance and rollback
 
 [Read-only configuration](readonly-configuration.md) stays separate: preserve
@@ -651,12 +686,11 @@ Accept a reduction only when intended privilege is absent, supported operations
 pass and relevant restart/shutdown logs show no permission failures. Document
 justified retained root/grants and explicit deferrals; a deferred item needs a
 concrete next action and must not be described as implemented. P1 runtime
-inventory is recorded above. G1 design acceptance, P2/P3 implementation and the
-G2/G3/G5 assessments remain pending; G4 is deferred. Source inspection alone does
-not meet acceptance.
-The selected Hermes, network and Tor reductions are proposed from the measured
-P1 lifecycle evidence but are not implemented; the executor retains its current
-listener grants. The former three-candidate topology comparison is deferred and
+inventory, G1 design acceptance, P2/P3 implementation and the combined P5
+evidence are recorded above. G2/G3 are covered by the G5 combined review, which
+remains pending; G4 is deferred. Source inspection alone does not meet acceptance.
+The selected Hermes, network and Tor reductions are implemented; the executor
+retains its current listener grants. The former three-candidate topology comparison is deferred and
 is no longer a requirement of G1 or completion.
 
 The plan-only scope expansion at baseline `e2fc800` received a fresh independent
@@ -697,7 +731,15 @@ on both engines. The plan now distinguishes unchanged network reachability/topol
 from temporary P3 grants, qualifies the executor residual and records the UID
 trace. Non-material corrections also updated stale qualification statements, the
 P3 wait mechanism, operator-exec visibility, PAM wording and the PATH residual.
-The corrected snapshot requires independent re-review before G1 acceptance.
+A second fresh independent read-only review of `b19d004` accepted the corrected
+snapshot with no material findings and confirmed all four prior findings resolved.
+Non-material corrections applied here: the Docker host Compose is recorded as
+5.7.0, the `FOWNER` failure is attributed to the clean-startup log assertion, the
+PATH prototype is labelled as an all-grants override run, the desktop startup
+description includes its fixed `setpriv` cleanup, and the Alpine lean listener
+evidence is marked as a conservative inference to qualify in P5. G1 design
+acceptance is therefore satisfied for the selected Hermes, network/Tor and
+executor decisions.
 
 Rollback restores prior image/Compose startup behavior and recreates affected
 services while preserving volumes, keys and configuration. Preserve any executor

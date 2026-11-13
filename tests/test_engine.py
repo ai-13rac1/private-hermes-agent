@@ -404,6 +404,25 @@ class PassthroughTests(unittest.TestCase):
 
 
 class ComposeModelTests(unittest.TestCase):
+    def test_native_webapp_fixture_preserves_production_hermes_privileges(self):
+        environment = dict(TEST_DATA_DIR='/tmp/hermes-model-data',
+                           WEBAPP_TEST_CONFIG='/tmp/hermes-model-auth',
+                           WEBAPP_TEST_PROXY='/tmp/hermes-model-proxy',
+                           WEBAPP_TEST_TLS='/tmp/hermes-model-tls')
+        for enabled in ('false', 'true'):
+            for selected in ('docker', 'podman'):
+                with self.subTest(engine=selected, desktop=enabled), \
+                        patch.dict(os.environ, **environment, COMPUTER_USE_ENABLED=enabled):
+                    overlays = ['compose.podman.yaml', 'compose.podman.funnel.yaml'] if selected == 'podman' else []
+                    production = model('compose.yaml', 'compose.funnel.yaml', *overlays)['services']['hermes']
+                    fixture = model('compose.yaml', 'compose.funnel.yaml', 'tests/compose.yaml',
+                                    'tests/webapp-compose.yaml', *overlays)['services']['hermes']
+                    for key in ('cap_add', 'cap_drop', 'security_opt', 'command'):
+                        self.assertEqual(fixture.get(key), production.get(key), key)
+                    self.assertEqual(fixture['user'], '0:0')
+                    self.assertFalse(fixture.get('init'))
+                    self.assertIsNone(fixture.get('entrypoint'))
+
     def test_docker_model_keeps_isolated_gateway_mode(self):
         config = model('compose.yaml', 'compose.funnel.yaml')
         internal = {name for name, network in config['networks'].items() if network.get('internal')}
