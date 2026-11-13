@@ -19,6 +19,38 @@ Explicit-selection amendment baseline: branch `rootless-podman-support`, commit
 Plan path: `docs/plans/rootless-podman.md`.
 Follow the [planning workflow](../planning-workflow.md) before implementation.
 
+## Qualification corrections (2026-11-13)
+
+Baseline: `rootless-podman-support` at `93b4063`. The operator requests correction
+of the qualification fixtures and investigation of a newer stock Compose.
+Side-by-side, checksum-verified Compose 5.7.1 still reproduces missing-bind
+creation and inline-seccomp filename failure on Podman 5.4.2. Keep the installed
+5.1.4 provider unchanged; no provider fork or automatic engine upgrade is proposed.
+
+1. Correct fixture assumptions: use an executable HTTP health check, make the
+   disposable TLS directory traversable, explicitly mount negative-control
+   scratch read-only, replace the invalid PNG, and give ownership cleanup only
+   its disposable bind instead of application-volume-bearing `setup`. Assert
+   final storage cleanup leaves no project application volumes. Fresh read-only
+   review accepted this six-file diff; unit/model checks and launch, image,
+   research-policy and storage fixtures passed on Docker and Podman.
+2. The next Linux WebKit failure is a product portability defect: it renders
+   attachment HTML instead of emitting a download, independently of Podman.
+   Change only the existing untrusted HTML/XHTML/SVG response branch to binary
+   MIME delivery. Preserve body bytes, attachment/nosniff/sandbox headers, all
+   deployment modes, trusted SPA/auth/preview exceptions and raster/media paths.
+   A fresh independent design review accepted this narrow correction. Keep
+   actual click/new-tab download assertions; assert binary MIME and unchanged
+   downloaded bytes for plugin and relay consumers. Rebuild Hermes and run
+   packaged-image and full three-browser ingress/content/failure suites on both
+   engines. Update the maintained webapp and qualification guides, then obtain
+   fresh final review of the combined corrections before their completion commit.
+
+Do not weaken containment assertions, add browser/platform skips, or relax
+transport policy for slow public-network requests. Missing-bind enforcement is
+a separate unresolved runtime requirement; these corrections do not close G2,
+enable Podman executor desktop/browser use, or qualify funded/live Funnel work.
+
 ## Rebase onto current main (2026-11-13)
 
 Baseline: `rootless-podman-support` at `ffc0e80`. Target: local and upstream
