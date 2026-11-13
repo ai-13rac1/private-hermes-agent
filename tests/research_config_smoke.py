@@ -13,8 +13,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from provisioning import initialize_research_config
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from deployment import compose_base, engine_command  # noqa: E402
+from deployment import compose_base, engine, engine_command  # noqa: E402
 
 
 def docker(*args, check=True):
@@ -162,7 +161,8 @@ def main():
             assert json.loads(result.stdout)['prepared']
             # Exercise the actual Make entrypoints from an isolated public-code
             # copy. Invalid ingress settings and auth must not block inspection.
-            for name in ('Makefile', 'compose.yaml', '.env.example'):
+            for name in ('Makefile', '.env.example', 'compose.yaml', 'compose.executor.yaml',
+                         'compose.funnel.yaml', 'compose.podman.yaml', 'compose.podman.funnel.yaml'):
                 shutil.copyfile(ROOT / name, root / name)
             shutil.copytree(ROOT / 'scripts', root / 'scripts', ignore=shutil.ignore_patterns('__pycache__'))
             (root / 'components').symlink_to(ROOT / 'components', target_is_directory=True)
@@ -175,8 +175,12 @@ def main():
             auth.write_text('invalid auth')
             initialize_research_config([*compose_base(), '-f', 'compose.yaml'], root)
             assert path.read_text() == changed
+            # The disposable .env deliberately contains broken policy and no
+            # engine selector. Keep children on the engine that owns this wallet,
+            # including when the parent's selection came from the real root .env.
+            environment = dict(os.environ, CONTAINER_ENGINE=engine(), COMPOSE_PROJECT_NAME=identity)
             seeded = subprocess.run(['make', 'x402_treazury-config'], cwd=root,
-                                    env=dict(os.environ, COMPOSE_PROJECT_NAME=identity),
+                                    env=environment,
                                     capture_output=True, text=True, check=True)
             assert path.read_text() == changed
             assert not (root / 'data').exists()
@@ -191,7 +195,6 @@ def main():
             held_policy = root / 'held-research-policy'
             directory.rename(held_policy)
             directory.write_text('unrelated wrong-type config path')
-            environment = dict(os.environ, COMPOSE_PROJECT_NAME=identity)
             for target in ('x402_treazury-status', 'x402_treazury-init'):
                 result = subprocess.run(['make', target], cwd=root, env=environment,
                                         capture_output=True, text=True, check=True)
