@@ -136,6 +136,17 @@ def python(service, code, check=True):
     return execute(service, interpreter, '-c', code, user='10000:10000' if service == 'executor' else None, check=check)
 
 
+def namespace_owner_check(uid, gid):
+    return f"""from pathlib import Path
+status=dict(line.split(':',1) for line in Path('/proc/1/status').read_text().splitlines() if ':' in line)
+assert [int(value) for value in status['Uid'].split()]==[{uid}]*4, status
+assert [int(value) for value in status['Gid'].split()]==[{gid}]*4, status
+assert not status['Groups'].split(), status
+assert all(int(status[key].strip(),16)==0 for key in ('CapEff','CapPrm','CapInh','CapAmb','CapBnd')), status
+assert status['NoNewPrivs'].strip()=='1', status
+"""
+
+
 def eventually(operation, attempts=4):
     for attempt in range(attempts):
         try:
@@ -164,6 +175,10 @@ def run_suite():
     try:
         print('Starting isolated test stack...', flush=True)
         start_stack()
+        for service, uid, gid in (('tor', 101, 102), ('agent-net', 65534, 65534),
+                                  ('executor-net', 65534, 65534)):
+            python(service, namespace_owner_check(uid, gid))
+        print('PASS: steady-state namespace owners are unprivileged with empty capability sets', flush=True)
         for service in ('hermes', 'executor'):
             response = eventually(lambda: public_ip(service))
             assert response['IsTor'] is True

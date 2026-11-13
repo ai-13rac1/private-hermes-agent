@@ -667,8 +667,12 @@ volume locking. The focused P2 probe passed on both with trusted `/usr/bin/sleep
 and no writable-PATH marker. The P3 stack check measured Tor at UID 101/GID 102
 and both endpoints at UID/GID 65534 with empty effective, permitted, inheritable,
 ambient and bounding sets; readiness, dependent startup, Tor health and clean
-shutdown still passed. Tests used disposable projects and never touched the
-Docker host's funded treasury volumes. Not covered: AMD64, live public ingress or
+shutdown still passed. The smoke suite now asserts the steady-state UID/GID and
+empty capability sets on every run. A separate restart/recreation of the endpoint
+namespace owners was not run; each suite starts them fresh and exercises Tor
+outage/restart, so direct endpoint recreation remains a documented evidence
+limit. Tests used disposable projects and never touched the Docker host's funded
+treasury volumes. Not covered: AMD64, live public ingress or
 Funnel enrollment, live settlement/providers, and untested platforms.
 
 ## Related plans, acceptance and rollback
