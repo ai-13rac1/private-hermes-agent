@@ -503,3 +503,56 @@ need native allowed/forbidden-path and lifecycle evidence. Podman executor deskt
 support first needs a qualified seccomp delivery mechanism that preserves the
 required profile; neither native bind enforcement nor seccomp delivery was fixed
 by upgrading the stock Compose provider.
+
+
+## Seccomp delivery investigation
+
+On 2026-11-13, source `dd2d30d` was investigated on the same Debian 13 ARM64
+rootless Podman 5.4.2 VM. This tests delivery, not desktop/browser support. The
+existing `components/executor/seccomp-desktop.json` loaded successfully through:
+
+- Native `podman run --security-opt seccomp=/absolute/host/path/profile.json`.
+- Direct Docker-compatible API creation with
+  `HostConfig.SecurityOpt: ["seccomp=/absolute/host/path/profile.json"]`.
+- Native Libpod API creation with `seccomp_profile_path` set to that host path.
+
+All three routes ran a networkless, read-only executor-image probe as UID 10000,
+with all capabilities dropped, no-new-privileges enabled and seccomp mode 2.
+A separate copy of the required policy denied an otherwise permitted syscall
+with errno 77; every route enforced that canary. Every route also refused a
+missing profile rather than using a default. No application state or engine
+socket was mounted into a container.
+
+The incompatibility is specifically stock Compose's encoding, not Podman's
+ability to apply the policy. Official Compose 5.1.4 still failed with both
+`seccomp=path` and `seccomp:path`: it inlines JSON for both forms, which Podman
+interprets as a filename. The
+[Compose implementation](https://github.com/docker/compose/blob/v5.1.4/pkg/compose/create.go#L433-L465)
+and [Podman path field](https://github.com/containers/podman/blob/v5.4.2/pkg/specgen/specgen.go#L396-L408)
+explain the difference.
+
+An isolated `podman-compose` 1.6.0 installation successfully delivered the exact
+policy and enforced the denial canary; it also refused a missing profile.
+It is not a drop-in provider for this stack: `config --format json` is unsupported,
+and a disposable service declaring `stop_grace_period: -1s` received a stored
+10-second timeout. A correct Docker-compatible API control with `StopTimeout: -1`
+stored unsigned maximum, matching the previously qualified unlimited setting.
+The alternate provider's broader lifecycle, namespace and isolation behavior was
+not qualified. The configured official Compose provider was left unchanged.
+
+These results establish working primitives for a native executor-creation helper
+or a narrow API translation helper that turns Compose's inline policy into a
+server-readable filename. Neither integration is implemented. The latter could
+retain Compose lifecycle ownership, but would need correct HTTP streaming/upgrade
+handling and policy-file lifetime; native creation must preserve dependency,
+health, recreation and shutdown behavior. Patching/upstreaming one side's policy
+encoding is another option. Global default-policy changes were not tested or
+applied, since the desktop policy must not become the default for other services.
+Podman's [experimental image-label policy selection](https://docs.podman.io/en/v5.4.2/markdown/podman-run.1.html)
+also requires a native policy-selection option; it was not qualified as a stock
+Compose solution.
+
+All probe containers/projects were removed, and existing deployment state was
+preserved. The probes do not establish Chromium's nested sandbox, desktop
+operation, SSH lifecycle or Tor/forbidden-path behavior for the desktop image.
+The current Podman computer/browser guard remains in place.

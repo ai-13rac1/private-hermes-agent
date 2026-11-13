@@ -170,10 +170,13 @@ advertised tools. A profile can still exclude either tool. `browser_cdp`,
 `browser_dialog` and `browser_vault` remain disabled. `WEBAPP_EXTERNAL_CONTENT`
 keeps its separate meaning; there is no second preference for browser automation.
 
-The desktop needs Docker. Its executor uses a custom seccomp profile, and
-Podman's Docker-compatible API cannot create a container with one, so on
-rootless Podman preflight refuses `COMPUTER_USE_ENABLED=true`
-(see [engine differences](architecture.md#rootless-podman)).
+The desktop needs Docker with the current wrapper. Stock Docker Compose sends
+its custom seccomp profile as inline JSON, but Podman 5.4.2's compatible API
+interprets that value as a host filename. Preflight therefore refuses
+`COMPUTER_USE_ENABLED=true` on Podman. Native filename-based delivery works in
+isolated probes, but integration and desktop qualification remain unimplemented;
+see [engine differences](architecture.md#rootless-podman) and the
+[delivery investigation](development.md#seccomp-delivery-investigation).
 
 Browser automation supports the executor's packaged Chromium only. External CDP,
 cloud browsers, real host profiles and alternate engines fail before execution.
