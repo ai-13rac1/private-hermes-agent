@@ -22,7 +22,8 @@ the initial policy. `make x402_treazury-prepare` builds only the owning treasury
 service before inspecting preparation history or disconnecting/stopping services.
 The shared setup/admin image aliases need no separate build definitions.
 Build failure aborts the requested operation before those runtime changes.
-Docker owns build-input detection and caching; no freshness records are stored.
+The selected engine owns build-input detection and caching; no freshness records
+are stored.
 Inspection, backup and shutdown do not invoke builds. `make build` constructs images only: it does not
 initialize operator state or validate deployment policy. Run `make check`
 explicitly for source/configuration qualification.
@@ -80,9 +81,10 @@ maintenance overrides and disposable network cleanup. It uses no private mounts,
 Tor or wallets; serialize it with the other fixed-subnet fixtures. The same check
 uses native strict-network inspection when Podman is selected. It also checks
 native dry-run placement and preserves an unused network during simulated down.
-Run
-`make test` on each engine (`CONTAINER_ENGINE=podman make test` selects Podman
-without editing `.env`) before changing network, ingress or overlay code. On
+Run `make test` on each engine after changing network, ingress or overlay code;
+`CONTAINER_ENGINE=docker` or `CONTAINER_ENGINE=podman` selects the target without
+editing `.env`. Also run affected focused fixtures; model checks alone do not
+qualify native behavior. Reuse unchanged evidence and report unavailable targets. On
 Podman, `make podman-paths-test` checks the paths of a running stack, including a
 client on a network without isolation, with positive controls for its DNS, TCP
 and host-loopback probes; it refuses to run unless Podman is selected.
@@ -248,8 +250,9 @@ Chromium sandbox without weakening unrelated syscall restrictions.
 Enabling user namespaces exposes additional kernel paths to executor code; it
 must not grant control of the parent network namespace or bypass Tor. Verify
 those forbidden paths and the actual Chromium sandbox layers, alongside runner
-capabilities, SSH failure/restart behavior and persistent state. Podman and other
-CPU targets require their own evidence; source/manifest inspection is insufficient.
+capabilities, SSH failure/restart behavior and persistent state. Each engine and
+CPU target requires native evidence; source/manifest inspection is insufficient.
+See [current native Podman evidence](#native-podman-desktop-support).
 The optional desktop implementation is complete for the qualified scope below.
 The stack has only been runtime-qualified on ARM64; AMD64 qualification is not a
 completion prerequisite. The pinned desktop image includes Linux AMD64 and ARM64,
@@ -289,9 +292,11 @@ browser response without awaiting a fetch across SPA navigation. DNS/preconnect,
 stale consent, Tor retrieval and credential/ingress failure checks also passed.
 The GUI tests cover one active default-profile screen and programmatic native
 display transport; full visual interaction with the native noVNC pane and other
-profile arrangements are not independently qualified. AMD64 and rootless Podman
-remain unqualified. Simulated HTTPS does not prove live Funnel ingress, and these
-checks do not establish provider attestation or funded settlement.
+profile arrangements are not independently qualified. At that revision, AMD64
+and rootless Podman were unqualified; later Podman evidence appears in
+[native Podman desktop support](#native-podman-desktop-support). Simulated HTTPS
+does not prove live Funnel ingress, and these checks do not establish provider
+attestation or funded settlement.
 
 A fresh independent read-only review accepted combined revision
 `4f003190e91358d9908dda87390f8254dbce2ee0` for the implemented and qualified
@@ -310,7 +315,7 @@ named/unnamed tabs, concurrent startup, screenshot staging/native vision, native
 selected-cache round-trip with the browser profile excluded, takeover denial,
 active/startup cancellation, timeout/retry, daemon crash, owner death and actual
 missing-harness refusal/recovery. These fixtures execute the tool as Hermes UID
-10000, matching the gateway: root `docker exec` can create native install locks
+10000, matching the gateway: root engine `exec` can create native install locks
 owned by the wrong account and invalidate restart tests. The complete desktop/
 network run also passed image switching and harness Tor outage/recovery. The
 actual automation-launched Chromium's `chrome://sandbox` page reported namespace,
@@ -327,9 +332,10 @@ executor downloads transferred, logout denied subsequent file requests, and the
 viewing browser made no external requests. Restart, credential rotation, stale
 consent, DNS/preconnect, ingress mismatch and Tor failure/recovery checks passed.
 The profile archive exclusion also passed actual selected-cache round-trip
-without socket/symlink extraction failures. The qualification remains limited to
-the single default-profile desktop and tested engine/architecture above; AMD64,
-rootless Podman and full visual noVNC-pane interaction remain unqualified.
+without socket/symlink extraction failures. That qualification covered the single
+default-profile desktop and tested engine/architecture above; AMD64,
+rootless Podman and full visual noVNC-pane interaction were unqualified at that
+revision. See [later Podman qualification](#native-podman-desktop-support).
 CDP/dialog/vault tools remain excluded; raw CDP through executor Python does not
 qualify their separate native routes.
 
@@ -418,7 +424,7 @@ operation failure. Elapsed time or repetition alone does not promote severity.
 Scope errors to the affected capability rather than announcing whole-stack failure.
 When outcome is uncertain, say so; do not imply that a payment is safe to repeat.
 
-Endpoint activation follows Docker logs from the serving container's `StartedAt`.
+Endpoint activation follows container logs from the serving container's `StartedAt`.
 The pinned x402_treazury revision has no public typed endpoint-readiness signal;
 the wrapper recognizes its two exact terminal endpoint diagnostic messages from
 `deployment.rs` and `deployment/deferred.rs`. This is not a general log-severity

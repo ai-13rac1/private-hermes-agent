@@ -317,8 +317,8 @@ alongside the existing executor-to-inference denial and Tor routing checks.
 ## Persistent data layout
 
 Hermes profile/database state and x402_treazury wallet/database state use native
-Docker named volumes (`hermes-data` and `x402_treazury-data`). Other persistent
-files use the bind directories below. This keeps lock-sensitive state off the
+container-engine named volumes (`hermes-data` and `x402_treazury-data`). Other
+persistent files use the bind directories below. This keeps lock-sensitive state off the
 host-backed filesystem that failed qualification on this Docker Desktop host.
 `setup init` checks locking on the native volumes before applications start.
 No existing volume contents are copied or deleted by this change.
@@ -389,11 +389,11 @@ for backup. Do not loosen wallet permissions to make them readable to host tools
 Only trusted offline setup/storage and MCP jobs mount the whole `data/` parent. Hermes,
 the executor, financial services, Tor and Tailscale each receive their own leaf
 mounts. The executor never receives Hermes state, wallet files, or the MCP token.
-The shared Tor Unix-socket directory remains a Docker volume: it is runtime IPC,
+The shared Tor Unix-socket directory remains a named volume: it is runtime IPC,
 not backup data. `/tmp` remains disposable; `/workspace` is durable work, not an
 automatically cleared scratch directory.
 
-`.env`, `config/`, and `data/` are Git-ignored and excluded from Docker build
+`.env`, `config/`, and `data/` are Git-ignored and excluded from container build
 contexts. Builds receive only `components/`.
 
 ## Applying configuration changes
@@ -420,10 +420,12 @@ Use the native wallet backup command or gracefully stop writers with `make down`
 before making a complete filesystem copy. Copying live SQLite databases and their
 sidecars independently is not a consistent backup. Preserve file modes, ownership
 and the full application directories. Tor sockets and other runtime IPC do not
-need backup. `make down` and ordinary `docker compose down` retain named volumes
-and host bind directories. Starting again with the same Compose project name
+need backup. `make down` retains named volumes and host bind directories on both
+engines.
+Prefer it over raw Compose shutdown so optional/profiled namespace users are
+included. Starting again with the same Compose project name
 reattaches the existing volumes. The default project name is `private-hermes`;
-changing it selects a different set of volumes. `docker compose down -v` explicitly
+changing it selects a different set of volumes. Compose `down -v` explicitly
 deletes the application volumes, including wallets and conversations, as well as
 the runtime socket volume. Do not use it on a deployment whose state you need.
 Deleting bind-mounted host data requires a separate filesystem operation.

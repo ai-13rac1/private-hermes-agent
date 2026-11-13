@@ -113,8 +113,8 @@ Open **http://127.0.0.1:9120** and log in as `admin` with the password saved in
 `config/webapp/password`. Tor bootstrapping can take several minutes.
 `make init` preserves existing configuration and credentials; add new settings
 to an existing `.env` explicitly using [`.env.example`](.env.example).
-Startup rebuilds changed image inputs and reuses Docker's cache for unchanged
-layers. Builds may need Internet access. Use `make build` to build ahead of time.
+Startup rebuilds changed image inputs and reuses the selected engine's cache for
+unchanged layers. Builds may need Internet access. Use `make build` to build ahead of time.
 
 Use the terminal client with:
 
@@ -222,7 +222,7 @@ As with everything else in this stack, all swaps are conducted over Tor. Swaps u
 
 Use `make up` and `make down` to start and stop the deployment. Ordinary shutdown
 preserves conversations, configuration, wallets, and executor work. **Do not use
-`docker compose down -v` for routine shutdown:** it deletes application volumes,
+Compose `down -v` for routine shutdown:** it deletes application volumes,
 including wallets and conversations. Backups must include the named volumes as
 well as local configuration and data; see [backup scope](docs/configuration.md#backup-scope).
 
@@ -249,11 +249,11 @@ access to people and plugins you trust.
 By default, supported external raster images load through the authenticated
 gateway over Tor. Active previews and external players have non-loading
 fallbacks. Deliberate external link clicks use your browser's own connection;
-browser requests do not inherit Docker's Tor route. See [webapp content policy](docs/webapp.md#external-content-policy)
+browser requests do not inherit the stack's Tor route. See [webapp content policy](docs/webapp.md#external-content-policy)
 for image consent, other policy modes, and current limits.
 
 Tor egress does not cover Teep's direct provider connection or your browser's
 connection to the webapp. The container boundaries do not protect against a
-compromised host or Docker engine. For exact grants and trust boundaries, see
+compromised host or container engine. For exact grants and trust boundaries, see
 [architecture and isolation](docs/architecture.md). For build procedures and
 test coverage, see [development and qualification](docs/development.md).

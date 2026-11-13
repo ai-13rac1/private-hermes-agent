@@ -5,7 +5,7 @@ Implementation details for maintainers. For setup and everyday use, start with
 
 Hermes's agent and its code executor run in separate containers, filesystems,
 process namespaces, and network namespaces. Both have only isolated internal
-Docker networks. Their public TCP traffic is transparently redirected through
+container networks. Their public TCP traffic is transparently redirected through
 an independently running Tor gateway; their DNS goes to Tor. Teep alone has a
 separate direct uplink for confidential-computing inference providers.
 
@@ -18,7 +18,7 @@ Hermes agent ── private SSH ── executor (/workspace, no agent volume or 
       └── agent route ──────────────────────── transparent Tor ── internet
 ```
 
-No application receives a Docker socket, host networking, privileged mode,
+No application receives a container-engine socket, host networking, privileged mode,
 `NET_ADMIN`, or `NET_RAW`. The trusted `agent-net` and `executor-net` services
 configure routes and firewall rules before applications start, then remain as
 stable namespace owners. Tor is in a third namespace; impersonating Tor's UID
@@ -37,9 +37,10 @@ inside an application cannot grant a direct uplink.
   are denied. This covers ordinary Docker VM/host gateways, RPC port 111,
   metadata addresses, and DNS answers that point into prohibited space.
   Docker embedded DNS at `127.0.0.11` is blocked before DNAT.
-- Private GRE links carry original-destination packets across Docker's internal
-  bridges; plain next-hop routing is blocked by Docker's internal bridge rules.
-  The links are internal to the Docker VM, not Internet tunnels or encryption.
+- Private GRE links carry original-destination packets across internal bridges;
+  plain next-hop routing is blocked by Docker's internal bridge rules. The same
+  GRE topology is used on Podman. The links stay within the container host or
+  Docker Desktop VM; they are not Internet tunnels or encryption.
   Only the trusted namespace services create them. Linux GRE support is required;
   setup fails closed if it is unavailable.
 - The router independently blocks prohibited destinations before NAT and
@@ -51,7 +52,7 @@ inside an application cannot grant a direct uplink.
 - These controls cover the host/VM's private and connected address space. A
   service exposed on an unrelated public Internet IP is still a public target;
   add an explicit deny rule if such an address must be excluded too. A host
-  administrator or compromised Docker engine remains outside this boundary.
+  administrator or compromised container engine remains outside this boundary.
 - Hermes terminal commands, remote Python `execute_code`, and backend-aware
   file tools use SSH. Native subagents remain orchestrator instances; their
   code calls use this executor. Sessions/subagents share one executor user and
