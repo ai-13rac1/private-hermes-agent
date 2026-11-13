@@ -174,15 +174,17 @@ The desktop needs Docker with the current wrapper. Stock Docker Compose sends
 its custom seccomp profile as inline JSON, but Podman 5.4.2's compatible API
 interprets that value as a host filename. Preflight therefore refuses
 `COMPUTER_USE_ENABLED=true` on Podman. Native filename-based delivery works in
-isolated probes, but integration and desktop qualification remain unimplemented;
-see [engine differences](architecture.md#rootless-podman) and the
+isolated probes, but that integration remains unimplemented. A separate
+[native-default-policy experiment](development.md#podman-default-policy-desktop-experiment)
+does not enable production startup; see [engine differences](architecture.md#rootless-podman) and the
 [delivery investigation](development.md#seccomp-delivery-investigation).
 
 Browser automation supports the executor's packaged Chromium only. External CDP,
 cloud browsers, real host profiles and alternate engines fail before execution.
 Its Python harness, daemon, workspace helpers and child processes run as runner
 in the executor. Named sessions have separate tabs, with the same shared browser
-profile/cookies. Workspace files under `/workspace/browser-use/` persist; Python
+profile/cookies. Recreating the executor clears stale browser process coordination
+while retaining the profile, cookies and credentials. Workspace files under `/workspace/browser-use/` persist; Python
 variables do not persist between calls. Cancellation or a lost connection can
 leave an already-issued browser action completed; inspect state before retrying.
 Browser downloads use the shared `/workspace/browser-use/downloads` directory;

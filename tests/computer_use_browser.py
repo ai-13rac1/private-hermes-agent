@@ -53,6 +53,13 @@ with sync_playwright() as playwright:
     def rpc(method, params=None):
         return page.evaluate('(a)=>window.cu.rpc(a.method,a.params)', {'method': method, 'params': params or {}})
 
+    def http(path, method='GET'):
+        # Use Chromium's resolver, cookies and actual authenticated HTTPS origin.
+        return page.evaluate('''async ({path,method}) => {
+          const response=await fetch(path,{method});
+          return {status:response.status,text:await response.text()};
+        }''', {'path': path, 'method': method})
+
     status = rpc('display.start')
     assert status['running'] and status['placement'] == 'terminal:ssh', status
     # This is disposable fixture state; a previously interrupted diagnostic may
@@ -150,7 +157,7 @@ with sync_playwright() as playwright:
     # View-only input must not execute a command in the already focused fixture terminal.
     page.evaluate('path=>window.cu.keys("first","printf watcher > "+path+"\\n")', watch_path)
     page.wait_for_timeout(400)
-    assert context.request.get(origin + '/api/fs/read-text?path=' + watch_path).status == 404
+    assert http('/api/fs/read-text?path=' + watch_path)['status'] == 404
     rpc('display.lease.acquire', {'viewer_id': observed['viewer_id']})
     assert rpc('display.thumbnail')['suppressed'] == 'human_has_control'
     page.wait_for_timeout(350)
@@ -158,8 +165,8 @@ with sync_playwright() as playwright:
     page.wait_for_timeout(100)
     page.evaluate('path=>window.cu.keys("first","printf human > "+path+"\\n")', human_path)
     page.wait_for_timeout(500)
-    proof = context.request.get(origin + '/api/fs/read-text?path=' + human_path)
-    assert proof.status == 200 and 'human' in proof.text(), (proof.status, proof.text())
+    proof = http('/api/fs/read-text?path=' + human_path)
+    assert proof['status'] == 200 and 'human' in proof['text'], proof
     print('PASS: view-only refusal and takeover keyboard positive control', flush=True)
 
     second = rpc('display.observe')
@@ -169,7 +176,7 @@ with sync_playwright() as playwright:
     stale_path = '/workspace/cu-stale-' + nonce
     page.evaluate('path=>window.cu.keys("first","printf stale > "+path+"\\n")', stale_path)
     page.wait_for_timeout(400)
-    assert context.request.get(origin + '/api/fs/read-text?path=' + stale_path).status == 404
+    assert http('/api/fs/read-text?path=' + stale_path)['status'] == 404
     print('PASS: second viewer takeover revokes the first viewer\'s keyboard authority', flush=True)
     rpc('display.lease.release', {'viewer_id': second['viewer_id']})
     assert rpc('display.thumbnail')['data_url'].startswith('data:image/jpeg;base64,')
@@ -181,10 +188,9 @@ with sync_playwright() as playwright:
     third = rpc('display.observe')
     assert page.evaluate('t=>window.cu.open(t,"third")', third['ticket'])
     stale = rpc('display.observe')
-    assert context.request.post(origin + '/auth/logout', headers={'Origin': origin}).status == 200
-    assert context.request.get(origin + '/api/config').status in (401, 403)
-    assert context.request.post(origin + '/api/webapp/socket-ticket?socket=gateway',
-                                headers={'Origin': origin}).status in (401, 403)
+    assert http('/auth/logout', 'POST')['status'] == 200
+    assert http('/api/config')['status'] in (401, 403)
+    assert http('/api/webapp/socket-ticket?socket=gateway', 'POST')['status'] in (401, 403)
     # Native cookie logout revokes refresh credentials and clears the browser's
     # cookies, but does not revoke established sockets or all issued tickets.
     # Verify and document that contract instead of claiming immediate revocation.

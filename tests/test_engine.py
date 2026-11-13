@@ -418,6 +418,21 @@ class ComposeModelTests(unittest.TestCase):
         self.assertEqual(config['networks']['webapp-publish']['driver_opts'],
                          {'com.docker.network.bridge.enable_ip_masquerade': 'false'})
 
+    def test_experimental_podman_desktop_preserves_executor_boundaries(self):
+        for enabled in ('false', 'true'):
+            with self.subTest(enabled=enabled), patch.dict(os.environ, COMPUTER_USE_ENABLED=enabled):
+                original = model('compose.yaml', 'compose.podman.yaml')
+                trial = model('compose.yaml', 'tests/podman-desktop-compose.yaml', 'compose.podman.yaml')
+                expected = original['services']['executor'].copy()
+                expected['image'] = 'private-hermes-executor-podman-desktop-trial:local'
+                expected['security_opt'] = ['no-new-privileges:true']
+                expected['tmpfs'] = ['/tmp:mode=1777,notmpcopyup', '/run:mode=0755,notmpcopyup']
+                self.assertEqual(trial['services']['executor'], expected)
+                for service in original['services'].keys() - {'executor'}:
+                    self.assertEqual(trial['services'][service], original['services'][service])
+                self.assertEqual(trial['networks'], original['networks'])
+                self.assertEqual(trial['volumes'], original['volumes'])
+
     def test_podman_model_isolates_every_network_without_docker_options(self):
         for files in (('compose.yaml', 'compose.podman.yaml'),
                       ('compose.yaml', 'compose.funnel.yaml', 'compose.podman.yaml', 'compose.podman.funnel.yaml')):

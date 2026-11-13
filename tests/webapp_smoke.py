@@ -130,12 +130,15 @@ def run_suite():
                 failed = False
                 return
             if os.environ.get('COMPUTER_USE_ENABLED', 'false') == 'true':
-                subprocess.run([browser_python, str(ROOT / 'tests/computer_use_browser.py'),
-                                str(folder / 'password')], check=True)
+                origins = ('http://127.0.0.1:19120', 'https://webapp-test.example.ts.net:10000')
+                for origin in origins:
+                    subprocess.run([browser_python, str(ROOT / 'tests/computer_use_browser.py'),
+                                    str(folder / 'password'), 'full', origin], check=True)
                 import browser_use_smoke
                 browser_use_smoke.check()
-                subprocess.run([browser_python, str(ROOT / 'tests/browser_use_webapp.py'),
-                                str(folder / 'password')], check=True)
+                for origin in origins:
+                    subprocess.run([browser_python, str(ROOT / 'tests/browser_use_webapp.py'),
+                                    str(folder / 'password'), origin], check=True)
                 if '--browser-only' in sys.argv:
                     failed = False
                     return
