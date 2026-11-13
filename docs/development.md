@@ -87,7 +87,8 @@ Podman, `make podman-paths-test` checks the paths of a running stack, including 
 client on a network without isolation, with positive controls for its DNS, TCP
 and host-loopback probes; it refuses to run unless Podman is selected.
 
-On 2026-11-13, Docker Desktop ARM64 (Engine 29.9.3, Compose 5.7.0) passed
+Before the current-main rebase, on 2026-11-13, Docker Desktop ARM64
+(Engine 29.9.3, Compose 5.7.0) passed
 139 unit tests, all four effective models, compilation, the cold-launch/dry-run
 fixture, main SSH/MCP/Tor outage/recovery and storage suites, both standalone
 policy scripts (including 12 tool-policy combinations), unfunded editable research
@@ -97,6 +98,20 @@ with no significant findings or compelling premerge simplifications. The model
 tests exercise both engine paths through the selected provider; they do not prove
 Podman runtime behavior. The [Podman plan](plans/rootless-podman.md) retains the
 remaining native Podman lifecycle, ingress and corrected-launch qualification.
+
+The subsequent rebase onto `main` `b46e050` retained v0.23.1's pnpm layout,
+relay guards and schema migration alongside native engine selection. Through
+`454ce72`, the same Docker platform passed 143 unit tests, four effective models,
+all image builds, native image and packaged policy checks, full TypeScript/70
+renderer tests, main isolation/Tor/recovery, storage/migration, cold/dry-run,
+unfunded research comparison and the full 24-case browser content/relay matrix
+plus ingress failure/recovery and staged MCP activation. New comparison and
+renderer-command tests cover both engine paths. The first webapp run hit a
+transient post-restart Tor DNS failure; positive image checks now retry only that
+exact failure, while Tor-stopped denial stays unchanged. The complete rerun passed.
+Fresh independent reviews accepted combined source `e28fbde` and that focused
+fixture correction with no material findings or compelling simplifications.
+Native Podman v0.23.1 runtime qualification remains pending in the retained plan.
 
 Component-specific checks and limits are documented in the
 [webapp](webapp.md#verification-and-current-limits),

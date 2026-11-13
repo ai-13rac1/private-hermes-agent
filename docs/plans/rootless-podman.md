@@ -4,8 +4,9 @@ Status: original G1 passed; P1 is merged; original P2 and P4 are implemented.
 P5 and P6 are implemented with prior rootless Podman evidence (P5 below).
 Review of `e2ad623` found further R1/R2 launch gaps and qualification defects;
 the corrections below are implemented and Docker-qualified. R3 is resolved.
-Amendment design gate G1A passed. Fresh combined correction review accepted
-`817fd3d` for the source/current Docker scope with no significant findings;
+Amendment design gate G1A passed. The current-main rebase is complete and
+Docker-qualified; fresh review accepted `e28fbde` and the focused fixture
+correction recorded below with no significant findings;
 full dual-engine G2 remains open pending the explicit Podman follow-up below.
 Planning baseline: branch `main`, commit `4a08841`. Amendment baseline: branch
 `main`, commit `1d83657`.
@@ -38,6 +39,35 @@ Podman fixture support and disclose missing runtime qualification. Obtain a fres
 independent combined review of the rebased branch and resolve material findings
 before recording acceptance. The previous correction evidence below remains
 historical and does not qualify the new combined source by itself.
+
+Result through `454ce72`: all original branch commits were replayed without
+autosquashing. Conflicts in provisioning, treasury imports, startup assertions
+and renderer qualification retain both main's behavior and selected-engine
+commands. The shared packaged-policy reader now serves seeding and comparison
+with the selected engine, `--network none`, `--pull never` and no private mounts.
+New unit cases cover both engines' comparison and renderer dispatch. The live
+research fixture covers explicit comparison of malformed policy, file/mode
+preservation, missing-policy failure and operation with unrelated invalid settings.
+
+Docker Desktop ARM64 (Engine 29.9.3, Compose 5.7.0) passed all image builds,
+143 unit tests, four effective models, compilation, native image/version/policy
+checks, 12 tool-policy combinations, URL-context checks, full TypeScript and 70
+renderer tests. Main isolation/Tor/recovery, native schema-52-to-53 preservation,
+storage and cold-launch/dry-run checks passed. The complete webapp run passed
+24 browser content/relay cases, authentication/restart/rotation, stale consent,
+DNS/preconnect observation, real Tor retrieval/outage/recovery and staged
+activation of twelve unfunded MCP endpoints.
+
+The first webapp run exposed a transient image DNS failure after Tor restart.
+`454ce72` lets only positive bootstrap/recovery image checks retry that exact
+502 reason, using the existing four-attempt/two-second allowed-path cadence.
+Tor-stopped denial and all other errors remain immediate assertions. A fresh
+independent review accepted this engine-neutral fixture change, and the complete
+rerun passed. A separate fresh combined review accepted `e28fbde`, independently
+passed all 143 unit tests and checked the range-diff, with no significant findings
+or compelling simplifications. No application transport or policy was weakened.
+Native Podman runtime qualification of this v0.23.1 combination remains pending;
+rerun the selected-engine fixtures and the full G2 items below on a Linux host.
 
 ## Review correction scope (2026-11-13)
 
