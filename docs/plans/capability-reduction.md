@@ -134,8 +134,9 @@ unprivileged configuration and profile-only disconnect paths.
 
 Earlier networkless help-command evidence does not establish minimum grants or
 qualify supervision/shutdown. The general smoke override bypasses native Hermes
-startup; use production entrypoints for lifecycle claims. No new runtime
-qualification has been performed for this proposal.
+startup; use production entrypoints for lifecycle claims. P1 now supplies focused
+native lifecycle evidence for the selected Hermes reductions (see below), but it
+does not qualify the full stack, network handoffs, desktop or P5 gates.
 
 ### Executor evidence from computer-use implementation
 
@@ -201,7 +202,8 @@ selection, without a new policy framework. The
 current Podman overlays do not override capability grants; Hermes's inherited
 engine defaults are nevertheless not evidence of identical effective grants.
 Replace defaults with measured explicit requirements rather than taking the
-union of both engines' defaults. Exact reduced sets remain unqualified.
+union of both engines' defaults. P1 measured the Hermes and Tor sets above; P5
+qualification of the implemented reductions remains pending.
 
 Investigate native lifecycle reductions with the existing GRE topology. Compare
 starting directly as the service user where native startup supports it, dropping
@@ -270,9 +272,12 @@ policy or trust-boundary change still requires its own design acceptance.
   drop or `no-new-privileges` alone is not proof of empty sets. Distinguish service
   descendants from operator-controlled Docker exec.
 
-Exact existing network service grants and namespace boundaries remain unchanged. Any
-proposal to change them belongs to separately scoped work and cannot be justified
-as a prerequisite for privilege reduction.
+Exact existing network access grants, peer permissions and namespace boundaries
+remain unchanged. P3 changes only post-initialization container capabilities and
+the Tor privilege handoff described below; it adds temporary `SETUID`, `SETGID`
+and `SETPCAP` startup grants that are absent in steady state. Any proposal to
+change network reachability or topology belongs to separately scoped work and
+cannot be justified as a prerequisite for privilege reduction.
 
 ## P1 findings and selected reductions
 
@@ -283,7 +288,10 @@ on rootless Podman ARM64), using
 [`tests/capability_bootstrap.py`](../../tests/capability_bootstrap.py) with the
 production entrypoint, a disposable networkless named volume, no operator mounts
 or credentials, and `no-new-privileges`. The Docker host's Compose was 5.7.1; the
-VM's Compose was upgraded from 5.1.4 to checksum-verified 5.7.1. Native profile
+VM's Compose was upgraded from 5.1.4 to v5.7.1, verified against the published
+`checksums.txt` (SHA-256 `faea103e645cf3a1fa0a0414a19835206b2d0f21e31dcc67e75fe63767481568`)
+and binary SHA-256
+`f2f49f903240895fa764c0dca3a14548b754ad9426f6b609ccaf55ec5a3aa2a5`. Native profile
 supervision became ready, profile creation/registration, warm permission repair,
 CLI and clean stop passed on both engines. This is focused lifecycle evidence,
 not P5 qualification of the whole stack.
@@ -296,12 +304,15 @@ Starting from `--cap-drop ALL`, both engines needed the same six additions:
 | --- | --- |
 | `CHOWN` | Native profile supervision did not become ready; bootstrap owns/repairs the data volume. |
 | `DAC_OVERRIDE` | Same readiness failure; root bootstrap reads/writes state owned by the runtime UID. |
-| `FOWNER` | Boot passed, but warm permission repair left `config.yaml` at `0600` instead of `0640`. |
+| `FOWNER` | `02-reconcile-profiles` logged `chmod: changing permissions of '/run/hermes-service': Operation not permitted` and exited 1; warm permission repair then left `config.yaml` at `0600` instead of `0640`. |
 | `KILL` | Clean stop failed with exit `137` instead of `0`; root supervision could not terminate unprivileged children. |
 | `SETGID` | Native profile supervision did not become ready; the service drop needs the group transition. |
 | `SETUID` | Same readiness failure; the service drop needs the UID transition. |
 
-The selected explicit Hermes list is therefore `CHOWN`, `DAC_OVERRIDE`,
+The probe now also asserts that startup logs contain no permission failures and
+that `/run/hermes-service` is owned by UID/GID 10000 with mode `0755`; the
+strengthened baseline passed and the `FOWNER` omission failed that assertion on
+both engines. The selected explicit Hermes list is therefore `CHOWN`, `DAC_OVERRIDE`,
 `FOWNER`, `KILL`, `SETUID`, `SETGID`. It replaces inherited engine defaults that
 the investigation did not use, including `SETPCAP`, `NET_RAW`,
 `NET_BIND_SERVICE`, `SYS_CHROOT`, `MKNOD`, `AUDIT_WRITE`, `SETFCAP` and `FSETID`.
@@ -324,9 +335,26 @@ cont-init and wrapper command lookup then resolves trusted paths first, while
 uniquely named profile wrappers still resolve. A prototype with the reordered
 `PATH` passed the same probe on both engines: the service executed
 `/usr/bin/sleep`, no marker was written, and bootstrap/profile/CLI/stop still
-passed. No run-script patch or new supervision component is needed. Removal
-conditions: upstream stops executing root services through a writable `PATH`, or
-profile wrappers move out of `PATH`; retain the probe as the regression check.
+passed, including resolving and running a newly created profile wrapper. No
+run-script patch or new supervision component is needed. The writable directory
+remains in `PATH` last rather than being removed: this closes shadowing of every
+command that already exists in a trusted directory (the demonstrated `sleep`
+case and the root s6/cont-init/wrapper commands), but it is not a proof that an
+unknown command name could never resolve there. `/etc/profile.d/hermes.sh`
+prepends the application directories for interactive login shells; that affects
+the unprivileged application/operator shell, not the non-login root services, and
+is the existing application contract. Removal conditions: upstream stops
+executing root services through a writable `PATH`, or profile wrappers move out
+of `PATH`; retain the probe as the regression check.
+
+The Hermes-to-Tor UID trace found no cross-boundary path. Root s6/cont-init can
+`setuid` to UID 101 inside the Hermes container, but that container has no Tor
+state, control/SOCKS socket, private Tor mounts or wallet mounts; Tor's endpoint
+firewall admits only its intended GRE/DNS/SOCKS paths, not a reverse grant from
+Hermes. A UID-101 process in the Hermes container is therefore not a Tor process
+and gains no Tor state. The only intended UID transition in Hermes is the native
+drop to the hermes account (10000), and the six retained grants exist for that
+root bootstrap/supervision lifecycle.
 
 ### Network and Tor steady state
 
@@ -357,16 +385,20 @@ configuration. Source inspection covered `executor-start`, `sshd_config`,
 startup script only prepares `/run`/`/tmp` and starts sshd; authenticated sessions
 run as UID 10000 with empty effective/permitted/inheritable/ambient sets, bounding
 set `0x400c0` and `NoNewPrivs=1`. Writable home/workspace content is not executed
-by root, authorized keys and host keys are read-only, PAM and root login are
-disabled, and the desktop/browser processes previously measured as UID 10000
-with empty sets and Chromium's namespace/seccomp sandbox enabled. No further
+by root, authorized keys and host keys are read-only, PAM is not enabled and root
+login is disabled, and the desktop/browser processes previously measured as UID
+10000 with empty sets and Chromium's namespace/seccomp sandbox enabled. No further
 executor capability reduction within the P1 complexity budget was found:
 clearing the session bounding set would need a forced-command wrapper with
-privileged capability dropping, a custom OpenSSH lifecycle or file capabilities,
-and the residual is not usable authority under the measured no-new-privs/no-file-
-capability conditions. Record and qualify that residual in P2/P5 rather than
-adding that machinery. Revisit only if native OpenSSH gains a supported
-per-session bounding-set drop or a concrete usable path is demonstrated.
+privileged capability dropping, a custom OpenSSH lifecycle or file capabilities.
+The measured residual is not usable authority in the executor's original user
+namespace under no-new-privs with no file capabilities, but child-user-namespace
+capabilities remain usable and `SYS_CHROOT` is a functional Chromium/Podman
+sandbox requirement, so it must not be treated as security-only cleanup. Record
+the session bounding set and qualify that residual in P2/P5 rather than adding
+that machinery or clearing `SYS_CHROOT`. Revisit only if native OpenSSH gains a
+supported per-session bounding-set drop, a concrete usable parent-namespace path
+is demonstrated, or the desktop sandbox requirement changes.
 
 ### Cost and deferred alternatives
 
@@ -461,14 +493,13 @@ user-writable profile wrapper directory after trusted system directories in the
 image `PATH`, and verify that root s6/cont-init/wrapper command lookup no longer
 executes writable-profile content while profile wrappers still resolve. Audit
 root s6 supervision, ownership/profile operations, children and termination
-together. Implement the selected focused executor hardening within the P1
-complexity budget, preserving SSH and both variants' tool contracts. P1 found no
+together. Preserve SSH and both executor variants' tool contracts. P1 found no
 further executor reduction worth new lifecycle machinery: retain the demonstrated
-SSH listener grants and record the measured session bounding-set residual,
-no-new-privs/file-capability conditions, investigated paths and next action
-instead of adding a forced-command helper or custom SSH lifecycle. Keep offline
-maintenance grants unchanged; verify affected consumers without opening a
-separate minimization exercise.
+SSH listener grants, record the measured session bounding set and original-
+namespace/no-new-privs residual in `docs/architecture.md`, and keep the desktop
+`SYS_CHROOT`/Chromium requirement instead of adding a forced-command helper or
+custom SSH lifecycle. Keep offline maintenance grants unchanged; verify affected
+consumers without opening a separate minimization exercise.
 
 Consumers: base/engine/executor Compose definitions, Hermes bootstrap/profile
 services, executor images/startup/SSH and browser launchers, and affected
@@ -506,13 +537,15 @@ grants.
 After installing firewall/GRE/routes and repairing state ownership, have
 `agent-net` and `executor-net` switch with `/bin/setpriv` to UID/GID 65534, clear
 groups and irreversibly empty bounding/inheritable/ambient/effective/permitted
-sets while continuing to own namespaces and wait for signals. Replace Tor's
-`su-exec` handoff with the same full `setpriv` drop to UID 101/GID 102 so its
-bounding set is empty. Add `util-linux` to the network image for the full
-`setpriv` options; BusyBox's applet cannot change UID or the bounding set.
-Compose supplies temporary `SETUID`, `SETGID` and `SETPCAP` to the endpoints and
-`SETPCAP` to Tor, all absent after the handoff. Initialization stays fail-closed.
-Preserve the existing HAProxy drop.
+sets, then re-exec a wait-only role that never reruns initialization and keeps
+owning the namespace until a signal. Replace Tor's `su-exec` handoff with the
+same full `setpriv` drop to UID 101/GID 102 so its bounding set is empty. Add
+`util-linux` to the network image for the full `setpriv` options; BusyBox's applet
+cannot change UID or the bounding set. Compose supplies temporary `SETUID`,
+`SETGID` and `SETPCAP` to the endpoints and `SETPCAP` to Tor; those process
+capability sets are empty after the handoff, while the container's configured
+grants remain visible to an operator-controlled engine exec. Initialization stays
+fail-closed. Preserve the existing HAProxy drop.
 
 Consumers: network image/startup, Compose startup grants/tmpfs permissions, Tor
 health/control/SOCKS paths, dependency readiness and ingress. Commit scope:
@@ -650,6 +683,21 @@ independent read-only review with no material findings. All 15 local file/headin
 links and `git diff --check` passed. This accepts the plan amendment only;
 G1 design acceptance, selected reductions and both-engine runtime qualification
 remain pending. No runtime changes or new engine experiments were performed.
+
+The first fresh independent G1 review of the P1 snapshot `6d8ac69` required
+changes. Material findings: the `FOWNER` evidence omitted the failed
+`/run/hermes-service` reconciliation, and the probe did not assert clean startup;
+the preserved-boundary sentence contradicted P3's selected post-setup grants; the
+executor residual was overstated without distinguishing original-user-namespace
+authority, child namespaces and Chromium's `SYS_CHROOT` requirement; and the
+required Hermes-to-Tor UID trace conclusion was missing. The probe now asserts
+clean startup logs, `/run/hermes-service` ownership/mode and profile-wrapper
+resolution; the strengthened baseline passed and the `FOWNER` omission failed it
+on both engines. The plan now distinguishes unchanged network reachability/topology
+from temporary P3 grants, qualifies the executor residual and records the UID
+trace. Non-material corrections also updated stale qualification statements, the
+P3 wait mechanism, operator-exec visibility, PAM wording and the PATH residual.
+The corrected snapshot requires independent re-review before G1 acceptance.
 
 Rollback restores prior image/Compose startup behavior and recreates affected
 services while preserving volumes, keys and configuration. Preserve any executor

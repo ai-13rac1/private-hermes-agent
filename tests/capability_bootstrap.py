@@ -67,6 +67,14 @@ def main():
             time.sleep(.5)
         raise RuntimeError('Native profile supervision did not become ready')
 
+    def assert_clean_startup():
+        logs = run('logs', name, check=False)
+        text = logs.stdout + logs.stderr
+        for failure in ('Operation not permitted', 'Permission denied', 'exited 1'):
+            assert failure not in text, f'Startup log contains {failure!r}'
+        state = python("import os,stat; s=os.stat('/run/hermes-service'); print(s.st_uid,s.st_gid,oct(stat.S_IMODE(s.st_mode)))", user='0:0').stdout.split()
+        assert state == ['10000', '10000', '0o755'], state
+
     try:
         run('volume', 'create', volume)
         grants = [item for cap in CAPS if cap != args.omit for item in ('--cap-add', cap)]
@@ -77,6 +85,7 @@ def main():
             '-e', 'HERMES_UID=10000', '-e', 'HERMES_GID=10000', '-e', 'HERMES_DASHBOARD=0', *path,
             '-v', f'{volume}:/opt/data', args.image, 'sleep', 'infinity')
         ready()
+        assert_clean_startup()
         print(python(SNAPSHOT, user='0:0').stdout, flush=True)
         if args.probe_path:
             python('''from pathlib import Path
@@ -106,10 +115,14 @@ p.write_text('#!/bin/sh\\n/usr/bin/id >> /opt/data/capability-path-marker\\nexec
             python("from pathlib import Path; Path('/opt/data/.local/bin/sleep').unlink()")
         print(execute('/opt/hermes/bin/hermes', 'profile', 'create', 'capability-fixture').stdout, flush=True)
         python("from hermes_cli.service_manager import S6ServiceManager; assert 'capability-fixture' in S6ServiceManager().list_profile_gateways()")
+        wrapper = execute('/bin/sh', '-c', 'command -v capability-fixture').stdout.strip()
+        assert wrapper == '/opt/data/.local/bin/capability-fixture', wrapper
+        execute('/bin/sh', '-c', 'capability-fixture --help >/dev/null')
         # Reproduce supported root-written state repair on warm bootstrap.
         python("from pathlib import Path; p=Path('/opt/data/config.yaml'); p.chmod(0o600)")
         run('restart', name)
         ready()
+        assert_clean_startup()
         python("from pathlib import Path; import stat; p=Path('/opt/data/config.yaml'); assert stat.S_IMODE(p.stat().st_mode)==0o640, oct(p.stat().st_mode); assert p.stat().st_uid==10000; assert p.read_text()")
         execute('/opt/hermes/bin/hermes', '--version')
         stopped = run('stop', '--time', '30', name)
@@ -122,7 +135,7 @@ p.write_text('#!/bin/sh\\n/usr/bin/id >> /opt/data/capability-path-marker\\nexec
         raise
     finally:
         run('rm', '-f', name, check=False)
-        run('volume', 'rm', volume)
+        run('volume', 'rm', volume, check=False)
 
 
 if __name__ == '__main__':

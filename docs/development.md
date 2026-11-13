@@ -96,7 +96,8 @@ profile registration, warm permission repair, CLI and clean stop. `--omit GRANT`
 diagnoses a required capability; `--probe-path` restarts the root static service
 with a harmless marker executable in the writable profile wrapper directory;
 `--expect-closed` asserts the reordered image `PATH` resolves the service from a
-trusted directory and writes no marker. Do not treat a successful boot or a
+trusted directory and writes no marker; `--path` overrides the container `PATH`
+for that experiment before the image change is built. Do not treat a successful boot or a
 capability snapshot as qualification: use the probe to diagnose a specific
 change, then run the affected full checks on each engine. The probe removes its
 container and named volume.
