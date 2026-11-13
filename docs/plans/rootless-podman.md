@@ -4,7 +4,8 @@ Status: original G1 passed; P1 is merged; original P2 and P4 are implemented.
 P5 and P6 are implemented with prior rootless Podman evidence (P5 below).
 Review of `e2ad623` found further R1/R2 launch gaps and qualification defects;
 the corrections below are implemented and Docker-qualified. R3 is resolved.
-Amendment design gate G1A passed. Combined correction review is in progress;
+Amendment design gate G1A passed. Fresh combined correction review accepted
+`817fd3d` for the source/current Docker scope with no significant findings;
 full dual-engine G2 remains open pending the explicit Podman follow-up below.
 Planning baseline: branch `main`, commit `4a08841`. Amendment baseline: branch
 `main`, commit `1d83657`.
@@ -62,8 +63,13 @@ create/remove Podman networks. The model tests now use the selected provider;
 treasury reuses network classification. Run parsing recognizes native shorthand
 clusters and known flag arity, rejects unknown options before mutation and stops
 at the service boundary. Native Compose still owns option-value validation.
-Dry runs skip both preparation and leftover-network cleanup. A new fresh review
-must assess the resulting combined branch, not reuse that review conversation.
+Dry runs skip both preparation and leftover-network cleanup. A new fresh
+independent review accepted the resulting combined branch at `817fd3d` with no
+significant findings or compelling premerge simplifications. It independently
+passed the 139-unit suite and branch whitespace check. Final networkless endpoint
+qualification also passed cancellation, delayed readiness, terminal native errors
+and corrected restart. This accepts the requested Docker correction pass; the
+remaining Podman runtime items below are not represented as completed.
 
 ## Intent and scope
 

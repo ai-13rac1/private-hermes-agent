@@ -87,6 +87,17 @@ Podman, `make podman-paths-test` checks the paths of a running stack, including 
 client on a network without isolation, with positive controls for its DNS, TCP
 and host-loopback probes; it refuses to run unless Podman is selected.
 
+On 2026-11-13, Docker Desktop ARM64 (Engine 29.9.3, Compose 5.7.0) passed
+139 unit tests, all four effective models, compilation, the cold-launch/dry-run
+fixture, main SSH/MCP/Tor outage/recovery and storage suites, both standalone
+policy scripts (including 12 tool-policy combinations), unfunded editable research
+configuration and endpoint-readiness/cancellation checks. A fresh independent
+combined review accepted `817fd3d` for the source/current Docker correction scope,
+with no significant findings or compelling premerge simplifications. The model
+tests exercise both engine paths through the selected provider; they do not prove
+Podman runtime behavior. The [Podman plan](plans/rootless-podman.md) retains the
+remaining native Podman lifecycle, ingress and corrected-launch qualification.
+
 Component-specific checks and limits are documented in the
 [webapp](webapp.md#verification-and-current-limits),
 [x402_treazury](x402_treazury.md#stop-and-test), and
