@@ -66,11 +66,30 @@ wallet groups, and operation.
 
 ## Get started
 
-You need Docker Engine 28+ with Linux containers, Compose 2.36+, `make`, and
-Python 3. The stack requires isolated bridge networking and Linux GRE support;
-startup checks reject unsupported setups. Its fixed `10.203.80.0/24` through
-`10.203.84.0/24` networks, local ingress `10.203.85.0/24`, and optional Funnel
-`10.203.87.0/24` must not overlap your existing networks.
+You need a container engine, Compose 2.36+, `make`, and Python 3. Use either:
+
+- **Docker Engine 28+** with Linux containers, or
+- **rootless Podman 5.4+** on Linux, with the user API socket enabled:
+  `systemctl --user enable --now podman.socket`. Set `CONTAINER_ENGINE=podman`
+  in `.env`. Rootless Podman runs no root daemon, and container root maps to
+  your unprivileged user. No `docker` command is needed.
+
+`CONTAINER_ENGINE` in `.env` selects the engine (`docker` when absent); an
+exported value overrides it. The stack adds the Podman overlay files itself. It requires isolated
+bridge networking and Linux GRE support; startup checks reject unsupported
+setups. Its fixed `10.203.80.0/24` through `10.203.84.0/24` networks, local
+ingress `10.203.85.0/24`, and optional Funnel `10.203.87.0/24` must not overlap
+your existing networks.
+
+On rootless Podman, Compose 2.36+ must be the provider of `podman compose`;
+Debian 13's `docker-compose` package is older. Install the Compose release binary
+for your user and set `PODMAN_COMPOSE_PROVIDER` to its path, or name it in
+`compose_providers` in `~/.config/containers/containers.conf`. Containers stop
+when you log out unless lingering is enabled for your user (`loginctl
+enable-linger`, which may need an administrator). After a reboot, run `make up`
+to start the stack again. Keep the default `WEBAPP_PORT=9120` or another port
+of 1024 or above: a rootless user can publish a lower port only if the host
+allows it. See [engine differences](docs/architecture.md#rootless-podman).
 
 Initialize your local settings:
 
@@ -94,8 +113,8 @@ Open **http://127.0.0.1:9120** and log in as `admin` with the password saved in
 `config/webapp/password`. Tor bootstrapping can take several minutes.
 `make init` preserves existing configuration and credentials; add new settings
 to an existing `.env` explicitly using [`.env.example`](.env.example).
-Startup rebuilds changed image inputs and reuses Docker's cache for unchanged
-layers. Builds may need Internet access. Use `make build` to build ahead of time.
+Startup rebuilds changed image inputs and reuses the selected engine's cache for
+unchanged layers. Builds may need Internet access. Use `make build` to build ahead of time.
 
 Use the terminal client with:
 
@@ -105,7 +124,8 @@ make chat
 
 For an optional desktop inside the SSH executor, set `COMPUTER_USE_ENABLED=true`
 in `.env`, then run `make down` and `make up`. This selects a substantially larger
-image and enables computer-use and browser automation tools when ready. See
+image and enables computer-use and browser automation tools when ready. The
+desktop supports the qualified Docker and rootless Podman setups. See
 [desktop configuration and qualification status](docs/configuration.md#optional-executor-desktop).
 
 For remote browser access, follow the [optional Funnel setup](docs/webapp.md#optional-public-funnel).
@@ -202,7 +222,7 @@ As with everything else in this stack, all swaps are conducted over Tor. Swaps u
 
 Use `make up` and `make down` to start and stop the deployment. Ordinary shutdown
 preserves conversations, configuration, wallets, and executor work. **Do not use
-`docker compose down -v` for routine shutdown:** it deletes application volumes,
+Compose `down -v` for routine shutdown:** it deletes application volumes,
 including wallets and conversations. Backups must include the named volumes as
 well as local configuration and data; see [backup scope](docs/configuration.md#backup-scope).
 
@@ -229,11 +249,11 @@ access to people and plugins you trust.
 By default, supported external raster images load through the authenticated
 gateway over Tor. Active previews and external players have non-loading
 fallbacks. Deliberate external link clicks use your browser's own connection;
-browser requests do not inherit Docker's Tor route. See [webapp content policy](docs/webapp.md#external-content-policy)
+browser requests do not inherit the stack's Tor route. See [webapp content policy](docs/webapp.md#external-content-policy)
 for image consent, other policy modes, and current limits.
 
 Tor egress does not cover Teep's direct provider connection or your browser's
 connection to the webapp. The container boundaries do not protect against a
-compromised host or Docker engine. For exact grants and trust boundaries, see
+compromised host or container engine. For exact grants and trust boundaries, see
 [architecture and isolation](docs/architecture.md). For build procedures and
 test coverage, see [development and qualification](docs/development.md).

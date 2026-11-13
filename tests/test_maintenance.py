@@ -25,6 +25,18 @@ BAD = dict(WEBAPP_EXTERNAL_CONTENT='invalid', TEEP_HOST_PORT='invalid', TEEP_SER
 
 
 class MaintenanceScopeTests(unittest.TestCase):
+    def test_managed_down_includes_profiled_namespace_users_and_preserves_volumes(self):
+        with patch.object(sys, 'argv', ['stack.py', 'down']), \
+                patch.object(stack, 'maintenance_compose', return_value=['compose']), \
+                patch.object(stack, 'stop_funnel') as funnel, patch.object(stack, 'run') as run, \
+                patch.object(stack, 'remove_networks') as networks:
+            stack.main_unlocked()
+        command = ['compose', '--profile', '*']
+        funnel.assert_called_once_with(command)
+        run.assert_called_once_with(command + ['down', '--timeout', '-1'])
+        networks.assert_called_once_with(command)
+
+
     def test_executor_build_preserves_desktop_selection_despite_bad_ingress_settings(self):
         with patch.dict(os.environ, dict(BAD, COMPUTER_USE_ENABLED='true')):
             command = deployment.maintenance_compose(all_ingress=True, executor_build=True)
@@ -50,10 +62,11 @@ class MaintenanceScopeTests(unittest.TestCase):
         for command in commands:
             with patch.dict(os.environ, BAD), patch.object(sys, 'argv', ['stack.py', 'compose', *command]), \
                     patch.object(stack, 'settings', side_effect=AssertionError('unrelated validation')), \
-                    patch.object(stack, 'run') as run:
+                    patch.object(stack, 'run') as run, patch.object(stack, 'check_bind_sources'):
                 stack.main()
             self.assertEqual(run.call_args.args[0][-len(command):], command)
         for command in (['up'], ['run', '--rm', '--no-deps', 'hermes', 'gateway', 'run'],
+                        ['run', 'setup-storage', 'command', '--no-deps'],
                         ['run', '--no-deps', '--name', 'hermes-config', 'hermes', 'gateway', 'run']):
             with patch.object(sys, 'argv', ['stack.py', 'compose', *command]), \
                     patch.object(stack, 'settings', side_effect=ValueError('invalid launch policy')), \

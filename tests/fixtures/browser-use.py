@@ -37,6 +37,10 @@ registered = decoded(registry.dispatch('browser_exec', {'code':'print("registry-
                                   'session':'registry-fixture'}, task_id='browser-fixture'))
 assert registered.get('output','').strip() == 'registry-remote', registered
 env = placement.terminal_environment()
+namespace = streams.run_in(env, ['readlink', '/proc/self/ns/net'], timeout=10)
+assert namespace.returncode == 0, namespace.stderr.decode()
+executor_netns = namespace.stdout.decode().strip()
+assert executor_netns.startswith('net:['), executor_netns
 native_screenshot = browser._native_screenshot_result
 browser._native_screenshot_result = lambda *args: None  # Separate screenshot staging from provider choice.
 server = streams.open_stream(env, ['python3', '-u', '-c', r'''
@@ -220,16 +224,20 @@ try:
             assert refused.get('error') and 'executor Chromium' in refused['error'], refused
     finally:
         browser_session_cloud.browser_section = section
-    network = run('import urllib.request,json,socket\n'
-                  'assert json.load(urllib.request.urlopen("https://check.torproject.org/api/ip",timeout=90))["IsTor"]\n'
+    # Core qualifies public Tor for this exact namespace. Here prove native
+    # Python networking/placement and forbidden peers without a second public
+    # DNS/TLS dependency in every browser and webapp run.
+    network = run('import os,urllib.request,socket\n'
+                  f'assert os.readlink("/proc/self/ns/net")=={executor_netns!r}\n'
+                  f'assert b"executor-browser-fixture" in urllib.request.urlopen("http://127.0.0.1:{port}/",timeout=10).read()\n'
                   'for address in [("10.203.83.3",8337),("10.203.85.2",80),("192.168.65.2",80),("169.254.169.254",80)]:\n'
                   ' s=socket.socket(); s.settimeout(1)\n'
                   ' try: s.connect(address)\n'
                   ' except OSError: pass\n'
                   ' else: raise AssertionError(address)\n'
                   ' finally: s.close()\n'
-                  'print("tor-only")', name='network')
-    assert 'tor-only' in network['output'], network
+                  'print("executor-network-only")', name='network')
+    assert 'executor-network-only' in network['output'], network
     # Exercise EOF specifically while real native daemon startup is pending.
     # A fixture-only rendezvous delays startup; production has no such hook.
     child_env = json.loads(run('import os,json\nprint(json.dumps(dict(os.environ)))')['output'])
@@ -294,7 +302,7 @@ runpy.run_path('/opt/private-hermes/browser-session.py',run_name='__main__')
     assert key not in remote._sessions
     print('PASS: remote Python/child placement, Chromium DOM/type/download/capture, named/unnamed sessions, concurrent startup, '
           'screenshot staging/vision, native cache sync, takeover, active/startup cancellation, timeout/retry, daemon crash, '
-          'owner death, Tor/forbidden paths and native cleanup')
+          'owner death, executor namespace/forbidden paths and native cleanup')
 finally:
     lease.release('browser-fixture-human')
     remote.close()

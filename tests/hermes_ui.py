@@ -2,6 +2,9 @@
 """Focused native renderer qualification in the disposable derived build stage."""
 from pathlib import Path
 import subprocess
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from deployment import engine_command  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = 'private-hermes-webapp-build:qualification'
@@ -17,16 +20,16 @@ def run(*args):
 
 
 def main():
-    run('docker', 'build', '--target', 'webapp-build', '-f', 'components/hermes/Dockerfile', '-t', IMAGE, '.')
+    run(*engine_command(), 'build', '--target', 'webapp-build', '-f', 'components/hermes/Dockerfile', '-t', IMAGE, '.')
     # The full native TypeScript tree exhausted Node's default 2 GiB heap on
     # this target. This compiler-only setting does not limit runtime containers.
-    run('docker', 'run', '--rm', '--network', 'none', '--cap-drop', 'ALL',
+    run(*engine_command(), 'run', '--rm', '--network', 'none', '--cap-drop', 'ALL',
         '--mount', f'type=bind,source={FIXTURE},target=/run/public-fixture.json,readonly',
         '--entrypoint', '/bin/sh', '--workdir', WORKSPACE, IMAGE, '-c',
         'mkdir -p ../../tests/fixtures && '
         'cp /run/public-fixture.json ../../tests/fixtures/session-resume-active-turn.json && '
         'exec node --max-old-space-size=4096 node_modules/typescript/bin/tsc -p tsconfig.json --noEmit')
-    run('docker', 'run', '--rm', '--network', 'none', '--cap-drop', 'ALL',
+    run(*engine_command(), 'run', '--rm', '--network', 'none', '--cap-drop', 'ALL',
         '--entrypoint', 'node', '--workdir', WORKSPACE, IMAGE,
         'node_modules/vitest/vitest.mjs', 'run', '--project', 'ui',
         'src/hooks/use-media-image.test.tsx', 'src/lib/media.remote.test.ts',

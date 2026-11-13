@@ -85,8 +85,11 @@ class PrivateContentMiddleware:
                                or path in ('/assets/webapp-preview.html', '/assets/webapp-guest.html'))
                 if mime in (b'text/html', b'application/xhtml+xml', b'image/svg+xml') and not (trusted_page or native_auth):
                     headers = [(key, value) for key, value in headers if key.lower() not in (
-                        b'content-disposition', b'x-content-type-options')]
-                    headers += [(b'content-disposition', b'attachment'),
+                        b'content-type', b'content-disposition', b'x-content-type-options')]
+                    # Linux WebKit can render attachment HTML inline. Binary
+                    # delivery preserves downloads without relying on that hint.
+                    headers += [(b'content-type', b'application/octet-stream'),
+                                (b'content-disposition', b'attachment'),
                                 (b'x-content-type-options', b'nosniff'),
                                 (b'content-security-policy', b"sandbox; default-src 'none'; base-uri 'none'; form-action 'none'")]
                 message = {**message, 'headers': headers}

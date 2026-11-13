@@ -64,7 +64,7 @@ snapshot or a qualified reduction.
 
 | Service | Current container capability configuration |
 | --- | --- |
-| `hermes` | Docker defaults minus `NET_ADMIN` and `NET_RAW` |
+| `hermes` | Selected engine defaults minus `NET_ADMIN` and `NET_RAW` |
 | `setup`, `setup-storage`, `mcp-config` | All dropped; `CHOWN`, `FOWNER`, `DAC_OVERRIDE` added |
 | `executor` | All dropped; `SETUID`, `SETGID`, `SYS_CHROOT` added |
 | `agent-net`, `executor-net` | All dropped; `NET_ADMIN` added |
@@ -135,12 +135,14 @@ owning contract. Permanent rationale is in
 [architecture](../architecture.md#executor-capability-requirements) and
 [development](../development.md#executor-desktop-qualification).
 
-The desktop's Chromium sandbox needs namespace syscalls denied by Docker's
-default seccomp policy. A desktop-only profile based on pinned modern Moby policy
-adds `clone`, `setns`, `unshare`; this adds no container capabilities but exposes
-user-namespace kernel paths. Child-namespace capabilities are not parent-network
-namespace authority. Keep lean on the engine default: this syscall allowance is
-not itself a capability reduction that justifies changing the lean default.
+Docker desktop's Chromium sandbox needs namespace syscalls denied by Docker's
+default seccomp policy. Its desktop-only profile based on pinned modern Moby
+policy adds `clone`, `setns`, `unshare`. Both lean and desktop Podman use their
+native engine policy, as accepted for native desktop adoption. Neither selection
+adds container capabilities; namespace support exposes user-namespace kernel paths. Child-namespace capabilities are not parent-network
+namespace authority. Keep lean on the engine default: Docker's desktop syscall allowance does not
+justify changing its lean default. Podman already permits the required sandbox
+with its native default; its policy is not identical to the Docker profile.
 Browser/GUI/driver/model processes must have no effective/permitted capabilities
 in the executor's original user namespace. ARM64 runtime checks found Xvnc,
 xfwm4, xfdesktop, xfce4-panel and cua-driver at UID 10000 with empty effective,
@@ -160,6 +162,51 @@ startup path also contained explicit sandbox-bypass arguments; those are removed
 by the browser patch rather than expanding capabilities. Its runtime qualification
 is recorded in [development](../development.md#browser-harness-and-results); the existing listener
 omission evidence remains applicable and need not be repeated for Python packages.
+
+## Engine parity and investigation strategy
+
+Target one explicit startup capability list per service in base Compose and one
+shared privilege-dropping implementation for Docker and rootless Podman. The
+current Podman overlays do not override capability grants; Hermes's inherited
+engine defaults are nevertheless not evidence of identical effective grants.
+Replace defaults with measured explicit requirements rather than taking the
+union of both engines' defaults. Exact reduced sets remain unqualified.
+
+Investigate native lifecycle reductions with the existing GRE topology first;
+use that result as the cost/security baseline for the alternatives below. Compare
+starting directly as the service user where native startup supports it, dropping
+identity and all capability sets after privileged initialization, and retaining a
+justified root process with a reduced capability set where the native lifecycle
+requires it. A UID change alone does not prove all capability sets are empty. Do not introduce
+file capabilities, setuid helpers or a privilege broker merely to move authority
+out of Compose. No topology change is required to accept useful reductions.
+
+Keep engine-specific mount, ownership and networking behavior distinct from
+capability requirements. Inventory actual UID/GID mappings, named-volume/bind and
+tmpfs ownership, namespace ownership and port-binding requirements on each
+qualified target. Rootless container capabilities do not confer authority in the
+host's initial user namespace; assess any veth placement or namespace-access
+proposal on rootless Podman as well as inside Docker Desktop's Linux VM. Do not
+solve a mismatch with a rootful engine, host networking, privileged containers,
+engine-socket mounts or an additional host privilege helper.
+
+Seccomp policy remains engine-specific as already accepted, independently of the
+shared capability target. Engine-default filters can condition syscall permission
+on the container's configured capabilities. Native Podman desktop experiments
+found that omitting container `SYS_CHROOT` also blocked Chromium's child-namespace
+chroot through the default filter, despite zero runner effective/permitted
+capabilities. Capability reductions must therefore recheck the real Chromium
+sandbox and browser workloads, not just SSH or a process capability snapshot.
+Do not disable seccomp, weaken the browser sandbox or deliver a custom Podman
+profile implicitly to force a common list.
+
+If a concrete operation requires different grants, record the failing operation,
+affected image/engine/kernel, capability and namespace involved, simplest shared
+alternative and remaining security consequences before proposing an overlay
+exception. Shared lists are a design target, not evidence of equivalent kernel
+attack surface or a reason to retain unexplained grants. Prefer a small measured
+exception or explicit deferral over a generic engine compatibility layer; any
+policy or trust-boundary change still requires its own design acceptance.
 
 ## Preserved boundaries and intended behavior
 
@@ -211,9 +258,9 @@ commits or permission to commit failing intermediate work.
 
 ### P1 — Establish lifecycle evidence and compare isolation designs
 
-Capture effective base/Funnel Compose grants without retaining secrets, exact
-built images, packaged startup scripts and process identity/capability snapshots
-in disposable resources. Trace bootstrap, steady state, subprocess creation,
+Capture effective base/Funnel Compose grants on both qualified engines without
+retaining secrets, exact built images, packaged startup scripts and process
+identity/capability snapshots in disposable resources. Trace bootstrap, steady state, subprocess creation,
 profile operations, SSH authentication and shutdown. Check native guarantees
 before adding wrapper enforcement. Resolve these decisions before affected edits:
 
@@ -246,13 +293,15 @@ questions. Compare these three concrete candidates against the current behavior:
 | --- | --- |
 | Retain GRE and separate Hermes, executor and Tor namespaces | Establish which startup and steady-state privileges can be reduced without changing topology. Record the kernel dependency, current fail-closed behavior and maintenance cost. |
 | Share Hermes and Tor networking; retain a separate executor with an explicit HTTP proxy | Specify the proxy owner, exact executor grant, HTTP/CONNECT transport through Tor and remote DNS handling. Trace Tor-UID exemption risks, shared loopback/listeners and internal grants. Specify enforcement and checks demonstrating the proxy cannot reach prohibited host/VM/private or agent-only destinations on the executor's behalf. |
-| Retain separate namespaces and connect them with veth pairs | Specify who creates and places each endpoint, how it obtains namespace access, actual capability requirements and Docker Desktop VM implications. Trace link recreation, namespace destruction, firewall ordering and startup failure cleanup without a generic recovery service. |
+| Retain separate namespaces and connect them with veth pairs | Specify who creates and places each endpoint, how it obtains namespace access, actual capability requirements, rootless Podman feasibility and Docker Desktop VM implications. Trace link recreation, namespace destruction, firewall ordering and startup failure cleanup without a generic recovery service. |
 
 For each candidate, identify affected Compose services, images, helpers,
 configuration, maintenance consumers, tests and permanent guides. Explain setup
 and steady-state authority, added/removed dependencies and components, and native
-component guarantees. Assess gains and risks relative to retaining GRE, including
-independent enforcement, Tor outage behavior, local service availability,
+component guarantees. Record shared versus engine-specific requirements, including
+any additional host authority a candidate would need; do not assume container
+`NET_ADMIN` grants access to a sibling or host-owned namespace. Assess gains and
+risks relative to retaining GRE, including independent enforcement, Tor outage behavior, local service availability,
 restart/recreation, shutdown and state preservation. Include shared port binding
 and abstract Unix socket exposure where namespaces are shared.
 
@@ -296,8 +345,9 @@ changes. Update development guidance for reusable checks; add no evidence subsys
 the exact baseline/evidence snapshot and native contracts. Review all three
 candidates, the recommendation and the revised phases for the preferred approach.
 Confirm that gains justify complexity and any compatibility cost, authority is
-supported by lifecycle evidence, and security claims have sufficient focused
-evidence. Challenge added services, namespace access and duplicate enforcement.
+supported by lifecycle evidence on both engines, engine exceptions are justified,
+and security claims have sufficient focused evidence. Challenge added services,
+namespace access and duplicate enforcement.
 Record boundary changes requiring operator acceptance, retained root
 justifications, state preservation and allowed/forbidden checks. Retaining GRE
 may pass; unresolved decision-critical evidence keeps the affected gate pending.
@@ -306,7 +356,7 @@ edits; commit and re-review material design changes that invalidate acceptance.
 
 ### P2 — Reduce application and maintenance capability grants
 
-Replace Hermes's Docker-default set with `cap_drop: [ALL]` and an experimentally
+Replace Hermes's engine-default set with `cap_drop: [ALL]` and an experimentally
 justified explicit list. Audit root s6 supervision, ownership/profile operations,
 children and termination together. Review executor and offline maintenance sets
 separately; remove grants only when native lifecycle evidence supports doing so.
@@ -383,10 +433,19 @@ implementation phase, G4 and G5 may share one fresh review covering both scopes.
 
 ### P5 — Combined qualification and completion
 
-Run `make check` and `make test` for the resulting implementation, plus focused
-production-entrypoint, process-set and lifecycle checks above. Validate effective
-base/Funnel Compose models for changed definitions. Every security phase needs
-allowed/forbidden-path evidence and relevant failure/restart checks before its
+Run `make check` and `make test` on both qualified engines for the resulting
+implementation, plus focused production-entrypoint, process-set and lifecycle
+checks above. Validate effective
+base/Funnel Compose models for changed definitions on each engine. Cover lean and
+desktop executors, real SSH/model-Python placement, computer-use and browser-use,
+including Chromium's namespace/seccomp sandbox after any executor grant change.
+Use native production entrypoints and actual process capability sets; mock/model
+parity alone does not qualify either engine. Each phase's applicable lifecycle,
+state-preservation and security checks must pass on both engines before its gate;
+unavailable target evidence stays pending. Retain the existing platform limits in
+the development guide rather than claiming coverage of all Docker/Podman hosts.
+Every security phase needs allowed/forbidden-path evidence and relevant
+failure/restart checks before its
 gate, not just static inspection. Serialize fixtures sharing fixed networks; use
 disposable volumes and no operator secrets/state or paid calls. Do not run resource
 exhaustion workloads. Reuse still-valid evidence; repeat checks only for changed
@@ -430,6 +489,13 @@ The plan-only scope expansion at baseline `e2fc800` received a fresh independent
 read-only review with no material findings. Local-link inspection and
 `git diff --check` passed. This review covers the expanded investigation and gate
 requirements; the future comparative assessment and G1 design remain pending.
+
+The engine-parity amendment on `rootless-podman-support`, baseline `391151b`,
+received a fresh independent read-only review with no material findings. Local
+link targets and `git diff --check` passed. It adds shared-grant investigation,
+capability-conditioned seccomp coverage and both-engine phase acceptance; no
+runtime behavior changed or new runtime experiments were performed. This
+plan-only review does not satisfy the future G1 design or implementation gates.
 
 Rollback restores prior image/Compose startup behavior and recreates affected
 services while preserving volumes, keys and configuration. For Tailscale ownership

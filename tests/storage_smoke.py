@@ -6,10 +6,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 import smoke
+from deployment import compose_base, engine_command  # smoke.py puts scripts/ on sys.path
 
 
-smoke.COMPOSE = ['docker', 'compose', '-p', 'private-hermes-storage-test',
-                 '-f', 'compose.yaml', '-f', 'tests/compose.yaml']
+smoke.COMPOSE = [*compose_base(), '-p', 'private-hermes-storage-test',
+                 *smoke.compose_files(False, extra=('tests/compose.yaml',))]
 
 
 def main():
@@ -195,7 +196,7 @@ with sqlite3.connect(root/'persistence-test.sqlite') as db:
                               service, '-c', script, root, marker)
             smoke.compose('down', '--timeout', '-1')
             for name in ('hermes-data', 'x402_treazury-data'):
-                result = subprocess.run(['docker', 'volume', 'inspect',
+                result = subprocess.run([*engine_command(), 'volume', 'inspect',
                                          'private-hermes-storage-test_' + name],
                                         text=True, capture_output=True, check=True)
                 assert json.loads(result.stdout)[0]['Labels']['com.docker.compose.project'] == 'private-hermes-storage-test'
@@ -220,6 +221,12 @@ with sqlite3.connect(root/'persistence-test.sqlite') as db:
         finally:
             # Only this disposable test project is deliberately erased.
             smoke.compose('down', '--volumes', '--remove-orphans')
+
+    remaining = subprocess.check_output([*engine_command(), 'volume', 'ls', '-q', '--filter',
+                                        'label=com.docker.compose.project=private-hermes-storage-test'],
+                                       text=True)
+    assert not remaining.strip(), 'Disposable application volumes survived final bind-data cleanup'
+    print('PASS: final bind-data cleanup leaves no disposable application volumes', flush=True)
 
 
 if __name__ == '__main__':

@@ -36,6 +36,10 @@ optional Tailscale Funnel. Do not add framework selection or unrelated services.
 - Start with native component capabilities and straightforward code. Preserve
   useful Python setup/lifecycle helpers and the documented Make workflow; neither
   a language ban nor moving code into containers makes a design simpler.
+- Support Docker and rootless Podman through the existing engine selector and
+  Make/Compose workflow. Prefer shared service behavior and explicit grants;
+  justify engine-specific overlays with demonstrated native differences. Consult
+  the maintained engine guidance rather than adding a compatibility framework.
 - Before adding a service, persistent record, configuration option or abstraction,
   identify its concrete responsibility and why an existing component cannot
   reasonably own it. Prefer fewer responsibilities and state transitions, not
@@ -138,14 +142,15 @@ delete private state as a shortcut to simplifying implementation or tests.
   interactive terminal is distinct from the model's SSH execution backend.
   Document that distinction instead of claiming all browser actions are confined
   to the executor.
-- Browser-originated remote requests do not pass through Docker's Tor gateway.
+- Browser-originated remote requests do not pass through the stack's Tor gateway.
   Preserve the deployment external-content ceiling, authenticated public-raster
   retrieval, origin-scoped image consent and inert private previews. Browser-native
   interactive opt-in and streaming remain deferred to part 2. Preserve deliberate
   external link clicks and qualify browser containment separately from Tor egress.
 - Never solve a failure by adding host networking, privileged application
-  containers, Docker socket mounts, broad private-network grants or direct egress.
-  Dependency failure must not silently select a weaker transport or policy.
+  containers, container-engine socket mounts, broad private-network grants or
+  direct egress. Dependency failure must not silently select a weaker transport
+  or policy.
 
 ## Repository, configuration and persistence
 
@@ -216,6 +221,10 @@ delete private state as a shortcut to simplifying implementation or tests.
 - Compose changes require effective-model validation and affected runtime checks.
   Security changes need allowed-path and forbidden-path evidence, including
   relevant dependency failure/restart behavior; static inspection is insufficient.
+- Qualify affected runtime behavior on both supported engines using shared
+  fixtures. Model/unit checks do not prove native engine behavior. Record actual
+  engine/provider/platform limits and missing coverage; reuse unchanged evidence
+  and keep documentation-only work scoped to documentation checks.
 - Reuse the repository's focused checks and disposable projects. Serialize tests
   sharing fixed networks or runtime state. Keep real financial secrets out of
   fixtures, and qualify filesystem/locking behavior on the actual target.

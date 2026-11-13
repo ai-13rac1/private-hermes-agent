@@ -115,10 +115,17 @@ To keep separate API groups from the outset, omit the entire table. When reducin
 or renaming groups, update its group references along with wallet/source/listener
 references. These edits neither move funds nor erase preparation history.
 
-Inspect the packaged default policy offline before funding:
+Inspect the packaged default policy offline before funding, using the selected
+engine. These image-only commands mount no private state:
 
 ```sh
 docker run --rm --network none private-hermes-x402_treazury:local config show
+```
+
+For rootless Podman:
+
+```sh
+podman --remote=false run --rm --network none private-hermes-x402_treazury:local config show
 ```
 
 ## Edit the research configuration
@@ -345,8 +352,11 @@ journals and must not interpret a timeout or cleared cache as replay authority.
 Ctrl-C requests graceful termination and waits for native cleanup. These commands
 and serving shutdown do not introduce a force-kill timeout. If a host/controller
 crash leaves a one-shot container running, its name ends in `-x402-onboarding`.
-Inspect it and stop it with `docker stop --timeout -1 CONTAINER` before retrying;
-the workflow refuses to overwrite a retained container or competing owner.
+Inspect it with the selected engine and stop it before retrying: use
+`docker stop --timeout -1 CONTAINER` on Docker or
+`podman --remote=false stop --timeout -1 CONTAINER` on rootless Podman. Both wait
+for native cleanup. The workflow refuses to overwrite a retained container or
+competing owner.
 Do not use an auto-restarting serving container for one-shot financial commands.
 
 Completion is recorded atomically under `/var/lib/x402/onboarding/` in the
@@ -397,7 +407,7 @@ cannot block access or bookkeeping. Policy-aware `x402_treazury-admin` handles
 configuration administration;
 networked init/preparation uses `x402_treazury-setup` one-shot containers in the
 agent namespace. Jobs have no automatic restart policy, so a failed financial
-command cannot be repeated by Docker; retries are explicit operator actions.
+command cannot be repeated by the engine; retries are explicit operator actions.
 
 ## Secrets and execution boundary
 
@@ -419,7 +429,7 @@ command cannot be repeated by Docker; retries are explicit operator actions.
 - Sharing a network namespace allows Hermes and x402_treazury to reach each other's
   local listeners and share permitted local network paths. It does not isolate
   their network activity from each other. Container filesystem/PID isolation
-  protects wallet files from ordinary agent code; Docker/kernel compromise and
+  protects wallet files from ordinary agent code; container-engine/kernel compromise and
   application vulnerabilities in the authorized MCP API remain outside that
   protection.
 
@@ -428,8 +438,9 @@ command cannot be repeated by Docker; retries are explicit operator actions.
 Use `make down` to stop the deployment while retaining state.
 Use the deployment workflow for graceful financial shutdown; `make down` waits
 for native cleanup. `x402_treazury-data` contains wallet data and `data/x402_treazury-auth/`
-contains the persistent MCP token. Ordinary `docker compose down` preserves this volume and token directory.
-`docker compose down -v` deletes the wallet volume; do not use it for routine shutdown. Back up wallet/recovery material using the
+contains the persistent MCP token. Managed shutdown preserves this volume and
+token directory on both engines. Compose `down -v` deletes the wallet volume; do
+not use it for routine shutdown. Back up wallet/recovery material using the
 upstream wallet guidance and protect backups as secrets.
 The default `wallet.key` is stored alongside encrypted wallet state; obtaining
 that directory gives access to both state and its decryption key. The native

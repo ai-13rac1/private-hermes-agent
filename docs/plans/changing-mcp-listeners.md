@@ -4,6 +4,8 @@ Status: proposed; implementation and independent design review are pending.
 This task creates the plan only; it does not change runtime behavior.
 Baseline: branch `webapp-private-content`, commit
 `e09d5f736c2be3404fc6534a9422567a3d2d28ed`.
+Engine-parity amendment baseline: `rootless-podman-support`, `3f66fa5`.
+Follow the [planning workflow](../planning-workflow.md) before implementation.
 
 ## Intent and current behavior
 
@@ -20,10 +22,13 @@ removes only those names. The in-Hermes readiness client separately hardcodes
 ports 3010–3021. The controller, tests and guides also assume twelve listeners.
 Registration rejects changed managed URLs rather than applying operator edits.
 
-The packaged and inspected reference revision is
-`424f36a814711d542fbff27f139842c9d08d5b76`, pinned in the treasury Dockerfile.
-Native deployment configuration already supports named listeners, validates their
-identifiers, references and address uniqueness, and requires at least one server.
+The earlier inspected reference revision was
+`424f36a814711d542fbff27f139842c9d08d5b76`; the current treasury Dockerfile pins
+`e493b88d364cac25ed84922ae162c3f6a5d22452`. Reinspect native inventory, validation
+and serving diagnostics against the packaged revision before implementation.
+The earlier inspection found native support for named listeners, validation of
+identifiers, references and address uniqueness, and a requirement for at least
+one server.
 Hermes uses the derived official v0.23.1 image and supports native `reload.mcp`.
 No upstream patch or image/source revision change is proposed.
 
@@ -97,6 +102,29 @@ to fund groups or download catalogs under the existing financial policy.
 
 ## Phases and acceptance
 
+### Shared-engine requirements
+
+Use one native inventory format, reconciliation path and offline maintenance
+workflow for both engines. Treasury and Hermes share the agent network namespace
+on Docker and rootless Podman; adding listeners requires no engine-specific
+network exposure. Verify actual loopback reachability and executor denial on
+both, not just effective Compose similarity. Rootless engine operation does not
+make a loopback listener shared with the host or another container namespace.
+
+Investigate native binding requirements for operator-selected ports, including
+ports below the namespace's unprivileged threshold and collisions with existing
+agent listeners. Namespace sysctl defaults may differ; a validated port is not
+proof it can bind as UID 10003 with all capabilities dropped. Preserve useful
+native failures without arbitrary port ranges or automatic capability, sysctl or
+host-publication changes to make a port work. Record supported behavior and any
+concrete engine exception before design acceptance.
+
+Retain named wallet state and existing group-102 private Tor socket access. Check
+rootless UID/GID mappings and atomic profile publication through the existing
+networkless jobs; no wallet or treasury-policy mount is added to Hermes. Reuse
+managed bind-source checks for any changed mounts. Disconnect, token provisioning
+and saved-state inspection keep their operation-scoped prerequisites.
+
 ### P1: coherent inventory and reconciliation change
 
 After independent design review, update onboarding validation/inventory output,
@@ -133,6 +161,14 @@ configured endpoint failure leaves no partial managed registration, retry succee
 and delayed startup, cancellation and serving restart retain their existing
 semantics without a total deadline.
 
+Run this runtime qualification on both qualified engines, including stdin-EOF
+cancellation, serving-instance identity, container restart/recreation and teardown
+of stopped profiled namespace users. Include a real port collision and a
+representative low-port probe to establish the native binding contract without
+weakening grants. Confirm failures preserve wallet/key/preparation state and leave
+research disconnected while Hermes and offline repair remain available. Use the
+same fixtures and inventory assertions; no engine adapter is proposed.
+
 Verify allowed Hermes loopback access and denied executor access to changed ports,
 no new host publication/private-network grants, and unchanged wallet mount scope.
 Retain relevant Tor-loss/failure evidence where paths change. Update affected
@@ -140,6 +176,9 @@ fixtures and hardcoded count assertions in research, storage, endpoint-readiness
 and webapp tests; run affected checks rather than every unrelated suite. Validate
 base/Funnel effective Compose models if their definitions change. Serialize tests
 sharing fixed networks; use no operator volumes, secrets, payments or live ingress.
+Run affected repository checks on both engines and record actual image/provider
+versions and target limits; unavailable engine evidence remains pending. The
+earlier fixed-listener qualification does not qualify configurable listeners.
 
 Run documentation link checks and `git diff --check`. Record focused results and
 limitations here. A fresh independent final reviewer must inspect the combined
@@ -166,3 +205,9 @@ generic MCP management UI/CLI, automatic file watcher, hot reload, compatibility
 layer, wallet migration, funding-policy redesign or native readiness API patch is
 included. Live funding and destructive private-state operations remain outside
 this plan's implementation/qualification authorization.
+
+The engine-parity amendment against `3f66fa5` passed fresh independent read-only
+review together with the document-search and interactive-content amendments,
+with no material findings. Local-link targets and `git diff --check` passed;
+no runtime tests were run for these documentation-only changes. Future design,
+implementation and both-engine qualification remain pending.

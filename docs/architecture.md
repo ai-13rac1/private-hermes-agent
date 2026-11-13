@@ -5,7 +5,7 @@ Implementation details for maintainers. For setup and everyday use, start with
 
 Hermes's agent and its code executor run in separate containers, filesystems,
 process namespaces, and network namespaces. Both have only isolated internal
-Docker networks. Their public TCP traffic is transparently redirected through
+container networks. Their public TCP traffic is transparently redirected through
 an independently running Tor gateway; their DNS goes to Tor. Teep alone has a
 separate direct uplink for confidential-computing inference providers.
 
@@ -18,7 +18,7 @@ Hermes agent ── private SSH ── executor (/workspace, no agent volume or 
       └── agent route ──────────────────────── transparent Tor ── internet
 ```
 
-No application receives a Docker socket, host networking, privileged mode,
+No application receives a container-engine socket, host networking, privileged mode,
 `NET_ADMIN`, or `NET_RAW`. The trusted `agent-net` and `executor-net` services
 configure routes and firewall rules before applications start, then remain as
 stable namespace owners. Tor is in a third namespace; impersonating Tor's UID
@@ -37,9 +37,10 @@ inside an application cannot grant a direct uplink.
   are denied. This covers ordinary Docker VM/host gateways, RPC port 111,
   metadata addresses, and DNS answers that point into prohibited space.
   Docker embedded DNS at `127.0.0.11` is blocked before DNAT.
-- Private GRE links carry original-destination packets across Docker's internal
-  bridges; plain next-hop routing is blocked by Docker's internal bridge rules.
-  The links are internal to the Docker VM, not Internet tunnels or encryption.
+- Private GRE links carry original-destination packets across internal bridges;
+  plain next-hop routing is blocked by Docker's internal bridge rules. The same
+  GRE topology is used on Podman. The links stay within the container host or
+  Docker Desktop VM; they are not Internet tunnels or encryption.
   Only the trusted namespace services create them. Linux GRE support is required;
   setup fails closed if it is unavailable.
 - The router independently blocks prohibited destinations before NAT and
@@ -51,7 +52,7 @@ inside an application cannot grant a direct uplink.
 - These controls cover the host/VM's private and connected address space. A
   service exposed on an unrelated public Internet IP is still a public target;
   add an explicit deny rule if such an address must be excluded too. A host
-  administrator or compromised Docker engine remains outside this boundary.
+  administrator or compromised container engine remains outside this boundary.
 - Hermes terminal commands, remote Python `execute_code`, and backend-aware
   file tools use SSH. Native subagents remain orchestrator instances; their
   code calls use this executor. Sessions/subagents share one executor user and
@@ -71,6 +72,95 @@ inside an application cannot grant a direct uplink.
 - Tor failure blocks public egress; established application namespaces keep
   their firewall rules and have no direct fallback. Existing local teep/MCP/SSH
   paths remain usable. Initial startup waits for Tor readiness.
+
+## Rootless Podman
+
+Managed container creation checks required bind sources in the effective Compose
+model before creating containers or networks. This applies to both engines,
+including offline setup/treasury jobs and `stack.py compose up/create/run/scale`.
+Checks follow selected services and dependencies; `--no-deps` excludes dependency
+mounts, and run-volume overrides replace mounts at the same target. Noncreating
+inspection, shutdown and exec remain available. Unsupported creation commands
+and watch recreation are refused; use explicit supported commands. Managed `make down` and wrapper `compose down` include all profiles so stopped treasury namespace users
+are removed before their owner; operator volumes are preserved unless explicitly
+removed. Use `stop` for selected services instead of project-wide shutdown. Bare Compose
+bypasses the bind check. It prevents ordinary missing-source mistakes but cannot
+prevent concurrent host deletion after checking; Podman 5.4.2's compatible API
+still lacks native enforcement of `create_host_path: false`.
+
+
+The same topology and boundaries apply on rootless Podman. `CONTAINER_ENGINE`
+(`docker` or `podman`, from the environment or root `.env`, default `docker`)
+selects the engine; any other value is an error, never a fallback.
+`scripts/deployment.py` builds every engine and Compose command from that
+selection: `docker` and `docker compose`, or the local `podman --remote=false`
+and `podman --remote=false compose`. With Podman it adds `compose.podman.yaml`,
+and `compose.podman.funnel.yaml` with Funnel, as the last Compose files, after
+any file a command adds.
+
+With Podman, the stack removes `DOCKER_HOST`, `DOCKER_CONTEXT`, `CONTAINER_HOST`
+and `CONTAINER_CONNECTION` from the environment of its commands: `podman compose`
+passes an inherited `DOCKER_HOST` to its Compose provider. Inspection, backup and
+shutdown then use the local Podman; a launch refuses to start while one of these
+variables is set (`make up` checks this before preflight and setup). The Make
+targets run the Podman command without these variables too. Before each launch
+(`make up`, treasury startup and wallet creation, the test fixtures, and every
+`stack.py compose` subcommand except those that create no network, such as
+`config`, `ps`, `logs`, `exec`, `stop`, `down` or `build`; `run` is exempt only
+when the job and all dependencies use `network_mode: none`), `deployment.prepare_launch()` checks the
+engine: on Docker, Docker Engine 28+ (not Podman behind a `docker` command) and
+Compose 2.36+; on Podman, rootless 5.4+, the user API socket, and Docker Compose
+2.36+ as the provider. `stack.py compose` reads the global options before the
+subcommand (`-p`, `--profile`, `-f`, `--env-file`, `--project-directory`,
+`--dry-run`) and uses them for settings validation, ingress selection,
+preparation, the command and cleanup alike; it
+refuses other global options.
+Native `--dry-run` placement after the subcommand is also recognized, including
+`up`, `run` and `down`; a container command's own `--dry-run` argument is not a
+Compose flag. Dry runs neither prepare nor remove real project networks.
+Shared-namespace runs and none-mode jobs with dependencies can create their
+owner's/dependencies' networks even with `--no-deps`, so they are prepared too.
+Named offline maintenance jobs reject overrides that network the job or its
+dependencies; inspection and repair retain their networkless path. Treasury
+one-shot work uses the same launch classification as stack startup, so engine
+policy is checked before online wallet preparation, not only at later activation.
+
+Compose creates networks through Podman's Docker-compatible API, which sets
+only `isolate=true` and drops other bridge options. Before Compose starts
+services, `deployment.ensure_networks()` therefore creates each project network
+with the `podman` command, using the options the overlays declare and Compose's
+labels; Compose adopts these networks, and `make down` removes them. Every
+non-external network must declare `isolate: strict`; a network without it, or an
+existing network that is not a bridge network of this project or lacks the
+declared options, stops startup.
+
+| Docker behavior | Rootless Podman counterpart |
+| --- | --- |
+| Isolated gateway mode: internal bridges have no host-side address | Rootless bridges live in the user's network namespace, so the gateway is not a host address. The endpoint firewalls deny connected networks and `169.254.0.0/16` on both engines. |
+| No forwarding between different bridge networks | Netavark forwards between bridges unless they are isolated. Every network has `isolate=strict`, which also blocks traffic from the user's other networks without isolation. |
+| `enable_ip_masquerade: false` on `webapp-publish` | `no_default_route=true`: HAProxy has no default route. |
+| Published ports enter on the publication interface | The rootless port forwarder runs inside HAProxy's namespace and connects over loopback to one of its addresses. The local frontend listens on all proxy addresses, and the proxy firewall admits new connections to the webapp port only on `lo`, so traffic from connected networks stays dropped. HAProxy's `X-Forwarded-For` value is therefore a proxy address for every client. |
+| Embedded DNS at `127.0.0.11` | aardvark-dns at each network gateway, denied by the endpoint firewalls with the connected networks. teep resolves provider names through it on `teep-uplink`. |
+| `healthcheck.start_interval`, `gw_priority` | Removed by the overlay. Podman's API refuses `start_interval`. `gw_priority` is not needed: the other network of teep and Tailscale is internal and gives no default route. |
+| Unprivileged processes may bind any port (`net.ipv4.ip_unprivileged_port_start=0`) | Podman sets the floor to 1024 in a container. The overlay sets 0 for HAProxy so that it can bind a low port inside its namespace. This does not let the rootless user publish a host port below the host's own floor (`net.ipv4.ip_unprivileged_port_start`, usually 1024): keep `WEBAPP_PORT` and `TEEP_HOST_PORT` at 1024 or above unless the host allows lower ports. Publication then fails with the engine's own error. |
+| Docker desktop uses a pinned Moby-derived seccomp profile with Chromium namespace allowances | Both lean and desktop Podman executors use the native default seccomp policy, with no-new-privileges and Chromium sandboxing retained. Native policy differs from Docker's profile. Custom file profiles remain unsupported through the configured Compose API: it sends inline JSON while Podman expects a filename; preflight diagnoses those overrides. |
+| Empty executor `/tmp` and `/run` tmpfs mounts | Podman's overlay sets `notmpcopyup`, retaining the same modes and destinations. This prevents image-seeded files owned by upstream UID 1000 from blocking runner UID 10000's runtime setup. |
+| Restart backoff | A container that exits at once restarts about every 0.3 s. Startup refuses to run without an inference provider key, on both engines, because teep exits at once without one. Check `podman ps` and restart counts when a service does not become healthy. |
+
+Pasta maps `169.254.1.2` to the host's own address, not to host loopback. A
+host service bound to the host's address (or to all addresses) is reachable
+there from teep, which has a direct uplink and no endpoint firewall; Hermes, the
+executor, Tor and HAProxy did not reach it (`make podman-paths-test`). This is
+teep's accepted direct uplink. On Docker, teep is expected to reach the host
+through its uplink gateway in the same way; this is not tested on Docker. Do not run
+host services that trust local network peers while the stack runs. A service
+bound only to `127.0.0.1` is not reachable at `169.254.1.2`. Tailscale was not
+tested.
+
+Bind data under `data/` is owned by subordinate user IDs on the host; use
+`podman unshare` for host-side copies (see [backup scope](configuration.md#backup-scope)).
+`tests/podman_paths_smoke.sh` checks the allowed and forbidden paths of a running
+Podman stack, including a client on a network without isolation.
 
 ## Images and other Hermes isolation choices
 

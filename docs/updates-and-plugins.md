@@ -48,8 +48,8 @@ make up
 before setup or service changes. `make x402_treazury-prepare` also runs a cached
 treasury build before inspecting completion or changing research services. Changed
 Dockerfiles, source pins and copied inputs rebuild their affected layers; unchanged
-layers reuse Docker's cache. Build failure stops the operation before those runtime
-changes. Builds may need Internet access; these commands do not search for newer
+layers reuse the selected engine's cache. Build failure stops the operation before
+those runtime changes. Builds may need Internet access; these commands do not search for newer
 upstream commits or force base-image pulls. Status, backup and shutdown remain
 independent of builds.
 
@@ -246,7 +246,7 @@ Remove the SSH patch when equivalent upstream executor-only behavior passes
 these discovery, failure/restart, driver and authenticated-display checks. The
 gateway still needs this project's derived Hermes image and rebuilt web assets;
 switching to an unmodified official agent image would lose the deployment
-policies. Current Docker caching reuses upstream layers and dependencies even
+policies. Engine build caching reuses unchanged upstream layers and dependencies even
 when changing Python patches causes the shared webapp build stage to rerun.
 
 The derived image also creates an empty agent-side `/workspace` for native

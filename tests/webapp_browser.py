@@ -53,6 +53,8 @@ with sync_playwright() as playwright:
         for origin in (LOCAL, PUBLIC):
             context = browser.new_context(ignore_https_errors=True)
             page = context.new_page()
+            chat_frames = []
+            page.on('websocket', lambda ws: ws.on('framereceived', lambda frame: chat_frames.append(frame)))
             page.goto(origin + '/login')
             denied_socket = page.evaluate('''async () => await new Promise((resolve,reject) => {
               const socket=new WebSocket(location.origin.replace(/^http/,'ws')+'/api/host-terminal');
@@ -85,6 +87,13 @@ with sync_playwright() as playwright:
             assert sessions and all(c['httpOnly'] and c['sameSite']=='Lax' and c['path']=='/' for c in sessions)
             assert all(c['secure']==origin.startswith('https:') for c in sessions)
             assert all(c['name'].startswith('__Host-')==origin.startswith('https:') for c in sessions)
+            # Qualify chat once per ingress instead of before every content case.
+            page.get_by_text('ready', exact=True).first.wait_for(timeout=30000)
+            editor = page.locator('[data-slot="composer-rich-input"]').first
+            editor.fill('qualification-stream')
+            editor.press('Enter')
+            page.get_by_text('PRIVATE-CHAT-STREAM-OK', exact=False).wait_for(timeout=30000)
+            assert any('PRIVATE-CHAT-' in str(frame) for frame in chat_frames), 'No live chat text arrived over WebSocket'
             other = 'https://other.example.ts.net' if origin.startswith('https:') else 'http://127.0.0.1:19121'
             # APIRequestContext includes browser cookies but lets us test forged Origin directly.
             transport = 'https://127.0.0.1:10000' if origin==PUBLIC else origin
@@ -129,6 +138,10 @@ with sync_playwright() as playwright:
             logout = pending_logout.value
             assert logout.status in (200,302,303)
             assert not [c for c in context.cookies() if 'hermes_session_at' in c['name']]
+            # The old SPA may still be redirecting after logout. A fresh page
+            # checks the same cleared cookie context without racing navigation.
+            page.close()
+            page = context.new_page()
             page.goto(origin + '/login')
             assert fetch(page, '/api/config').status in (401,403)
             context.close()

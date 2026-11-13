@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 import uuid
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from deployment import compose_base  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,7 +39,7 @@ def main():
                 'volumes': [f'{root}/hermes.env:/tmp/profile/.env:ro']}}}
         config = root / 'compose.json'
         config.write_text(json.dumps(model))
-        command = ['docker', 'compose', '--env-file', '/dev/null', '-p', project, '-f', str(config)]
+        command = [*compose_base(), '--env-file', '/dev/null', '-p', project, '-f', str(config)]
 
         def compose(*args):
             result = subprocess.run([*command, *args], text=True, capture_output=True)

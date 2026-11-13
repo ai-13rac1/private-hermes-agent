@@ -2,16 +2,18 @@
 """Deployment-side staged onboarding; no wallet secrets leave its container."""
 import argparse
 from contextlib import contextmanager
+from datetime import datetime
 import fcntl
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import subprocess
 import sys
 import threading
 import time
-from deployment import ROOT, maintenance_compose
+from deployment import ROOT, engine_command, check_bind_sources, needs_networks, prepare_launch, maintenance_compose
 from provisioning import initialize_research_config, research_config_diff, report_research_config_diff
 
 
@@ -22,11 +24,28 @@ ENDPOINT_FAILURES = (
 )
 
 
+def log_since(started_at):
+    """Return a container start time as a Unix timestamp for `logs --since`.
+
+    Docker reports RFC 3339 (`2026-11-11T22:32:02.496429564Z`); Podman reports
+    `2026-11-11 22:32:02.496429564 +0000 UTC`. Both engines accept a Unix
+    timestamp for --since.
+    """
+    match = re.fullmatch(r'(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d:\d\d)(?:\.(\d+))?'
+                         r'\s*(Z|[+-]\d\d:?\d\d)?(?: \S+)?', started_at.strip())
+    if not match:
+        raise ValueError(f'Cannot read the container start time: {started_at!r}')
+    day, clock, fraction, zone = match.groups()
+    zone = '+00:00' if zone in (None, 'Z') else f'{zone[:3]}:{zone[-2:]}'
+    instant = datetime.fromisoformat(f'{day}T{clock}{zone}')
+    return f'{instant.timestamp():.0f}.{(fraction or "0")[:6].ljust(6, "0")}'
+
+
 @contextmanager
 def serving_diagnostics(identifier, started_at, root):
     """Display this serving lifetime's diagnostics without storing another record."""
     stopped, failures = threading.Event(), []
-    logs = subprocess.Popen(['docker', 'logs', '--follow', '--since', started_at, identifier],
+    logs = subprocess.Popen([*engine_command(), 'logs', '--follow', '--since', started_at, identifier],
                             cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     def drain():
         try:
@@ -66,6 +85,9 @@ class Controller:
         self.command, self.root = command, Path(root)
 
     def call(self, *arguments, **kwargs):
+        check_bind_sources(self.command, arguments)
+        if needs_networks(self.command, arguments):
+            prepare_launch(self.command)
         return subprocess.run([*self.command, *arguments], cwd=self.root, text=True, check=True, **kwargs)
 
     def admin(self, action, capture=False):
@@ -107,13 +129,15 @@ class Controller:
             # A quick native startup failure may precede the live observer.
             stopped = self.call('ps', '-a', '-q', 'x402_treazury', capture_output=True).stdout.strip()
             if stopped:
-                started = subprocess.check_output(['docker', 'inspect', stopped, '--format',
-                                                   '{{.State.StartedAt}}'], text=True).strip()
-                subprocess.run(['docker', 'logs', '--since', started, stopped], cwd=self.root, check=True)
+                started = subprocess.check_output([*engine_command(), 'inspect', stopped, '--format',
+                                                   '{{.State.StartedAt}}'], text=True)
+                subprocess.run([*engine_command(), 'logs', '--since', log_since(started), stopped], cwd=self.root, check=True)
             raise RuntimeError('Research service stopped before MCP activation completed; see its startup diagnostics.')
-        state = subprocess.check_output(['docker', 'inspect', identifier, '--format',
-                                         '{{.State.StartedAt}} {{.RestartCount}}'], text=True).split()
-        return identifier, *state
+        # Podman's start time contains spaces, so the restart count comes first.
+        restarts, started = subprocess.check_output([*engine_command(), 'inspect', identifier, '--format',
+                                                     '{{.RestartCount}}|{{.State.StartedAt}}'],
+                                                    text=True).strip().split('|', 1)
+        return identifier, log_since(started), restarts
 
     def require_instance(self, expected):
         if self.serving_instance() != expected:
@@ -183,7 +207,7 @@ class Controller:
         started = finished = False
         def cancel(signum, _frame):
             interrupted.append(signum)
-            subprocess.run(['docker', 'stop', '--timeout', '-1', name], cwd=self.root, check=False)
+            subprocess.run([*engine_command(), 'stop', '--timeout', '-1', name], cwd=self.root, check=False)
         try:
             # A retained container signals a prior interrupted/failed cleanup;
             # never remove or overwrite it implicitly.
@@ -193,8 +217,8 @@ class Controller:
             started = True
             if interrupted:
                 cancel(interrupted[0], None)
-            logs = subprocess.Popen(['docker', 'logs', '--follow', name], cwd=self.root)
-            result = subprocess.run(['docker', 'wait', name], cwd=self.root, text=True,
+            logs = subprocess.Popen([*engine_command(), 'logs', '--follow', name], cwd=self.root)
+            result = subprocess.run([*engine_command(), 'wait', name], cwd=self.root, text=True,
                                     capture_output=True, check=True)
             code = int(result.stdout.strip())
             finished = True
@@ -203,7 +227,7 @@ class Controller:
                 raise RuntimeError(f'x402_treazury {action} stopped (exit {code}); inspect status before retrying.')
         finally:
             if started and not finished:
-                subprocess.run(['docker', 'stop', '--timeout', '-1', name], cwd=self.root, check=False)
+                subprocess.run([*engine_command(), 'stop', '--timeout', '-1', name], cwd=self.root, check=False)
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
             if logs and logs.poll() is None:
@@ -211,7 +235,7 @@ class Controller:
                 logs.wait()
             # Non-forced removal refuses a still-running financial operation.
             if started:
-                subprocess.run(['docker', 'rm', name], cwd=self.root, check=False, capture_output=True)
+                subprocess.run([*engine_command(), 'rm', name], cwd=self.root, check=False, capture_output=True)
 
     def initialize(self):
         state = self.inspect()

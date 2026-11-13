@@ -13,10 +13,11 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from provisioning import initialize_research_config
+from deployment import compose_base, engine, engine_command  # noqa: E402
 
 
 def docker(*args, check=True):
-    return subprocess.run(['docker', *args], check=check, capture_output=True, text=True)
+    return subprocess.run([*engine_command(), *args], check=check, capture_output=True, text=True)
 
 
 def main():
@@ -24,7 +25,7 @@ def main():
     image = 'private-hermes-x402_treazury:local'
     with tempfile.TemporaryDirectory(prefix=identity) as folder:
         root = Path(folder)
-        initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
+        initialize_research_config([*compose_base(), '-f', 'compose.yaml'], root)
         directory = root / 'config/x402_treazury'
         path = directory / 'research_desk.toml'
         original = path.read_text()
@@ -67,7 +68,7 @@ def main():
                     {'type': 'bind', 'source': str(directory),
                      'target': '/opt/x402/examples/deployments', 'read_only': True}]}},
                 'volumes': {'x402_treazury-data': {'external': True, 'name': identity}}}))
-            command = ['docker', 'compose', '--env-file', '/dev/null', '-p', identity,
+            command = [*compose_base(), '--env-file', '/dev/null', '-p', identity,
                        '-f', str(ROOT / 'compose.yaml'), '-f', str(override)]
 
             def admin(action, check=True):
@@ -82,9 +83,14 @@ def main():
             address = json.loads(addresses)['receive_addresses'][0]['encoded_address']
             # Negative control reproduces the original missing-scratch defect
             # against exactly the same wallet, without networking or spending.
+            scratch = root / 'read-only-scratch'
+            scratch.mkdir(mode=0o755)
             denied = docker('run', '--rm', '--network', 'none', '--read-only',
                             '--mount', f'type=volume,src={identity},dst=/var/lib/x402',
                             '--mount', f'type=bind,src={directory},dst=/opt/x402/examples/deployments,readonly',
+                            # Podman supplies writable /tmp even with --read-only.
+                            # Force this negative control's scratch read-only on both engines.
+                            '--mount', f'type=bind,src={scratch},dst=/tmp,readonly',
                             image, 'wallet', 'addresses', check=False)
             assert denied.returncode and 'Read-only file system' in denied.stderr, denied.stderr
             assert address in admin('status').stdout
@@ -112,7 +118,7 @@ def main():
             assert policy().get('wallet_bootstrap') is None
             assert inspect()['prepared']
             assert execute('x402_treazury', 'wallet', 'addresses').stdout == addresses
-            initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
+            initialize_research_config([*compose_base(), '-f', 'compose.yaml'], root)
             assert path.read_text() == ordinary
             publish(original)
             assert policy()['wallet_bootstrap']['bootstrap_group'] == 'general'
@@ -160,7 +166,8 @@ def main():
             assert json.loads(result.stdout)['prepared']
             # Exercise the actual Make entrypoints from an isolated public-code
             # copy. Invalid ingress settings and auth must not block inspection.
-            for name in ('Makefile', 'compose.yaml', '.env.example'):
+            for name in ('Makefile', '.env.example', 'compose.yaml', 'compose.executor.yaml',
+                         'compose.funnel.yaml', 'compose.podman.yaml', 'compose.podman.funnel.yaml'):
                 shutil.copyfile(ROOT / name, root / name)
             shutil.copytree(ROOT / 'scripts', root / 'scripts', ignore=shutil.ignore_patterns('__pycache__'))
             (root / 'components').symlink_to(ROOT / 'components', target_is_directory=True)
@@ -171,13 +178,30 @@ def main():
             auth = root / 'config/webapp/auth.json'
             auth.parent.mkdir(parents=True)
             auth.write_text('invalid auth')
-            initialize_research_config(['docker', 'compose', '-f', 'compose.yaml'], root)
+            initialize_research_config([*compose_base(), '-f', 'compose.yaml'], root)
             assert path.read_text() == changed
+            # The disposable .env deliberately contains broken policy and no
+            # engine selector. Keep children on the engine that owns this wallet,
+            # including when the parent's selection came from the real root .env.
+            environment = dict(os.environ, CONTAINER_ENGINE=engine(), COMPOSE_PROJECT_NAME=identity)
             seeded = subprocess.run(['make', 'x402_treazury-config'], cwd=root,
-                                    env=dict(os.environ, COMPOSE_PROJECT_NAME=identity),
+                                    env=environment,
                                     capture_output=True, text=True, check=True)
             assert path.read_text() == changed
             assert not (root / 'data').exists()
+            # Comparison is offline, textual and read-only even with malformed
+            # policy and unrelated invalid deployment settings. Children keep
+            # the engine that owns this fixture, including on Podman-only hosts.
+            previous_mode = path.stat().st_mode & 0o777
+            publish('invalid TOML [')
+            compared = subprocess.run(['make', 'x402_treazury-config-diff'], cwd=root, env=environment,
+                                      capture_output=True, text=True, check=True)
+            assert '--- packaged default (local image)' in compared.stdout
+            assert '+invalid TOML [' in compared.stdout
+            assert path.read_text() == 'invalid TOML ['
+            assert path.stat().st_mode & 0o777 == previous_mode
+            assert not (root / 'data').exists()
+            publish(changed)
             # Broken unrelated network/storage/config paths must not be mounted
             # or initialized by saved-wallet inspection or repeated init.
             network = root / 'config/network/mcp-allowlist.json'
@@ -189,11 +213,13 @@ def main():
             held_policy = root / 'held-research-policy'
             directory.rename(held_policy)
             directory.write_text('unrelated wrong-type config path')
-            environment = dict(os.environ, COMPOSE_PROJECT_NAME=identity)
             for target in ('x402_treazury-status', 'x402_treazury-init'):
                 result = subprocess.run(['make', target], cwd=root, env=environment,
                                         capture_output=True, text=True, check=True)
                 assert address in result.stdout
+            compared = subprocess.run(['make', 'x402_treazury-config-diff'], cwd=root, env=environment,
+                                      capture_output=True, text=True)
+            assert compared.returncode != 0, 'Explicit comparison masked an unreadable policy path'
             meta = ('import sys; sys.path.insert(0,' + repr(str(ROOT / 'scripts')) + '); '
                     'from x402_treazury import Controller; Controller(' + repr(command) + ').admin("activation-failed")')
             subprocess.run([sys.executable, '-c', meta], capture_output=True, text=True, check=True)

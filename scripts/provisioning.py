@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-from deployment import ROOT
+from deployment import ROOT, engine_command, check_bind_sources
 
 
 def setup_container(command):
@@ -16,11 +16,12 @@ def setup_container(command):
 def initialize_setup(command):
     # --wait expects a running/healthy service and can reject a successfully
     # exited one-shot. Wait for this container's exit status explicitly instead.
+    check_bind_sources(command, ['up', '--no-deps', 'setup'])
     subprocess.run([*command, 'up', '-d', '--no-deps', '--force-recreate', 'setup'], cwd=ROOT, check=True)
     identifier = setup_container(command)
     if not identifier:
         raise RuntimeError('Setup container was not created')
-    code = int(subprocess.check_output(['docker', 'wait', identifier], cwd=ROOT, text=True).strip())
+    code = int(subprocess.check_output([*engine_command(), 'wait', identifier], cwd=ROOT, text=True).strip())
     if code:
         subprocess.run([*command, 'logs', '--tail', '40', 'setup'], cwd=ROOT, check=False)
         raise RuntimeError(f'Offline setup failed (exit {code}); application startup was not attempted.')
@@ -33,7 +34,7 @@ def packaged_research_config(command):
         cwd=ROOT, text=True))
     image = model['services']['x402_treazury']['image']
     return subprocess.check_output(
-        ['docker', 'run', '--rm', '--pull', 'never', '--network', 'none', '--entrypoint', 'cat', image,
+        [*engine_command(), 'run', '--rm', '--pull', 'never', '--network', 'none', '--entrypoint', 'cat', image,
          '/opt/x402/examples/deployments/research_desk.toml'], cwd=ROOT)
 
 

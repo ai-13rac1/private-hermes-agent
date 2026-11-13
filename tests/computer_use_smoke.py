@@ -61,15 +61,23 @@ finally: server.shutdown();server.server_close();thread.join()
     proof = """import hashlib,json
 from pathlib import Path
 print(json.dumps({p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in (
-'/run/executor-auth/ssh_host_ed25519_key.pub', '/workspace/computer-use-marker',
+'/workspace/computer-use-marker',
 '/home/runner/.hermes/bot-desktop/browser-profile/fixture-state')}))
 """
-    original = json.loads(smoke.python('executor', proof).stdout)
+    def snapshot():
+        state = json.loads(smoke.python('executor', proof).stdout)
+        # The auth directory is deliberately root-only on native Linux binds.
+        # Inspect only its public identity through the authorized test exec.
+        state['host_public_key'] = smoke.execute('executor', 'sha256sum',
+            '/run/executor-auth/ssh_host_ed25519_key.pub', user='0:0').stdout.strip()
+        return state
+
+    original = snapshot()
     for enabled in ('false', 'true'):
         environment = dict(os.environ, COMPUTER_USE_ENABLED=enabled)
         smoke.compose('build', 'executor', env=environment)
         smoke.compose('up', '-d', '--wait', '--no-deps', 'executor', 'hermes', env=environment)
-        assert json.loads(smoke.python('executor', proof).stdout) == original
+        assert snapshot() == original
         result = smoke.python('hermes', """import model_tools
 from hermes_bootstrap import PRIVATE_HERMES_COMPUTER_USE
 from tools.registry import registry
@@ -110,7 +118,7 @@ else: raise AssertionError('desktop started with executor stopped')
 """)
     smoke.compose('up', '-d', '--wait', '--no-deps', 'executor')
     smoke.python('hermes', "from tools.bot_desktop import runtime; assert runtime.start().running")
-    assert json.loads(smoke.python('executor', proof).stdout) == original
+    assert snapshot() == original
     smoke.python('executor', 'cookie_seed=False\n' + browser_check)
     print('PASS: on/off/on builds preserve executor identity, workspace and actual Chromium localStorage/cookies; missing binaries/SSH refuse desktop and restart recovers', flush=True)
 

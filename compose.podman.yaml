@@ -1,0 +1,61 @@
+# Rootless Podman overlay. scripts/deployment.py adds it last when
+# CONTAINER_ENGINE=podman. It removes or replaces the Docker-only settings
+# of compose.yaml; see docs/architecture.md (engine differences).
+#
+# Netavark forwards between bridge networks unless they are isolated, and it
+# rejects Docker's bridge options. isolate: strict restores the separation
+# between networks that Docker gives by default.
+
+services:
+  tor:
+    healthcheck:
+      start_interval: !reset null
+  agent-net:
+    healthcheck:
+      start_interval: !reset null
+  executor-net:
+    healthcheck:
+      start_interval: !reset null
+  executor:
+    # Keep the same native policy for lean and desktop Podman executors.
+    # Docker's desktop profile is selected only on Docker, without translation.
+    security_opt: !override [no-new-privileges:true]
+    # Match Docker's empty tmpfs; copying upstream's UID-1000 runtime prevents
+    # the UID-10000 desktop from preparing its private runtime directory.
+    tmpfs: !override ["/tmp:mode=1777,notmpcopyup", "/run:mode=0755,notmpcopyup"]
+    healthcheck:
+      start_interval: !reset null
+  teep:
+    networks:
+      teep-uplink:
+        gw_priority: !reset null
+  webapp-proxy:
+    # Docker lets unprivileged processes bind any port; Podman sets the floor
+    # to 1024 in a container. This lets HAProxy bind a low port in its namespace;
+    # it does not lower the host's floor for publishing a low host port.
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    environment:
+      # The rootless port forwarder connects from inside the proxy namespace.
+      PRIVATE_HERMES_PORT_FORWARDER: loopback
+
+networks:
+  agent-route:
+    driver_opts: !override {isolate: strict}
+  executor-route:
+    driver_opts: !override {isolate: strict}
+  execution-control:
+    driver_opts: !override {isolate: strict}
+  inference:
+    driver_opts: !override {isolate: strict}
+  mcp-access:
+    driver_opts: !override {isolate: strict}
+  webapp-backend:
+    driver_opts: !override {isolate: strict}
+  tor-uplink:
+    driver_opts: !override {isolate: strict}
+  teep-uplink:
+    driver_opts: !override {isolate: strict}
+  webapp-publish:
+    # No route out: HAProxy only answers published connections.
+    driver_opts: !override {isolate: strict, no_default_route: "true"}

@@ -4,9 +4,12 @@ import os
 from pathlib import Path
 import subprocess
 import smoke
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from deployment import compose_base  # noqa: E402
 
-smoke.COMPOSE = ['docker', 'compose', '-p', 'private-hermes-plugins-test',
-                 '-f', 'compose.yaml', '-f', 'tests/compose.yaml']
+smoke.COMPOSE = [*compose_base(), '-p', 'private-hermes-plugins-test',
+                 *smoke.compose_files(False, extra=('tests/compose.yaml',))]
 FIXTURE = (Path(__file__).parent / 'fixtures/plugin_lifecycle.py').read_text()
 
 

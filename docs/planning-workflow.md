@@ -35,6 +35,11 @@ A useful plan states:
   change. Specify what each gate establishes and the evidence it needs.
 - Missing evidence, remaining decisions and any live exposure, financial or
   destructive operations outside current task authorization.
+- Docker and rootless Podman consumers, shared implementation choices, concrete
+  engine exceptions and affected native checks on each engine. Reuse the
+  [engine guidance](architecture.md#rootless-podman) and
+  [qualification workflow](development.md#qualification-and-maintenance); do not
+  assume identical Compose models prove identical runtime behavior.
 
 Check relevant active/deferred plans for shared-interface conflicts. Reconcile
 affected requirements with the change; do not silently restore superseded names,
@@ -87,6 +92,10 @@ appropriate. Do not turn plan execution or evidence collection into an additiona
 orchestration, receipt or recovery system.
 
 Validate changed behavior using existing focused checks and controlled fixtures.
+For affected runtime contracts, cover both supported engines and record actual
+engine, Compose provider, platform and filesystem limits where relevant. Missing
+native coverage is not a pass. Reuse unchanged evidence; documentation-only work
+does not require runtime suites or a new engine experiment.
 Security claims require allowed and forbidden path evidence, with failure and
 restart coverage where relevant. Keep fixtures separate from production state
 and secrets; serialize checks sharing fixed networks/runtime state. Do not add

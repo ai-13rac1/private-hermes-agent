@@ -19,7 +19,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == '/relay/image.png':
                 mime = 'image/png'
-                body = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')
+                body = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC')
             elif self.path == '/relay/image.svg':
                 mime = 'image/svg+xml'
                 body = b'<svg xmlns="http://www.w3.org/2000/svg"><script>fetch("https://public.test:19202/relay-script")</script><image href="https://public.test:19202/relay.png"/></svg>'

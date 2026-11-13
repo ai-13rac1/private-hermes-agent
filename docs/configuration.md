@@ -45,7 +45,8 @@ example and explicit Compose mappings together.
 initial file is `config/network/mcp-allowlist.json`; its tracked default is
 `components/network/mcp-allowlist.json`. `make init` creates the local copy only
 if missing. Existing local policy is preserved. The service mounts it read-only,
-and Compose refuses to create a directory if the source file is missing. Run
+and managed startup refuses missing required bind sources before container
+creation. Raw Compose lacks this enforcement on the qualified Podman API. Run
 `make init` before starting a fresh checkout. Use `make up` and the
 `scripts/stack.py compose` wrapper so enabled ingress layers are selected.
 
@@ -169,11 +170,19 @@ advertised tools. A profile can still exclude either tool. `browser_cdp`,
 `browser_dialog` and `browser_vault` remain disabled. `WEBAPP_EXTERNAL_CONTENT`
 keeps its separate meaning; there is no second preference for browser automation.
 
+Docker selects this wrapper's pinned Moby-derived seccomp profile with Chromium
+namespace allowances. Rootless Podman uses its native default seccomp policy for
+both lean and desktop executors. Both retain no-new-privileges and Chromium's
+own sandbox. The policies differ; selecting Podman keeps the same engine baseline
+used by its lean executor. See [engine differences](architecture.md#rootless-podman)
+and [native Podman desktop qualification](development.md#native-podman-desktop-support).
+
 Browser automation supports the executor's packaged Chromium only. External CDP,
 cloud browsers, real host profiles and alternate engines fail before execution.
 Its Python harness, daemon, workspace helpers and child processes run as runner
 in the executor. Named sessions have separate tabs, with the same shared browser
-profile/cookies. Workspace files under `/workspace/browser-use/` persist; Python
+profile/cookies. Recreating the executor clears stale browser process coordination
+while retaining the profile, cookies and credentials. Workspace files under `/workspace/browser-use/` persist; Python
 variables do not persist between calls. Cancellation or a lost connection can
 leave an already-issued browser action completed; inspect state before retrying.
 Browser downloads use the shared `/workspace/browser-use/downloads` directory;
@@ -181,8 +190,9 @@ named tabs do not provide separate download or cookie authority.
 
 The same executor service, Tor namespace, runner UID/GID 10000, SSH identity and
 home/workspace mounts serve both choices. Neither enables sudo or a writable
-system filesystem. The desktop alone selects a maintained seccomp profile needed
-by Chromium's own sandbox; it adds no container capabilities. Desktop processes
+system filesystem. Docker's desktop selects a maintained seccomp profile for
+Chromium's namespace sandbox; Podman keeps its native default. Neither desktop
+configuration adds container capabilities. Desktop processes
 start on demand through native SSH streams, with native idle shutdown. Standard
 cua-driver permissions and native approvals apply; modes that would create a
 gateway-local driver, including approval-bypass mode, fail with a scoped reason.
@@ -211,7 +221,8 @@ See [updates and plugins](updates-and-plugins.md) for the version-check/update
 workflow, persistent user plugins, and privacy defaults independent of notifications.
 
 The recommended provider is NearAI via teep's `neardirect` backend. Set
-`NEARAI_API_KEY` in `.env`. The native Hermes model picker has a **Teep** entry
+`NEARAI_API_KEY` in `.env`. `make up` refuses to start when no provider API key
+is set, because teep does not start without one. The native Hermes model picker has a **Teep** entry
 with these choices:
 
 - `neardirect:z-ai/glm-5.3-flash-long` (initial default)
@@ -306,8 +317,8 @@ alongside the existing executor-to-inference denial and Tor routing checks.
 ## Persistent data layout
 
 Hermes profile/database state and x402_treazury wallet/database state use native
-Docker named volumes (`hermes-data` and `x402_treazury-data`). Other persistent
-files use the bind directories below. This keeps lock-sensitive state off the
+container-engine named volumes (`hermes-data` and `x402_treazury-data`). Other
+persistent files use the bind directories below. This keeps lock-sensitive state off the
 host-backed filesystem that failed qualification on this Docker Desktop host.
 `setup init` checks locking on the native volumes before applications start.
 No existing volume contents are copied or deleted by this change.
@@ -378,11 +389,11 @@ for backup. Do not loosen wallet permissions to make them readable to host tools
 Only trusted offline setup/storage and MCP jobs mount the whole `data/` parent. Hermes,
 the executor, financial services, Tor and Tailscale each receive their own leaf
 mounts. The executor never receives Hermes state, wallet files, or the MCP token.
-The shared Tor Unix-socket directory remains a Docker volume: it is runtime IPC,
+The shared Tor Unix-socket directory remains a named volume: it is runtime IPC,
 not backup data. `/tmp` remains disposable; `/workspace` is durable work, not an
 automatically cleared scratch directory.
 
-`.env`, `config/`, and `data/` are Git-ignored and excluded from Docker build
+`.env`, `config/`, and `data/` are Git-ignored and excluded from container build
 contexts. Builds receive only `components/`.
 
 ## Applying configuration changes
@@ -409,14 +420,19 @@ Use the native wallet backup command or gracefully stop writers with `make down`
 before making a complete filesystem copy. Copying live SQLite databases and their
 sidecars independently is not a consistent backup. Preserve file modes, ownership
 and the full application directories. Tor sockets and other runtime IPC do not
-need backup. `make down` and ordinary `docker compose down` retain named volumes
-and host bind directories. Starting again with the same Compose project name
+need backup. `make down` retains named volumes and host bind directories on both
+engines.
+Prefer it over raw Compose shutdown so optional/profiled namespace users are
+included. Starting again with the same Compose project name
 reattaches the existing volumes. The default project name is `private-hermes`;
-changing it selects a different set of volumes. `docker compose down -v` explicitly
+changing it selects a different set of volumes. Compose `down -v` explicitly
 deletes the application volumes, including wallets and conversations, as well as
 the runtime socket volume. Do not use it on a deployment whose state you need.
 Deleting bind-mounted host data requires a separate filesystem operation.
-Backing up `data/` alone does not include the application volumes.
+Backing up `data/` alone does not include the application volumes. On rootless
+Podman, files under `data/` belong to subordinate user IDs; copy them inside the
+user namespace, for example `podman unshare tar -C data -cpf backup.tar .`, so
+ownership is preserved.
 
 Hermes's generated profile `.env` in `hermes-data` is distinct from the root
 deployment `.env`: it contains the MCP token and Hermes-owned credentials.

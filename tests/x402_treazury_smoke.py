@@ -10,16 +10,18 @@ import smoke
 
 sys.path.insert(0, str(Path(__file__).parents[1] / 'components/x402_treazury'))
 from endpoints import ADDRESS, ENDPOINTS
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from deployment import compose_base, engine_command  # noqa: E402
 
-smoke.COMPOSE = ['docker', 'compose', '-p', 'private-hermes-x402-treazury-test',
-                 '-f', 'compose.yaml', '-f', 'tests/compose.yaml']
+smoke.COMPOSE = [*compose_base(), '-p', 'private-hermes-x402-treazury-test',
+                 *smoke.compose_files(False, extra=('tests/compose.yaml',))]
 
 
 def run_suite():
     failed = True
     try:
         print('Validating the production x402_treazury configuration offline...', flush=True)
-        command = ['docker', 'run', '--rm', '--network', 'none', 'private-hermes-x402_treazury:local']
+        command = [*engine_command(), 'run', '--rm', '--network', 'none', 'private-hermes-x402_treazury:local']
         production = json.loads(subprocess.check_output(command + ['config', 'show'], text=True))
         assert production['base_rpc_policy']['primary_default']
         assert production['base_rpc_policy']['fallback_defaults']
@@ -38,12 +40,12 @@ def run_suite():
         identity = json.loads(subprocess.check_output(command + ['build-info'], text=True))
         assert identity['source_revision'] == 'e493b88d364cac25ed84922ae162c3f6a5d22452'
         assert identity['source_dirty'] is False
-        gate = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'python3',
+        gate = subprocess.run([*engine_command(), 'run', '--rm', '--network', 'none', '--entrypoint', 'python3',
                                'private-hermes-x402_treazury:local', '-c',
                                "import sys; sys.path.insert(0,'/opt'); from onboarding import serve; serve()"],
                               text=True, capture_output=True)
         assert gate.returncode != 0 and 'Serving refused' in gate.stderr
-        partial = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'python3',
+        partial = subprocess.run([*engine_command(), 'run', '--rm', '--network', 'none', '--entrypoint', 'python3',
                                   'private-hermes-x402_treazury:local', '-c',
                                   "import sys; from pathlib import Path; sys.path.insert(0,'/opt'); from onboarding import initialize; Path('/var/lib/x402/state').mkdir(); initialize()"],
                                  text=True, capture_output=True)
