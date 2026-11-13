@@ -12,6 +12,11 @@ the agent from accessing your local machine. You can use Hermes through your
 browser or terminal, and optionally enable public HTTPS access through Tailscale
 Funnel.
 
+By default, the webapp also prevents displayed content from bypassing Tor through
+your own browser: supported external images load through the stack's Tor gateway,
+and active external content is blocked. You can use a normal browser with these
+protections; deliberate external link clicks still use your browser's connection.
+
 ## Components and the problems they solve
 
 - **Hermes Agent** provides chat, tool use, skills, and subagent orchestration.
@@ -131,6 +136,16 @@ desktop supports the qualified Docker and rootless Podman setups. See
 For remote browser access, follow the [optional Funnel setup](docs/webapp.md#optional-public-funnel).
 Funnel is disabled by default and requires explicit enrollment and activation.
 
+To enable website preview tools, set `WEBAPP_EXTERNAL_CONTENT=browser_native`
+in `.env`, run `make up`, reload the webapp and start a new conversation.
+These previews currently require this mode and load external content through
+**your browser's connection, outside the stack's Tor gateway**. Use this mode
+only with Tor Browser or Brave Browser's Private Window with Tor; the stack does
+not detect or verify browser Tor routing. Keep the default `tor_proxied` to
+retain the webapp's protections in a normal browser. Executor desktop viewing
+and browser automation do not require `browser_native`. See the
+[webapp content policy](docs/webapp.md#external-content-policy) for modes and limits.
+
 ## Enable paid research when ready
 
 Edit `config/x402_treazury/research_desk.toml` to adjust wallet funding policy,
@@ -246,10 +261,14 @@ interactive terminal runs in the agent container and is separate from the
 model's SSH code executor. Plugins also run with agent privileges. Only grant
 access to people and plugins you trust.
 
-By default, supported external raster images load through the authenticated
-gateway over Tor. Active previews and external players have non-loading
-fallbacks. Deliberate external link clicks use your browser's own connection;
-browser requests do not inherit the stack's Tor route. See [webapp content policy](docs/webapp.md#external-content-policy)
+The default `WEBAPP_EXTERNAL_CONTENT=tor_proxied` protects against automatic
+external requests from displayed content exposing your browser's network address.
+Supported external raster images load through the authenticated gateway over
+Tor; active previews and external players have non-loading fallbacks.
+Deliberate external link clicks and browser-native previews use your browser's
+own connection. Downloaded documents opened outside the webapp may also contact
+external services outside Tor.
+See [webapp content policy](docs/webapp.md#external-content-policy)
 for image consent, other policy modes, and current limits.
 
 Tor egress does not cover Teep's direct provider connection or your browser's
