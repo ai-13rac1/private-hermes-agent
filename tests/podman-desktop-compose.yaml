@@ -1,8 +1,0 @@
-# Qualification experiment only. Production Podman desktop remains guarded.
-# Omit the inherited custom profile, retaining native default seccomp and NNP.
-services:
-  executor:
-    image: private-hermes-executor-podman-desktop-trial:local
-    security_opt: !override [no-new-privileges:true]
-    # Match Docker's empty tmpfs rather than copying upstream's old UID 1000 runtime.
-    tmpfs: !override ["/tmp:mode=1777,notmpcopyup", "/run:mode=0755,notmpcopyup"]

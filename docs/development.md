@@ -198,8 +198,8 @@ The VM's checkout umask produced a group-writable public SSH configuration;
 setting `components/hermes/ssh-client.conf` to `0644` was required by OpenSSH
 before the successful core rerun. Source content was unchanged during that
 initial qualification. Host browser
-prerequisites were installed separately. Executor desktop/browser use remains
-explicitly refused with Podman; no inference, funds or live Funnel was tested.
+prerequisites were installed separately. At that initial stage, executor
+desktop/browser use was explicitly refused with Podman; no inference, funds or live Funnel was tested.
 
 Component-specific checks and limits are documented in the
 [webapp](webapp.md#verification-and-current-limits),
@@ -228,21 +228,21 @@ After building the desktop image, `python3 tests/desktop_startup_smoke.py` runs
 its actual startup script in a networkless read-only fixture with the existing
 SSH bounding set. It verifies stale Chromium coordination unlinking, cookie-like
 and identity data preservation, retained symlink targets and visible refusal of
-an unexpected coordination directory. Podman trials pass
-`--image private-hermes-executor-podman-desktop-trial:local`. The fixture supplies
-no host keys, so native sshd must refuse after preparation; normal real SSH and
+an unexpected coordination directory. The same command uses the normal executor
+tag on Podman. The fixture supplies no host keys, so native sshd must refuse after preparation; normal real SSH and
 browser lifecycle checks remain separate.
 
-The desktop executor uses a checked-in Moby seccomp baseline from commit
+The Docker desktop executor uses a checked-in Moby seccomp baseline from commit
 `7b5ccfab2d6b4e0aa64c6cce401a2705788eafeb`, with one added allow rule for
 `clone`, `setns`, and `unshare`. Source:
 [default.json](https://github.com/moby/profiles/blob/7b5ccfab2d6b4e0aa64c6cce401a2705788eafeb/seccomp/default.json);
-license: `components/executor/seccomp-LICENSE`. The profile is selected only for
-the desktop variant by native Compose inheritance in `compose.executor.yaml`.
+license: `components/executor/seccomp-LICENSE`. The profile is selected for
+Docker's desktop variant by native Compose inheritance in `compose.executor.yaml`;
+the Podman overlay replaces it with the native engine policy.
 It retains the baseline's `clone3` ENOSYS behavior and does not allow io_uring.
 Playwright's older published full profile was rejected because it changed those
 unrelated syscall contracts. Reconcile the baseline with engine updates. Remove
-the custom profile when a selected native engine policy permits the qualified
+Docker's custom profile when its native engine policy permits the qualified
 Chromium sandbox without weakening unrelated syscall restrictions.
 
 Enabling user namespaces exposes additional kernel paths to executor code; it
@@ -256,7 +256,7 @@ completion prerequisite. The pinned desktop image includes Linux AMD64 and ARM64
 Compose imposes no ARM64 restriction, and Chromium discovery retains its AMD64
 paths alongside the added ARM64 path. This preserves the ability to qualify AMD64
 without claiming that it has passed. The [rootless engine differences](architecture.md#rootless-podman)
-explain why executor desktop/browser tools remain Docker-only; native operator
+record the engine-specific desktop policies; native operator
 webapp/browser qualification is recorded separately above and below.
 
 The image choice avoids a substantial download and disk footprint when desktop
@@ -486,8 +486,8 @@ qualified lean deployments on Docker Desktop ARM64 and Debian 13 ARM64 rootless
 Podman. The completed plan was removed under the planning workflow; Git history
 retains its design and review evidence.
 
-Podman executor computer/browser tools remain refused because of seccomp profile
-delivery; operator webapp/browser qualification is a separate capability. Live
+At that reviewed revision, Podman executor computer/browser tools were refused
+because of seccomp profile delivery; operator webapp/browser qualification is a separate capability. Live
 Funnel, provider attestation, funded settlement and other platforms remain
 unqualified. Existing Docker optional-executor evidence remains historical and
 was not rerun for this host-helper/fixture correction.
@@ -508,9 +508,11 @@ model. Normal deployment state and unrelated resources were preserved.
 
 Qualification does not extend to Linux Docker, AMD64, other distributions/kernels,
 Compose 2.36–2.39 or arbitrary provider/engine combinations. Additional targets
-need native allowed/forbidden-path and lifecycle evidence. The current custom-profile Podman executor desktop model
-first needs a qualified delivery mechanism that preserves its selected policy; neither native bind enforcement nor seccomp delivery was fixed
-by upgrading the stock Compose provider.
+need native allowed/forbidden-path and lifecycle evidence. The earlier
+custom-profile Podman desktop model required a delivery mechanism
+preserving its selected policy; neither native bind enforcement nor seccomp
+delivery was fixed by upgrading the stock Compose provider. The current desktop
+instead uses the native Podman policy as described below.
 
 
 ## Seccomp delivery investigation
@@ -563,7 +565,7 @@ Compose solution.
 All probe containers/projects were removed, and existing deployment state was
 preserved. The probes do not establish Chromium's nested sandbox, desktop
 operation, SSH lifecycle or Tor/forbidden-path behavior for the desktop image.
-The current Podman computer/browser guard remains in place.
+At that investigation stage, the Podman computer/browser refusal remained in place.
 
 A subsequent comparison used the VM's selected default profile at
 `/usr/share/containers/seccomp.json`, not `seccomp=unconfined`. Both default and
@@ -584,9 +586,8 @@ while the VM default permits them at the syscall-filter layer. Both block
 io_uring and retain capability/kernel restrictions. Dropping only the custom
 profile therefore retains container seccomp but changes its allowed kernel attack
 surface; it does not establish equivalent security. Podman's default is already
-the lean executor's policy. It may support Chromium's namespace sandbox without
-a translator, but the actual desktop/browser sandbox layers and the additional
-kernel interfaces must be qualified and reviewed before changing the guard.
+the lean executor's policy. The subsequent qualification below demonstrates Chromium's namespace sandbox
+and the accepted native engine policy without a translator.
 Disabling seccomp or Chromium's sandbox is not that alternative.
 
 A separate lifetime probe created a container through the compatible API with a
@@ -596,116 +597,113 @@ supports temporary profile files on the tested Podman 5.4.2; it does not qualify
 other versions or an API proxy implementation.
 
 
-## Podman default-policy desktop experiment
+## Native Podman desktop support
 
-The production Podman desktop guard remains enabled. The test-only overlay
-`tests/podman-desktop-compose.yaml` tries the VM's native default seccomp profile
-without changing Docker's custom policy or ordinary deployment configuration.
-It selects a separate executor image tag, retains no-new-privileges and the
-existing SETUID/SETGID/SYS_CHROOT bounding set, and disables Podman tmpfs copy-up
-for /tmp and /run. The latter matches the empty mounts required by startup:
-copy-up otherwise exposes upstream's UID-1000 runtime directory to UID 10000,
-preventing SSH startup. No additional capabilities are required. Podman documents
-this native option in
-[its tmpfs mount options](https://docs.podman.io/en/v5.4.2/markdown/podman-run.1.html).
+Rootless Podman uses its native default seccomp policy for both lean and desktop
+executors. Docker retains the pinned Moby-derived desktop profile described
+above. The operator accepted the engine-specific native baseline after the
+experiment at `c7eabe9`; policy equivalence is not claimed. Both retain active
+seccomp, no-new-privileges, Chromium's namespace/seccomp sandbox, the existing
+SSH bounding set, zero-capability runner children and the same Tor/private-state
+boundaries. No translator, provider patch, extra capability or operator setting
+was added.
 
-Stop any normal deployment first; fixed-subnet qualification projects must not
-overlap. Build the ordinary lean stack images before these disposable checks.
-Select `CONTAINER_ENGINE=podman` and the qualified official Compose provider, then
-run the phases serially from the repository root:
+The normal Podman overlay replaces the executor's inherited custom security
+options with no-new-privileges and disables tmpfs copy-up for /tmp and /run.
+This keeps their modes/destinations and matches Docker's empty mounts: Podman's
+image copy-up otherwise exposes upstream's UID-1000 runtime directory to runner
+UID 10000 and prevents SSH startup. See Podman's
+[tmpfs mount options](https://docs.podman.io/en/v5.4.2/markdown/podman-run.1.html).
+Preflight accepts the normal Podman desktop model; unsupported custom file
+profiles supplied through Compose still receive a targeted delivery diagnostic.
+
+Use the standard fixtures with either engine. Stop a normal deployment first;
+fixed-subnet qualification projects must not overlap. On Podman select the user
+socket and official Compose provider described in the README, then run:
 
 ```sh
-python3 tests/podman_desktop_smoke.py sandbox
-python3 tests/podman_desktop_smoke.py core
-python3 tests/podman_desktop_smoke.py browser
-WEBAPP_BROWSER_PYTHON=/path/to/browser-test/python python3 tests/podman_desktop_smoke.py webapp
+CONTAINER_ENGINE=podman make computer-use-test
+CONTAINER_ENGINE=podman make browser-use-test
+CONTAINER_ENGINE=podman python3 tests/desktop_startup_smoke.py
+CONTAINER_ENGINE=podman COMPUTER_USE_ENABLED=true WEBAPP_BROWSER_PYTHON=/path/to/browser-test/python python3 tests/webapp_smoke.py --browser-only
 ```
 
-Each phase builds the existing pinned desktop target under the trial tag. Core
-qualification toggles the same trial tag off/on to check native persistence;
-ordinary lean tags and operator state are preserved. The webapp phase needs the
-normal Playwright dependencies and installed browsers, and explicitly exercises
-local and simulated HTTPS desktop/browser results. Neither it nor the other
-phases enrolls Funnel, calls inference or performs paid research.
+The Make targets build the normal desktop image and preflight the same enabled
+model their runtime fixtures use. No experimental security overlay or trial tag
+is involved. The webapp phase needs installed Playwright browsers/dependencies;
+it covers local and simulated HTTPS desktop/browser results, without enrolling
+Funnel, calling inference or performing paid research. Core checks also verify
+the Compose-created runner's zero process capabilities, NNP 1 and seccomp 2.
+Serialize core, browser, webapp and lean runtime fixtures on each host.
 
-On 2026-11-13, the standalone sandbox phase passed on Debian 13 ARM64 rootless
-Podman 5.4.2 with official Compose 5.1.4 and Chromium 156.0.8078.4. Chromium's
-actual diagnostics reported namespace, PID/network namespace and seccomp-BPF
-sandboxes. Its UID-10000 parent had zero effective/permitted/inheritable/ambient
-capabilities, NNP 1 and seccomp 2; nested user-namespace root could neither join
-nor open raw sockets in the parent network namespace. The inherited bounding
-set matters: removing SYS_CHROOT at container creation makes Podman's default
-filter deny Chromium's namespace chroot even after nested user-namespace setup.
+The earlier experiment on Debian 13 ARM64 rootless Podman 5.4.2, stock Compose
+5.1.4 and Chromium 156.0.8078.4 passed actual Chromium namespace/PID/network/
+seccomp-BPF diagnostics and nested-root parent-network setns/raw-socket denial.
+The inherited SETUID/SETGID/SYS_CHROOT bounding set matters: removing SYS_CHROOT
+at container creation makes Podman's default filter deny Chromium's namespace
+chroot even after user-namespace setup; runner effective/permitted/inheritable/
+ambient capabilities remain zero. The experiment also passed actual SSH GUI
+capture/click/type/key/scroll, leases/idle/reconnect, main browser interaction,
+cancellation/owner death, Tor/forbidden-path/MCP checks, outage/recovery and
+local/simulated HTTPS authenticated transport/results on the qualified engines.
 
-The optional webapp fixture now runs full desktop transport/takeover and browser
-result checks through both local and simulated HTTPS ingress before its
-`--browser-only` return. Its HTTP assertions use same-origin Chromium fetches,
-preserving the browser resolver, cookies and TLS/Host/Origin path; a separate
-Playwright HTTP client cannot resolve the fixture-only hostname. The desktop
-persistence fixture reads runner-owned markers as runner and hashes only the
-public SSH host key through explicit test-root exec, preserving native Linux's
-root-only auth directory. Docker's local/HTTPS desktop and browser-result checks
-passed after these corrections. Docker's real SSH desktop and on/off/on tests
-also passed, preserving identity/workspace/Chromium cookies and refusing missing
-binaries or stopped SSH before explicit recovery.
+Recreation qualification exposed stale Chromium coordination tied to the previous
+container hostname/PID. Startup now unlinks only SingletonLock, SingletonSocket,
+SingletonCookie and DevToolsActivePort as runner before SSH accepts sessions.
+Profile/cookies/credentials and unrelated data persist; removal is nonrecursive,
+does not follow symlink targets, and unexpected errors fail visibly. No lock
+removal occurs during ordinary browser launch. Both engines passed networkless
+preservation/error controls, main browser/sandbox/missing-harness restoration and
+on/off/on real cookie/localStorage/SSH-identity/workspace persistence. The retained
+failed Podman profile also recovered. Fresh design and final independent reviews
+accepted that correction and experiment through `c7eabe9`. Earlier logs remain
+under `/tmp/private-hermes-podman-default-desktop-*` and
+`/tmp/private-hermes-desktop-startup-{podman,docker}*` on their respective hosts.
 
-The corrected full Podman core phase passed actual SSH desktop actions,
-capability/namespace/read-only/private-state checks, host/VM/RPC/TCP/UDP/IPv6/peer
-denials, selected MCP and SSH controls, on/off/on identity/workspace/Chromium
-cookie persistence, missing dependency/SSH refusal and recovery, and Tor
-outage/restart including real browser-harness refusal and recovery. Local Docker
-and native Podman `make check` each passed 160 units, all effective models and
-compilation. Podman's local and simulated HTTPS full desktop transport/takeover,
-browser screenshots/downloads and authentication refusals passed, as did its
-main browser harness and actual automation sandbox diagnostics.
+Qualification exposed a short positive-control connection budget: 3s truncated
+DNS/circuit/TLS establishment (one measured native request needed 4.049s for TLS),
+while DNS allowed two 5s attempts. Positive public curl controls now use 30s
+establishment/90s total, retaining the envelope used by the earlier browser probes. Forbidden
+and outage probes keep their 3s/35s budgets, transport and exact assertions.
+Original DNS/timeout/TLS-EOF failures are retained in qualification logs.
 
-Recreation qualification exposed a shared desktop lifecycle defect: Chromium's
-persisted `SingletonLock` referenced the previous container hostname/PID, and the
-native launcher suppressed its stderr into a generic DevTools timeout. Actual
-failed-stack launch diagnostics confirmed the lock with a healthy display.
-Startup now unlinks only `SingletonLock`, `SingletonSocket`, `SingletonCookie`
-and `DevToolsActivePort` as runner before SSH accepts sessions. These are old
-process coordination; the profile, cookies, credentials and unrelated files
-remain. Removal is nonrecursive and does not follow symlink targets; unexpected
-errors refuse startup visibly. No lock deletion occurs during ordinary browser
-launch. A fresh independent design review accepted this correction at plan
-`44ba88d`.
+Browser and webapp fixtures avoid duplicating public Tor HTTPS requests: the
+model process must share the independently observed executor network namespace,
+reach its existing localhost HTTP fixture, and fail the unchanged private-peer
+probes. Core independently proves public IsTor for that namespace, UID 101 and
+Tor outage/restart. Its browser worker must observe the real outage and recover
+in that same namespace. This retains unique network/placement evidence without
+retrying browser actions or adding a DNS/TLS retry framework. Authenticated local
+and simulated HTTPS display/results remain separately qualified.
 
-The networkless preservation and unexpected-directory refusal controls pass on
-both engines, as do the full browser harness, actual sandbox and missing-harness
-recreation/recovery checks after the correction. The exact retained Podman profile
-that had failed also recovered. Both engines repeated real SSH desktop actions,
-on/off/on Chromium cookie/localStorage and SSH-identity/workspace persistence,
-missing-binary/SSH refusal and recovery, with no private mounts or process
-capabilities granted. Final `make check` passed 160 units, all effective models
-and compilation on both engines. The retained diagnostic root's old fixture
-rendezvous markers were cleared before rerunning its main browser fixture;
-normal qualification uses a fresh disposable root. This changed no profile data
-or production recovery behavior.
+Normal-path adoption qualification passed on both actual providers: 160 unit
+tests, all effective models and compilation; normal desktop-enabled preflight,
+full computer/core checks including Tor/UID-101/outage/restart, main browser,
+namespace/sandbox/cancellation/recreation, networkless startup preservation and
+local/simulated HTTPS authenticated desktop/browser results. Podman also passed
+full lean core after restoring the normal lean tag, qualifying its newly explicit
+empty tmpfs behavior. Docker's custom profile remains selected and its lean tag
+was restored. No experimental overlay or trial image tag was used.
 
-Evidence logs on each test host are under `/tmp/`: the initial experiment uses
-`private-hermes-podman-default-desktop-{sandbox,core,webapp}.log`; corrected native
-startup/preservation and recreation/persistence use
-`private-hermes-desktop-startup-podman.log` and
-`private-hermes-desktop-startup-podman-qualification.log`. Docker's corrected
-checks use `private-hermes-desktop-startup-docker{,-browser,-persistence,-check}.log`;
-its earlier full local/HTTPS run is
-`private-hermes-default-desktop-docker-webapp.log`. The initial recreation failure
-and its direct launch diagnostics were retained as evidence, not reported as
-passes. A fresh independent final combined review accepted the identified
-implementation/test/documentation snapshot on `44ba88d` on 2026-11-13, with no
-material findings or compelling simplifications. It independently inspected the
-source and successful native/Docker qualification logs, including the actual
-formerly locked profile and both-engine persistence controls. The completed
-experiment plan was removed under the planning workflow; Git history retains its
-design and amendments.
-
-The final audit found no current qualification containers, networks or volumes
-on either engine. The retained disposable Podman bind root was removed after
-successful diagnosis/requalification. The normal Podman lean image tag remained
-unchanged; Docker's lean tag was restored. Operator state, an unrelated VM
-network and the two older Docker webapp fixture volumes were preserved.
-These results establish tested functionality on this VM, not policy equivalence:
-the native default's additional kernel interfaces remain as documented above.
-Production policy adoption is a separate decision; this experiment supplies no
-automatic fallback or bypass in operator startup.
+Final logs on each respective host are
+`/tmp/private-hermes-podman-adoption-{docker,podman}-computer-final.log`,
+`-browser-final.log`, `-webapp-final.log` and `-startup.log` (native final startup
+uses `-startup-final.log`). The VM also retains
+`/tmp/private-hermes-podman-adoption-podman-lean.log` and its successful qualified
+batch exit status. Original DNS/connection/TLS failures remain as diagnostic
+logs; an obsolete run was stopped and its disposable state cleaned when the
+final fixture snapshot changed. Successful final runs supply acceptance evidence.
+Final resource audit found no current qualification containers, networks or
+volumes on either engine. Operator state, the stopped normal Docker treasury
+container, the unrelated VM network and two older Docker fixture volumes were
+preserved. A fresh independent final combined review accepted the identified implementation,
+fixtures and documentation snapshot on `288c769`, with no material findings or
+compelling simplifications. It independently inspected both engines' normal-path
+runtime logs, provider/unit/model evidence and matching VM source hashes, and
+passed 43 focused engine tests, local-link inspection and `git diff --check`.
+The completed adoption plan was removed under the planning workflow; Git history
+retains its design. Native Podman desktop support is accepted for the qualified
+scope below.
+Qualification remains limited to the tested Docker Desktop ARM64 and Debian 13
+ARM64 rootless Podman setup. Other kernels/distributions/architectures, live
+Funnel, provider attestation and funded settlement remain outside this evidence.

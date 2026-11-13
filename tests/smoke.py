@@ -118,9 +118,17 @@ def execute(service, *args, user=None, check=True):
     return compose(*options, service, *args, check=check)
 
 
-def curl(service, url, check=True):
-    return execute(service, 'curl', '--noproxy', '*', '-fsS', '--connect-timeout', '3', '--max-time', '35', url,
+def curl(service, url, check=True, *, connect_timeout=3, max_time=35):
+    return execute(service, 'curl', '--noproxy', '*', '-fsS', '--connect-timeout', str(connect_timeout),
+                   '--max-time', str(max_time), url,
                    user='10000:10000' if service == 'executor' else None, check=check)
+
+
+def public_ip(service):
+    # Public Tor controls need DNS/circuit/TLS establishment, unlike forbidden
+    # probes. resolv.conf already allows 5s x 2 DNS attempts before TLS setup.
+    return json.loads(curl(service, 'https://check.torproject.org/api/ip',
+                           connect_timeout=30, max_time=90).stdout)
 
 
 def python(service, code, check=True):
@@ -157,9 +165,9 @@ def run_suite():
         print('Starting isolated test stack...', flush=True)
         start_stack()
         for service in ('hermes', 'executor'):
-            response = eventually(lambda: json.loads(curl(service, 'https://check.torproject.org/api/ip').stdout))
+            response = eventually(lambda: public_ip(service))
             assert response['IsTor'] is True
-        assert json.loads(curl('teep', 'https://check.torproject.org/api/ip').stdout)['IsTor'] is False
+        assert public_ip('teep')['IsTor'] is False
         assert json.loads(curl('hermes', 'http://10.203.83.3:8337/health').stdout)['status'] == 'ok'
         published = compose('port', 'teep', '8337').stdout.strip()
         assert published.startswith('127.0.0.1:'), published
@@ -223,7 +231,11 @@ assert 'REMOTE_EXECUTION 10000' in str(r), r
 assert 'False' in str(r), r
 """)
         print(result.stdout.strip(), flush=True)
-        python('executor', "import pathlib; c=pathlib.Path('/proc/self/status').read_text(); assert 'CapEff:\\t0000000000000000' in c")
+        python('executor', """from pathlib import Path
+status=dict(line.split(':',1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
+assert all(int(status[key].strip(),16)==0 for key in ('CapEff','CapPrm','CapInh','CapAmb')), status
+assert status['NoNewPrivs'].strip()=='1' and status['Seccomp'].strip()=='2', status
+""")
         for service in ('hermes', 'executor'):
             python(service, """import socket
 s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.settimeout(.5)
@@ -234,7 +246,7 @@ for server in ('127.0.0.11', *GATEWAYS):
  except (OSError, TimeoutError): pass
  else: raise AssertionError(('Engine DNS bypass', server))
 """.replace('GATEWAYS', repr(GATEWAYS)))
-        print('PASS: actual Hermes terminal and execute_code run remotely without agent keys; code has no capabilities; embedded DNS blocked', flush=True)
+        print('PASS: actual Hermes terminal and execute_code run remotely without agent keys; code has no capabilities with NNP/seccomp active; embedded DNS blocked', flush=True)
 
         # Actual MCP SDK initialize/list/call over streamed HTTP/SSE.
         python('hermes', """import asyncio
@@ -260,8 +272,8 @@ asyncio.run(main())
             computer_use_smoke.switching_checks()
 
         # Host-controlled fixture launch only: model code never receives sudo.
-        uid_probe = "import os; os.setgroups([]); os.setgid(101); os.setuid(101); os.execvp('curl',['curl','--noproxy','*','-fsS','--connect-timeout','3','--max-time','35','https://check.torproject.org/api/ip'])"
-        uid_result = eventually(lambda: execute('executor', 'python3', '-c', uid_probe, user='0:0'))
+        uid_probe = "import os,sys; os.setgroups([]); os.setgid(101); os.setuid(101); os.execvp('curl',['curl','--noproxy','*','-fsS','--connect-timeout',sys.argv[1],'--max-time',sys.argv[2],'https://check.torproject.org/api/ip'])"
+        uid_result = eventually(lambda: execute('executor', 'python3', '-c', uid_probe, '30', '90', user='0:0'))
         assert json.loads(uid_result.stdout)['IsTor'] is True
         print('PASS: executor UID 101 still uses Tor', flush=True)
 
@@ -270,7 +282,7 @@ asyncio.run(main())
             assert curl(service, 'https://check.torproject.org/api/ip', check=False).returncode != 0
         curl('hermes', 'http://10.203.83.3:8337/health')
         curl('hermes', 'http://10.203.84.10:8000/health')
-        assert execute('executor', 'python3', '-c', uid_probe, user='0:0', check=False).returncode != 0
+        assert execute('executor', 'python3', '-c', uid_probe, '3', '35', user='0:0', check=False).returncode != 0
         print('PASS: Tor outage blocks public egress while local teep/MCP stay available', flush=True)
         if os.environ.get('COMPUTER_USE_ENABLED', 'false') == 'true':
             execute('hermes', '/opt/hermes/.venv/bin/python', '-c', '''import json
@@ -279,15 +291,20 @@ r=json.loads(browser_exec('print("outage-remote")\\nimport urllib.request; urlli
 assert r.get('success') is False and 'outage-remote' in r.get('output',''),r
 ''', user='10000:10000')
         compose('up', '-d', '--wait', '--no-deps', '--wait-timeout', '600', 'tor')
-        assert eventually(lambda: json.loads(curl('executor', 'https://check.torproject.org/api/ip').stdout))['IsTor'] is True
+        assert eventually(lambda: public_ip('executor'))['IsTor'] is True
         print('PASS: Tor restart restores executor public egress through Tor', flush=True)
         if os.environ.get('COMPUTER_USE_ENABLED', 'false') == 'true':
-            execute('hermes', '/opt/hermes/.venv/bin/python', '-c', '''import json
+            # public_ip above proves Tor recovery for this namespace. Confirm
+            # the browser worker recovers there without another public TLS GET.
+            expected_netns = python('executor', "import os; print(os.readlink('/proc/self/ns/net'))").stdout.strip()
+            recovered = ("import os; assert os.readlink('/proc/self/ns/net')==" + repr(expected_netns) +
+                         "; print('executor-recovered')")
+            execute('hermes', '/opt/hermes/.venv/bin/python', '-c', f"""import json
 from tools.browser_use_cli import browser_exec
-r=json.loads(browser_exec('import json,urllib.request; print(json.load(urllib.request.urlopen("https://check.torproject.org/api/ip",timeout=90))["IsTor"])',session='tor-outage'))
-assert r.get('success') and r.get('output','').strip()=='True',r
-''', user='10000:10000')
-            print('PASS: browser harness observes Tor outage and explicit recovery without direct fallback', flush=True)
+r=json.loads(browser_exec({recovered!r},session='tor-outage'))
+assert r.get('success') and r.get('output','').strip()=='executor-recovered',r
+""", user='10000:10000')
+            print('PASS: browser harness observes Tor outage and recovers in the Tor-qualified executor namespace without direct fallback', flush=True)
         failed = False
     except subprocess.CalledProcessError as error:
         print(error.stdout, error.stderr, flush=True)

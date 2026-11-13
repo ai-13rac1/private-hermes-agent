@@ -170,14 +170,12 @@ advertised tools. A profile can still exclude either tool. `browser_cdp`,
 `browser_dialog` and `browser_vault` remain disabled. `WEBAPP_EXTERNAL_CONTENT`
 keeps its separate meaning; there is no second preference for browser automation.
 
-The desktop needs Docker with the current wrapper. Stock Docker Compose sends
-its custom seccomp profile as inline JSON, but Podman 5.4.2's compatible API
-interprets that value as a host filename. Preflight therefore refuses
-`COMPUTER_USE_ENABLED=true` on Podman. Native filename-based delivery works in
-isolated probes, but that integration remains unimplemented. A separate
-[native-default-policy experiment](development.md#podman-default-policy-desktop-experiment)
-does not enable production startup; see [engine differences](architecture.md#rootless-podman) and the
-[delivery investigation](development.md#seccomp-delivery-investigation).
+Docker selects this wrapper's pinned Moby-derived seccomp profile with Chromium
+namespace allowances. Rootless Podman uses its native default seccomp policy for
+both lean and desktop executors. Both retain no-new-privileges and Chromium's
+own sandbox. The policies differ; selecting Podman keeps the same engine baseline
+used by its lean executor. See [engine differences](architecture.md#rootless-podman)
+and [native Podman desktop qualification](development.md#native-podman-desktop-support).
 
 Browser automation supports the executor's packaged Chromium only. External CDP,
 cloud browsers, real host profiles and alternate engines fail before execution.
@@ -192,8 +190,9 @@ named tabs do not provide separate download or cookie authority.
 
 The same executor service, Tor namespace, runner UID/GID 10000, SSH identity and
 home/workspace mounts serve both choices. Neither enables sudo or a writable
-system filesystem. The desktop alone selects a maintained seccomp profile needed
-by Chromium's own sandbox; it adds no container capabilities. Desktop processes
+system filesystem. Docker's desktop selects a maintained seccomp profile for
+Chromium's namespace sandbox; Podman keeps its native default. Neither desktop
+configuration adds container capabilities. Desktop processes
 start on demand through native SSH streams, with native idle shutdown. Standard
 cua-driver permissions and native approvals apply; modes that would create a
 gateway-local driver, including approval-bypass mode, fail with a scoped reason.

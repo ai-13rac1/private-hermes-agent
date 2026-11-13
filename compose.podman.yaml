@@ -17,6 +17,12 @@ services:
     healthcheck:
       start_interval: !reset null
   executor:
+    # Keep the same native policy for lean and desktop Podman executors.
+    # Docker's desktop profile is selected only on Docker, without translation.
+    security_opt: !override [no-new-privileges:true]
+    # Match Docker's empty tmpfs; copying upstream's UID-1000 runtime prevents
+    # the UID-10000 desktop from preparing its private runtime directory.
+    tmpfs: !override ["/tmp:mode=1777,notmpcopyup", "/run:mode=0755,notmpcopyup"]
     healthcheck:
       start_interval: !reset null
   teep:

@@ -23,15 +23,15 @@ def check_engine():
 def check_security_options(config):
     # Compose reads a seccomp profile file and sends its content through the
     # Docker-compatible API. Podman's API treats that value as a file path, so
-    # the container cannot be created. The executor desktop selects such a profile.
+    # the container cannot be created. Normal Podman services use native defaults.
     if engine() != 'podman':
         return
     for name, service in sorted(config['services'].items()):
         for option in service.get('security_opt') or []:
             if option.startswith('seccomp=') and option != 'seccomp=unconfined':
                 raise SystemExit(f'Service {name} selects a custom seccomp profile ({option}). '
-                                 'Podman cannot create it through its Docker-compatible API; the executor '
-                                 'desktop (COMPUTER_USE_ENABLED=true) needs Docker. Set COMPUTER_USE_ENABLED=false.')
+                                 'The Compose provider sends inline JSON, but Podman expects a host filename. '
+                                 'Use the native Podman default without a seccomp override, or Docker for custom profiles.')
 
 
 def subnets(network):

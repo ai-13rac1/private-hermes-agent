@@ -125,7 +125,7 @@ make chat
 For an optional desktop inside the SSH executor, set `COMPUTER_USE_ENABLED=true`
 in `.env`, then run `make down` and `make up`. This selects a substantially larger
 image and enables computer-use and browser automation tools when ready. The
-desktop needs Docker; rootless Podman refuses it. See
+desktop supports the qualified Docker and rootless Podman setups. See
 [desktop configuration and qualification status](docs/configuration.md#optional-executor-desktop).
 
 For remote browser access, follow the [optional Funnel setup](docs/webapp.md#optional-public-funnel).

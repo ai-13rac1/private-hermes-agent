@@ -418,20 +418,22 @@ class ComposeModelTests(unittest.TestCase):
         self.assertEqual(config['networks']['webapp-publish']['driver_opts'],
                          {'com.docker.network.bridge.enable_ip_masquerade': 'false'})
 
-    def test_experimental_podman_desktop_preserves_executor_boundaries(self):
+    def test_normal_podman_executor_preserves_boundaries_with_native_policy(self):
         for enabled in ('false', 'true'):
-            with self.subTest(enabled=enabled), patch.dict(os.environ, COMPUTER_USE_ENABLED=enabled):
-                original = model('compose.yaml', 'compose.podman.yaml')
-                trial = model('compose.yaml', 'tests/podman-desktop-compose.yaml', 'compose.podman.yaml')
-                expected = original['services']['executor'].copy()
-                expected['image'] = 'private-hermes-executor-podman-desktop-trial:local'
-                expected['security_opt'] = ['no-new-privileges:true']
-                expected['tmpfs'] = ['/tmp:mode=1777,notmpcopyup', '/run:mode=0755,notmpcopyup']
-                self.assertEqual(trial['services']['executor'], expected)
-                for service in original['services'].keys() - {'executor'}:
-                    self.assertEqual(trial['services'][service], original['services'][service])
-                self.assertEqual(trial['networks'], original['networks'])
-                self.assertEqual(trial['volumes'], original['volumes'])
+            for funnel in (False, True):
+                with self.subTest(enabled=enabled, funnel=funnel), patch.dict(os.environ, COMPUTER_USE_ENABLED=enabled):
+                    files = ['compose.yaml', *(['compose.funnel.yaml'] if funnel else [])]
+                    original = model(*files)['services']['executor']
+                    config = model(*files, 'compose.podman.yaml',
+                                   *(['compose.podman.funnel.yaml'] if funnel else []))
+                    expected = original.copy()
+                    expected['security_opt'] = ['no-new-privileges:true']
+                    expected['tmpfs'] = ['/tmp:mode=1777,notmpcopyup', '/run:mode=0755,notmpcopyup']
+                    expected['healthcheck'] = {k: v for k, v in original['healthcheck'].items()
+                                               if k != 'start_interval'}
+                    self.assertEqual(config['services']['executor'], expected)
+                    with patch.object(preflight, 'engine', return_value='podman'):
+                        preflight.check_security_options(config)
 
     def test_podman_model_isolates_every_network_without_docker_options(self):
         for files in (('compose.yaml', 'compose.podman.yaml'),
@@ -581,14 +583,14 @@ class PreflightSecurityOptionTests(unittest.TestCase):
         with patch.object(preflight, 'engine', return_value='podman'):
             preflight.check_security_options(self.config())
             preflight.check_security_options(self.config('seccomp=unconfined'))
-            with self.assertRaisesRegex(SystemExit, 'executor.*seccomp-desktop.json.*COMPUTER_USE_ENABLED=false'):
+            with self.assertRaisesRegex(SystemExit, 'executor.*seccomp-desktop.json.*inline JSON.*native Podman default'):
                 preflight.check_security_options(self.config('seccomp=./components/executor/seccomp-desktop.json'))
 
     def test_docker_keeps_custom_seccomp_profiles(self):
         with patch.object(preflight, 'engine', return_value='docker'):
             preflight.check_security_options(self.config('seccomp=./components/executor/seccomp-desktop.json'))
 
-    def test_model_with_the_desktop_selects_the_profile_only_when_enabled(self):
+    def test_docker_definition_selects_the_profile_only_when_enabled(self):
         def options(value):
             result = subprocess.run([*compose_command(), '-f', 'compose.yaml', '--env-file', '/dev/null', 'config',
                                      '--format', 'json'], cwd=ROOT, text=True, capture_output=True,

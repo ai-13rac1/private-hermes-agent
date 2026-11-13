@@ -28,13 +28,13 @@ test: check
 .PHONY: computer-use-test
 computer-use-test: check
 	COMPUTER_USE_ENABLED=true $(COMPOSE) -f compose.yaml build hermes executor
-	python3 scripts/preflight.py private-hermes-test
+	COMPUTER_USE_ENABLED=true python3 scripts/preflight.py private-hermes-test
 	COMPUTER_USE_ENABLED=true python3 -u tests/computer_use_smoke.py
 
 .PHONY: browser-use-test
 browser-use-test: check
 	COMPUTER_USE_ENABLED=true $(COMPOSE) -f compose.yaml build hermes executor
-	python3 scripts/preflight.py private-hermes-test
+	COMPUTER_USE_ENABLED=true python3 scripts/preflight.py private-hermes-test
 	COMPUTER_USE_ENABLED=true python3 -u tests/browser_use_smoke.py
 
 .PHONY: storage-test

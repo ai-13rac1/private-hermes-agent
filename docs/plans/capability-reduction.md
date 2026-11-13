@@ -135,12 +135,14 @@ owning contract. Permanent rationale is in
 [architecture](../architecture.md#executor-capability-requirements) and
 [development](../development.md#executor-desktop-qualification).
 
-The desktop's Chromium sandbox needs namespace syscalls denied by Docker's
-default seccomp policy. A desktop-only profile based on pinned modern Moby policy
-adds `clone`, `setns`, `unshare`; this adds no container capabilities but exposes
-user-namespace kernel paths. Child-namespace capabilities are not parent-network
-namespace authority. Keep lean on the engine default: this syscall allowance is
-not itself a capability reduction that justifies changing the lean default.
+Docker desktop's Chromium sandbox needs namespace syscalls denied by Docker's
+default seccomp policy. Its desktop-only profile based on pinned modern Moby
+policy adds `clone`, `setns`, `unshare`. Both lean and desktop Podman use their
+native engine policy, as accepted for native desktop adoption. Neither selection
+adds container capabilities; namespace support exposes user-namespace kernel paths. Child-namespace capabilities are not parent-network
+namespace authority. Keep lean on the engine default: Docker's desktop syscall allowance does not
+justify changing its lean default. Podman already permits the required sandbox
+with its native default; its policy is not identical to the Docker profile.
 Browser/GUI/driver/model processes must have no effective/permitted capabilities
 in the executor's original user namespace. ARM64 runtime checks found Xvnc,
 xfwm4, xfdesktop, xfce4-panel and cua-driver at UID 10000 with empty effective,
