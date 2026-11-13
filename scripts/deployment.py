@@ -328,7 +328,8 @@ def _run_target(rest, volumes=None):
             for index, letter in enumerate(value[1:], start=1):
                 short = '-' + letter
                 if short in RUN_VALUE_OPTIONS:
-                    operand = value[index + 1:] or next(arguments, None)
+                    attached = value[index + 1:]
+                    operand = attached.removeprefix('=') if attached else next(arguments, None)
                     if operand is None:
                         return None, no_deps, dry_run
                     if short == '-v' and volumes is not None:

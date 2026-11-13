@@ -67,7 +67,8 @@ def profile_cleanup_checks(override):
         finally:
             smoke.COMPOSE = previous
     for kind in ('container', 'network', 'volume'):
-        found = subprocess.check_output([*engine_command(), kind, 'ls', '-q', '--filter',
+        found = subprocess.check_output([*engine_command(), kind, 'ls', '-q',
+                                         *(['-a'] if kind == 'container' else []), '--filter',
                                          f'label=com.docker.compose.project={project}'], text=True)
         assert not found.strip(), ('Profile cleanup left project resources', kind, found)
     print(f'PASS: {engine()} cleanup removes stopped profiled namespace users before owners', flush=True)

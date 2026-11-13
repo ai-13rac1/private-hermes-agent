@@ -45,6 +45,7 @@ class BindSourceTests(unittest.TestCase):
             services = {'job': {'volumes': [mount(Path(folder) / 'absent')]}}
             for override in (f'{folder}:/input:ro', 'saved:/input', '/input'):
                 self.check(services, ['run', '-Tv', override, '--no-deps', 'job'])
+            self.check(services, ['run', f'-Tv={folder}:/input:ro', '--no-deps', 'job'])
             with self.assertRaisesRegex(RuntimeError, 'missing'):
                 self.check(services, ['run', '-v', f'{folder}/missing:/input', 'job'])
             services['dep'] = services['job']

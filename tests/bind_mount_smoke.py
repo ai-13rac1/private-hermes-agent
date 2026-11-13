@@ -40,7 +40,8 @@ def main():
                 assert result.returncode and 'Required bind source missing' in result.stderr, result.stderr
                 assert not missing.exists(), 'Rejected launch created missing source'
                 for kind in ('container', 'network'):
-                    found = subprocess.check_output([*engine_command(), kind, 'ls', '-q', '--filter',
+                    found = subprocess.check_output([*engine_command(), kind, 'ls', '-q',
+                        *(['-a'] if kind == 'container' else []), '--filter',
                         f'label=com.docker.compose.project={project}'], text=True)
                     assert not found.strip(), ('Rejected launch created resources', kind, found)
             subprocess.run([*engine_command(), 'volume', 'create', '--label',
@@ -49,6 +50,7 @@ def main():
             for arguments in (['scale', 'bind-absent=0'],
                               ['run', '--rm', '--no-deps', 'bind-dependent'],
                               ['run', '--rm', '-v', f'{present}:/probe:ro', 'bind-absent'],
+                              ['run', '--rm', f'-Tv={present}:/probe:ro', 'bind-absent'],
                               ['run', '--rm', '-v', f'{project}-override:/probe', 'bind-absent'],
                               ['run', '--rm', '--no-deps', 'hermes-config', '--help']):
                 subprocess.run([*command, *arguments], cwd=ROOT, check=True, capture_output=True)
