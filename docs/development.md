@@ -78,7 +78,8 @@ live tests use the same Compose files and engine commands as the stack. Run
 runs, dependency/namespace-owner network creation, truly offline runs, rejected
 maintenance overrides and disposable network cleanup. It uses no private mounts,
 Tor or wallets; serialize it with the other fixed-subnet fixtures. The same check
-uses native strict-network inspection when Podman is selected.
+uses native strict-network inspection when Podman is selected. It also checks
+native dry-run placement and preserves an unused network during simulated down.
 Run
 `make test` on each engine (`CONTAINER_ENGINE=podman make test` selects Podman
 without editing `.env`) before changing network, ingress or overlay code. On

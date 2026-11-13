@@ -105,8 +105,10 @@ Native `--dry-run` placement after the subcommand is also recognized, including
 Compose flag. Dry runs neither prepare nor remove real project networks.
 Shared-namespace runs and none-mode jobs with dependencies can create their
 owner's/dependencies' networks even with `--no-deps`, so they are prepared too.
-Named offline maintenance jobs reject networking/dependency overrides; inspection
-and repair retain their networkless path.
+Named offline maintenance jobs reject overrides that network the job or its
+dependencies; inspection and repair retain their networkless path. Treasury
+one-shot work uses the same launch classification as stack startup, so engine
+policy is checked before online wallet preparation, not only at later activation.
 
 Compose creates networks through Podman's Docker-compatible API, which sets
 only `isolate=true` and drops other bridge options. Before Compose starts

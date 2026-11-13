@@ -1,10 +1,11 @@
 # Rootless Podman support
 
 Status: original G1 passed; P1 is merged; original P2 and P4 are implemented.
-P5 and P6 are implemented on branch `podman-p5` (rebased onto `main` `3161614`)
-and qualified on rootless Podman (P5 evidence below); R1–R3 are resolved there.
-Amendment design gate G1A passed. Review of `e2ad623` found further launch and
-qualification defects; the correction work below is active. Final G2 is open.
+P5 and P6 are implemented with prior rootless Podman evidence (P5 below).
+Review of `e2ad623` found further R1/R2 launch gaps and qualification defects;
+the corrections below are implemented and Docker-qualified. R3 is resolved.
+Amendment design gate G1A passed. Combined correction review is in progress;
+full dual-engine G2 remains open pending the explicit Podman follow-up below.
 Planning baseline: branch `main`, commit `4a08841`. Amendment baseline: branch
 `main`, commit `1d83657`.
 Explicit-selection amendment baseline: branch `rootless-podman-support`, commit
@@ -41,6 +42,28 @@ repair/inspection/shutdown and engine overlay ordering. Add no lifecycle state o
 new orchestration. Reuse still-valid Docker evidence, rerun affected checks and
 record correction/review results here and in maintained qualification guidance.
 Resolve additional review findings with the same commit and validation discipline.
+
+Correction evidence through `3c6c97d` (Docker Desktop ARM64, Engine 29.9.3,
+Compose 5.7.0): 139 unit tests, four effective models and compilation pass.
+The selected-engine cold-launch fixture passes eight allowed/refused cases plus
+native command-level dry up/run/down, including preservation of an existing
+unused network. Shared and transitive dependency paths, both engine command
+paths, alternate interpolation inputs/Funnel selection, refusal before mutation,
+short option clusters and container-command flag boundaries have focused coverage.
+The standalone tool-policy (12 combinations), URL-context and unfunded research
+configuration checks pass; the main SSH/MCP/Tor/outage/recovery and storage suites
+also pass. No private operator state or funds are used.
+
+A fresh combined review of `e500df7` found four further defects, corrected in
+`15e48e7`, `5dc5a4c`, `1a8a47c` and `3c6c97d`: the new model test hardcoded
+Docker, combined run flags could select the wrong offline target, treasury
+one-shot preparation skipped launch checks, and command-level dry runs could
+create/remove Podman networks. The model tests now use the selected provider;
+treasury reuses network classification. Run parsing recognizes native shorthand
+clusters and known flag arity, rejects unknown options before mutation and stops
+at the service boundary. Native Compose still owns option-value validation.
+Dry runs skip both preparation and leftover-network cleanup. A new fresh review
+must assess the resulting combined branch, not reuse that review conversation.
 
 ## Intent and scope
 
@@ -572,7 +595,7 @@ host policy must not be rejected by a blanket wrapper rule. Do not change host
 policy to perform the check; no Docker runtime rerun is needed for comment/prose
 changes alone.
 
-### P7 — Amendment qualification and final combined review (not implemented)
+### P7 — Amendment qualification and final combined review (Docker correction pass qualified; Podman follow-up pending)
 
 Run focused P5 checks, then repeat affected P3/runtime checks on Docker Desktop
 and a rootless Podman host with both engines installed. Serialize fixed-subnet
@@ -699,10 +722,13 @@ volume deletion, wallet reinitialization or automatic cross-engine migration.
   seccomp profile that Podman's compatible API cannot apply (F11), so they are
   Docker-only, and preflight refuses them on Podman. A way to apply the profile
   on Podman is not designed.
-- P5–P7 are unimplemented/unqualified. No Podman is installed on the current
-  review host; obtain rootless runtime and dual-engine evidence on another host.
-- Docker: P3 items outside the recorded `86c74f9` Docker Desktop run, including
-  Linux Docker and any checks needed after the P5 command-path changes.
+- P5/P6 and the review corrections are implemented. No Podman is installed on
+  the correction host. Rerun the corrected cold-launch/dry-run fixture, standalone
+  policy checks and research fixture on rootless Podman, plus the P7 endpoint,
+  ingress and lifecycle checks, before closing full dual-engine G2.
+- Linux Docker remains outside the recorded Docker Desktop evidence. The current
+  Docker correction pass and still-valid prior component evidence do not establish
+  support for an untested engine, kernel or architecture.
 - The x402_treazury lifecycle on Podman beyond `x402_treazury-test`:
   `make x402_treazury-init`, the preparation path up to funding, the live
   `serving_instance()` and `log_since()` path, `.Config.StopTimeout` for
