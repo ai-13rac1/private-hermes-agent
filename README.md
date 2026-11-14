@@ -1,5 +1,9 @@
 # Private Hermes
 
+<p align="center">
+  <img src="docs/images/PrivateHermes.jpg" alt="Private Hermes" width="50%">
+</p>
+
 Private Hermes is a Docker Compose stack for running [Hermes Agent](https://github.com/NousResearch/hermes-agent)
 with private research tools, code execution in a separate container, and an
 authenticated web interface. It brings together Tor-routed Internet access,
